@@ -43,6 +43,7 @@
 #include "erl_async.h"
 #include "dtrace-wrapper.h"
 #include "erl_ptab.h"
+#include "beam_lttng.h"
 
 #define ERTS_DELAYED_WAKEUP_INFINITY (~(Uint64) 0)
 #define ERTS_DELAYED_WAKEUP_REDUCTIONS ((Uint64) CONTEXT_REDS/2)
@@ -7036,7 +7037,9 @@ Process *schedule(Process *p, int calls)
 	    erts_sys_schedule_interrupt(0);
 #endif
 	    erts_smp_runq_unlock(rq);
+        tracepoint(erlang_beam, sched_sleep, esdp->no);
 	    erl_sys_schedule(1);
+        tracepoint(erlang_beam, sched_wake, esdp->no);
 	    dt = erts_do_time_read_and_reset();
 	    if (dt) erts_bump_timer(dt);
 

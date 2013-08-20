@@ -1,0 +1,19 @@
+
+TRACEPOINT_EVENT(
+                  erlang_beam,
+                  sched_sleep, // Comment
+                  TP_ARGS(int, sched_num),
+                  /* Next are the fields */
+                  TP_FIELDS(
+                      ctf_integer(int, sched_num, sched_num)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang_beam,
+                  sched_wake, // Comment
+                  TP_ARGS(int, sched_num),
+                  /* Next are the fields */
+                  TP_FIELDS(
+                      ctf_integer(int, sched_num, sched_num)
+                  )
+              )
