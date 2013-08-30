@@ -278,7 +278,7 @@ fi
 
 
 AC_ARG_WITH(dynamic-trace,
-AS_HELP_STRING([--with-dynamic-trace={dtrace|systemtap}],
+AS_HELP_STRING([--with-dynamic-trace={dtrace|systemtap|lttng}],
 	       [specify use of dynamic trace framework, dtrace or systemtap])
 AS_HELP_STRING([--without-dynamic-trace], 
                [don't enable any dynamic tracing (default)]))
@@ -297,6 +297,10 @@ case "$with_dynamic_trace" in
 	    AC_DEFINE(USE_SYSTEMTAP,[1],
 		[Define if you want to use systemtap for dynamic tracing])
 	    DYNAMIC_TRACE_FRAMEWORK=systemtap;;
+     lttng) 
+	    AC_DEFINE(USE_LTTNG,[1],
+		[Define if you want to use lttng for dynamic tracing])
+	    DYNAMIC_TRACE_FRAMEWORK=lttng;;
      *)	
      	    AC_MSG_ERROR(Unknown dynamic tracing framework specified with --with-dynamic-trace!);;
 esac

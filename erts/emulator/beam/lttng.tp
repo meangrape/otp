@@ -1,19 +1,162 @@
 
 TRACEPOINT_EVENT(
-                  erlang_beam,
-                  sched_sleep, // Comment
+                  erlang,
+                  sched_sleep,
                   TP_ARGS(int, sched_num),
-                  /* Next are the fields */
                   TP_FIELDS(
                       ctf_integer(int, sched_num, sched_num)
                   )
               )
 TRACEPOINT_EVENT(
-                  erlang_beam,
+                  erlang,
                   sched_wake, // Comment
                   TP_ARGS(int, sched_num),
-                  /* Next are the fields */
                   TP_FIELDS(
                       ctf_integer(int, sched_num, sched_num)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  local_function_entry,
+                  TP_ARGS(char *, proc, char *, mfa, int, depth),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                      ctf_integer(int, depth, depth)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  global_function_entry,
+                  TP_ARGS(char *, proc, char *, mfa, int, depth),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                      ctf_integer(int, depth, depth)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  function_return,
+                  TP_ARGS(char *, proc, char *, mfa, int, depth),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                      ctf_integer(int, depth, depth)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  bif_entry,
+                  TP_ARGS(char *, proc, char *, mfa),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  bif_return,
+                  TP_ARGS(char *, proc, char *, mfa),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  nif_entry,
+                  TP_ARGS(char *, proc, char *, mfa),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  nif_return,
+                  TP_ARGS(char *, proc, char *, mfa),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  process_scheduled,
+                  TP_ARGS(char *, proc, char *, mfa),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(mfa, mfa)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  process_unscheduled,
+                  TP_ARGS(char *, proc),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  process_port_unblocked,
+                  TP_ARGS(char *, proc, char *, port),
+                  TP_FIELDS(
+                      ctf_string(proc, proc)
+                      ctf_string(port, port)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  debug,
+                  TP_ARGS(char *, msg),
+                  TP_FIELDS(
+                      ctf_string(msg, msg)
+                  )
+              )
+
+TRACEPOINT_EVENT(
+                  erlang,
+                  driver_timeout,
+                  TP_ARGS(char *, node, char *, port,
+                             char *, port_name),
+                  TP_FIELDS(
+                      ctf_string(node, node)
+                      ctf_string(port, port)
+                      ctf_string(port_name, port_name)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  driver_ready_input,
+                  TP_ARGS(char *, node, char *, port,
+                             char *, port_name),
+                  TP_FIELDS(
+                      ctf_string(node, node)
+                      ctf_string(port, port)
+                      ctf_string(port_name, port_name)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  driver_ready_output,
+                  TP_ARGS(char *, node, char *, port,
+                             char *, port_name),
+                  TP_FIELDS(
+                      ctf_string(node, node)
+                      ctf_string(port, port)
+                      ctf_string(port_name, port_name)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  driver_event,
+                  TP_ARGS(char *, node, char *, port,
+                             char *, port_name),
+                  TP_FIELDS(
+                      ctf_string(node, node)
+                      ctf_string(port, port)
+                      ctf_string(port_name, port_name)
                   )
               )

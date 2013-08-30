@@ -41,6 +41,7 @@
 #include "hipe_bif1.h"
 #endif
 #include "dtrace-wrapper.h"
+#include "beam_lttng.h"
 
 /* #define HARDDEBUG 1 */
 
@@ -1000,7 +1001,7 @@ init_emulator(void)
         int depth = STACK_START(p) - STACK_TOP(p);			\
         dtrace_fun_decode(p, m, f, a,					\
                           process_name, mfa);				\
-        DTRACE3(local_function_entry, process_name, mfa, depth);	\
+        NDTRACE3(local_function_entry, process_name, mfa, depth);	\
     }
 
 #define DTRACE_GLOBAL_CALL(p, m, f, a)					\
@@ -1070,7 +1071,71 @@ init_emulator(void)
 #define DTRACE_NIF_RETURN(p, m, f, a)  do {} while (0)
 
 #endif /* USE_VM_PROBES */
+#define DTRACE_LOCAL_CALL(p, m, f, a)					\
+{ \
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);		\
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);			\
+        int depth = STACK_START(p) - STACK_TOP(p);			\
+        dtrace_fun_decode(p, m, f, a,					\
+                          process_name, mfa);				\
+        tracepoint(erlang, local_function_entry, process_name, mfa, depth);	\
+    }
 
+#define DTRACE_GLOBAL_CALL(p, m, f, a)					\
+    {			\
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);		\
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);			\
+        int depth = STACK_START(p) - STACK_TOP(p);			\
+        dtrace_fun_decode(p, m, f, a,					\
+                          process_name, mfa);				\
+        tracepoint(erlang, global_function_entry, process_name, mfa, depth);	\
+    }
+
+#define DTRACE_RETURN(p, m, f, a)                               \
+    {                      \
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);     \
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);              \
+        int depth = STACK_START(p) - STACK_TOP(p);              \
+        dtrace_fun_decode(p, m, f, a,                           \
+                          process_name, mfa);                   \
+        tracepoint(erlang, function_return, process_name, mfa, depth);     \
+    }
+
+#define DTRACE_BIF_ENTRY(p, m, f, a)                            \
+    {                            \
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);     \
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);              \
+        dtrace_fun_decode(p, m, f, a,                           \
+                          process_name, mfa);                   \
+        tracepoint(erlang, bif_entry, process_name, mfa);                  \
+    }
+
+#define DTRACE_BIF_RETURN(p, m, f, a)                           \
+    {                           \
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);     \
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);              \
+        dtrace_fun_decode(p, m, f, a,                           \
+                          process_name, mfa);                   \
+        tracepoint(erlang, bif_return, process_name, mfa);                 \
+    }
+
+#define DTRACE_NIF_ENTRY(p, m, f, a)                            \
+    {                            \
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);     \
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);              \
+        dtrace_fun_decode(p, m, f, a,                           \
+                          process_name, mfa);                   \
+        tracepoint(erlang, nif_entry, process_name, mfa);                  \
+    }
+
+#define DTRACE_NIF_RETURN(p, m, f, a)                           \
+    {                           \
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);     \
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);              \
+        dtrace_fun_decode(p, m, f, a,                           \
+                          process_name, mfa);                   \
+        tracepoint(erlang, nif_return, process_name, mfa);                 \
+    }
 /*
  * process_main() is called twice:
  * The first call performs some initialisation, including exporting
@@ -1278,6 +1343,27 @@ void process_main(void)
             DTRACE2(process_scheduled, process_buf, fun_buf);
         }
 #endif
+        {
+            DTRACE_CHARBUF(process_buf, DTRACE_TERM_BUF_SIZE);
+            DTRACE_CHARBUF(fun_buf, DTRACE_TERM_BUF_SIZE);
+            dtrace_proc_str(c_p, process_buf);
+
+            if (ERTS_PROC_IS_EXITING(c_p)) {
+                strcpy(fun_buf, "<exiting>");
+            } else {
+                BeamInstr *fptr = find_function_from_pc(c_p->i);
+                if (fptr) {
+                    dtrace_fun_decode(c_p, (Eterm)fptr[0],
+                                      (Eterm)fptr[1], (Uint)fptr[2],
+                                      NULL, fun_buf);
+                } else {
+                    erts_snprintf(fun_buf, sizeof(fun_buf),
+                                  "<unknown/%p>", next);
+                }
+            }
+
+            tracepoint(erlang, process_scheduled, process_buf, fun_buf);
+        }
 	Goto(next);
     }
 

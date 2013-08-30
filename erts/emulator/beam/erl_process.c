@@ -45,6 +45,11 @@
 #include "erl_ptab.h"
 #include "beam_lttng.h"
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define TRACE_DBG() tracepoint(erlang, debug, "Trace at : " __FILE__ ", " TOSTRING(__LINE__))
+#define TRACE_MSG(msg) tracepoint(erlang, debug, msg " : " __FILE__ ", " TOSTRING(__LINE__))
+
 #define ERTS_DELAYED_WAKEUP_INFINITY (~(Uint64) 0)
 #define ERTS_DELAYED_WAKEUP_REDUCTIONS ((Uint64) CONTEXT_REDS/2)
 
@@ -6783,6 +6788,12 @@ Process *schedule(Process *p, int calls)
         DTRACE1(process_unscheduled, process_buf);
     }
 #endif
+    if (p != NULL) {
+        DTRACE_CHARBUF(process_buf, DTRACE_TERM_BUF_SIZE);
+
+        dtrace_proc_str(p, process_buf);
+        tracepoint(erlang, process_unscheduled, process_buf);
+    }
 
     if (ERTS_USE_MODIFIED_TIMING()) {
 	context_reds = ERTS_MODIFIED_TIMING_CONTEXT_REDS;
@@ -6937,6 +6948,8 @@ Process *schedule(Process *p, int calls)
     continue_check_activities_to_run_known_flags:
 
 
+    TRACE_DBG();
+
 	if (flags & (ERTS_RUNQ_FLG_CHK_CPU_BIND|ERTS_RUNQ_FLG_SUSPENDED)) {
 	
 	    if (flags & ERTS_RUNQ_FLG_SUSPENDED) {
@@ -6950,6 +6963,7 @@ Process *schedule(Process *p, int calls)
 	    }
 	}
 
+    TRACE_DBG();
 	{
 	    erts_aint32_t aux_work;
 	    int leader_update = erts_thr_progress_update(esdp);
@@ -6963,6 +6977,7 @@ Process *schedule(Process *p, int calls)
 		erts_smp_runq_lock(rq);
 	    }
 	}
+    TRACE_DBG();
 
 	ERTS_SMP_LC_ASSERT(!erts_thr_progress_is_blocking());
 	ERTS_SMP_LC_ASSERT(erts_smp_lc_runq_is_locked(rq));
@@ -7015,9 +7030,9 @@ Process *schedule(Process *p, int calls)
 
 #endif
 
-        tracepoint(erlang_beam, sched_sleep, esdp->no);
+        tracepoint(erlang, sched_sleep, esdp->no);
 	    scheduler_wait(&fcalls, esdp, rq);
-        tracepoint(erlang_beam, sched_wake, esdp->no);
+        tracepoint(erlang, sched_wake, esdp->no);
 
 #ifdef ERTS_SMP
 	    non_empty_runq(rq);
@@ -7030,6 +7045,7 @@ Process *schedule(Process *p, int calls)
 	     * Schedule system-level activities.
 	     */
 
+        TRACE_DBG();
 	    erts_smp_atomic32_set_relb(&function_calls, 0);
 	    fcalls = 0;
 
@@ -7046,6 +7062,7 @@ Process *schedule(Process *p, int calls)
 #ifdef ERTS_SMP
 	    erts_smp_runq_lock(rq);
 	    clear_sys_scheduling();
+        TRACE_DBG();
 	    goto continue_check_activities_to_run;
 #else
 	    goto check_activities_to_run;
@@ -7064,6 +7081,7 @@ Process *schedule(Process *p, int calls)
 	 */
 
 	if (RUNQ_READ_LEN(&rq->ports.info.len)) {
+        TRACE_DBG();
 	    int have_outstanding_io;
 	    have_outstanding_io = erts_port_task_execute(rq, &esdp->current_port);
 	    if ((have_outstanding_io && fcalls > 2*input_reductions)
@@ -7083,6 +7101,7 @@ Process *schedule(Process *p, int calls)
 		 *
 		 * /rickard
 		 */
+            TRACE_MSG("Hit input reductions");
 		goto check_activities_to_run;
 	    }
 	}
@@ -7190,6 +7209,7 @@ Process *schedule(Process *p, int calls)
 
 	reds = context_reds;
 
+    TRACE_DBG();
 	if (IS_TRACED(p)) {
 	    if (state & ERTS_PSFLG_EXITING) {
 		if (ARE_TRACE_FLAGS_ON(p, F_TRACE_SCHED_EXIT))
@@ -7205,6 +7225,7 @@ Process *schedule(Process *p, int calls)
 		erts_schedule_time_break(p, ERTS_BP_CALL_TIME_SCHEDULE_IN);
 	    }
 	}
+    TRACE_DBG();
 
 	erts_smp_proc_unlock(p, ERTS_PROC_LOCK_STATUS);
 

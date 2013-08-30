@@ -46,6 +46,48 @@
 
 #if defined(USE_DYNAMIC_TRACE) && defined(USE_VM_PROBES) 
 
+#if defined(USE_LTTNG)
+
+#include "beam_lttng.h"
+
+#define DTRACE0(name)                                do {} while (0)
+#define DTRACE1(name, a0)                            do {} while (0)
+#define DTRACE2(name, a0, a1)                        do {} while (0)
+#define DTRACE3(name, a0, a1, a2)                    do {} while (0)
+#define DTRACE4(name, a0, a1, a2, a3)                do {} while (0)
+#define DTRACE5(name, a0, a1, a2, a3, a4)            do {} while (0)
+#define DTRACE6(name, a0, a1, a2, a3, a4, a5)        do {} while (0)
+#define DTRACE7(name, a0, a1, a2, a3, a4, a5, a6)    do {} while (0)
+#define DTRACE10(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+                                                     do {} while (0)
+#define DTRACE11(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+                                                     do {} while (0)
+
+
+#define DTRACE_ENABLED(name) 1
+#define NDTRACE0(name)                                \
+    tracepoint(erlang_beam, name)
+#define NDTRACE1(name, a0)                            \
+    tracepoint(erlang_beam, name, a0)
+#define NDTRACE2(name, a0, a1)                        \
+    tracepoint(erlang_beam, name, (a0), (a1))
+#define NDTRACE3(name, a0, a1, a2)                    \
+    tracepoint(erlang_beam, name, (a0), (a1), (a2))
+#define NDTRACE4(name, a0, a1, a2, a3)                \
+    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3))
+#define NDTRACE5(name, a0, a1, a2, a3, a4)            \
+    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4))
+#define NDTRACE6(name, a0, a1, a2, a3, a4, a5)        \
+    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5))
+#define NDTRACE7(name, a0, a1, a2, a3, a4, a5, a6)    \
+    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6))
+#define NDTRACE10(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9))
+#define NDTRACE11(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9), (a10))
+
+#else /* USE_LTTNG */
+
 #include "erlang_dtrace.h"
 
 #define DTRACE_ENABLED(name)                         \
@@ -88,6 +130,8 @@
 #define STAP_PROBE11(provider,probe,parm1,parm2,parm3,parm4,parm5,parm6,parm7,parm8,parm9,parm10,parm11) \
     STAP_PROBE10(provider,probe,(parm1),(parm2),(parm3),(parm4),(parm5),(parm6),(parm7),(parm8),(parm9),(parm10))
 #endif /* STAP_PROBE_ADDR */
+
+#endif /* USE_LTTNG */
 
 #else   /* USE_DYNAMIC_TRACE && USE_VM_PROBES */
 

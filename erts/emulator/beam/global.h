@@ -1234,10 +1234,14 @@ ERTS_GLB_INLINE void dtrace_fun_decode(Process *process,
 ERTS_GLB_INLINE void
 dtrace_pid_str(Eterm pid, char *process_buf)
 {
+    if (pid != NIL) {
     erts_snprintf(process_buf, DTRACE_TERM_BUF_SIZE, "<%lu.%lu.%lu>",
                   pid_channel_no(pid),
                   pid_number(pid),
                   pid_serial(pid));
+    } else {
+        erts_snprintf(process_buf, DTRACE_TERM_BUF_SIZE, "NIL");
+    }
 }
 
 ERTS_GLB_INLINE void
