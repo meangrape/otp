@@ -70,7 +70,7 @@ static void chk_task_queues(Port *pp, ErtsPortTask *execq, int processing_busy_q
 #endif
 
 #define DTRACE_DRIVER(PROBE_NAME, PP)                              \
-    {                              \
+    if (PP) {                              \
         DTRACE_CHARBUF(process_str, DTRACE_TERM_BUF_SIZE);         \
         DTRACE_CHARBUF(port_str, DTRACE_TERM_BUF_SIZE);            \
                                                                    \
@@ -1615,6 +1615,8 @@ erts_port_task_execute(ErtsRunQueue *runq, Port **curr_port_pp)
 	goto done;
     }
 
+    DTRACE_DRIVER(begin_port_tasks, pp);
+
     erts_smp_runq_unlock(runq);
 
     *curr_port_pp = pp;
@@ -1832,6 +1834,8 @@ erts_port_task_execute(ErtsRunQueue *runq, Port **curr_port_pp)
     }
 
  done:
+    DTRACE_DRIVER(end_port_tasks, pp);
+
     res = (erts_smp_atomic_read_nob(&erts_port_task_outstanding_io_tasks)
 	   != (erts_aint_t) 0);
 

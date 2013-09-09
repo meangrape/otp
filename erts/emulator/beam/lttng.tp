@@ -160,3 +160,26 @@ TRACEPOINT_EVENT(
                       ctf_string(port_name, port_name)
                   )
               )
+TRACEPOINT_EVENT(
+                  erlang,
+                  begin_port_tasks,
+                  TP_ARGS(char *, node, char *, port,
+                             char *, port_name),
+                  TP_FIELDS(
+                      ctf_string(node, node)
+                      ctf_string(port, port)
+                      ctf_string(port_name, port_name)
+                  )
+              )
+TRACEPOINT_EVENT(
+                  erlang,
+                  end_port_tasks,
+                  TP_ARGS(char *, node, char *, port,
+                             char *, port_name),
+                  TP_FIELDS(
+                      ctf_string(node, node)
+                      ctf_string(port, port)
+                      ctf_string(port_name, port_name)
+                  )
+              )
+
