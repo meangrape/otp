@@ -270,6 +270,8 @@ is_acceptable_version({N,_})
 is_acceptable_version(_) ->
     false.
 
+is_acceptable_version({3,0}, _Versions) ->
+    false;
 is_acceptable_version({N,_} = Version, Versions)   
   when N >= ?LOWEST_MAJOR_SUPPORTED_VERSION ->
     lists:member(Version, Versions);
