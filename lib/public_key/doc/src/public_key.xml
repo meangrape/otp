@@ -5,7 +5,7 @@
   <header>
     <copyright>
       <year>2008</year>
-      <year>2014</year>
+      <year>2015</year>
       <holder>Ericsson AB, All Rights Reserved</holder>
     </copyright>
     <legalnotice>
@@ -126,6 +126,8 @@
     <p><code>crl_reason()  = unspecified | keyCompromise | cACompromise |
     affiliationChanged | superseded | cessationOfOperation |
     certificateHold | privilegeWithdrawn | aACompromise</code></p>
+
+    <p><code>issuer_name() = {rdnSequence,[#'AttributeTypeAndValue'{}]} </code> </p>
 
     <p><code>ssh_file()  = openssh_public_key | rfc4716_public_key | known_hosts |
     auth_keys</code></p>
@@ -368,8 +370,8 @@
     <name>pkix_is_issuer(Cert, IssuerCert) -> boolean()</name>
     <fsummary> Checks if <c>IssuerCert</c> issued <c>Cert</c> </fsummary>
     <type>
-      <v>Cert = der_encode() | #'OTPCertificate'{}</v> 
-      <v>IssuerCert = der_encode() | #'OTPCertificate'{}</v> 
+      <v>Cert = der_encoded() | #'OTPCertificate'{}</v>
+      <v>IssuerCert = der_encoded() | #'OTPCertificate'{}</v>
   </type> 
   <desc> 
     <p> Checks if <c>IssuerCert</c> issued <c>Cert</c> </p> 
@@ -380,7 +382,7 @@
     <name>pkix_is_fixed_dh_cert(Cert) -> boolean()</name>
     <fsummary> Checks if a Certificate is a fixed Diffie-Hellman Cert.</fsummary>
     <type>
-        <v>Cert = der_encode() | #'OTPCertificate'{}</v> 
+        <v>Cert = der_encoded() | #'OTPCertificate'{}</v>
   </type> 
   <desc> 
     <p> Checks if a Certificate is a fixed Diffie-Hellman Cert.</p> 
@@ -391,7 +393,7 @@
     <name>pkix_is_self_signed(Cert) -> boolean()</name>
     <fsummary> Checks if a Certificate is self signed.</fsummary>
     <type>
-       <v>Cert = der_encode() | #'OTPCertificate'{}</v> 
+       <v>Cert = der_encoded() | #'OTPCertificate'{}</v>
   </type> 
   <desc> 
     <p> Checks if a Certificate is self signed.</p> 
@@ -402,24 +404,25 @@
     <name>pkix_issuer_id(Cert, IssuedBy) -> {ok, IssuerID} | {error, Reason}</name>
     <fsummary> Returns the issuer id.</fsummary>
     <type>
-        <v>Cert = der_encode() | #'OTPCertificate'{}</v>
+        <v>Cert = der_encoded() | #'OTPCertificate'{}</v>
 	<v>IssuedBy = self | other</v>
-	<v>IssuerID = {integer(), {rdnSequence, [#'AttributeTypeAndValue'{}]}}</v>
+	<v>IssuerID = {integer(), issuer_name()}</v>
 	<d>The issuer id consists of the serial number and the issuers name.</d>
 	<v>Reason = term()</v>
-  </type> 
-  <desc> 
-    <p> Returns the issuer id.</p> 
-  </desc> 
+    </type> 
+    <desc> 
+      <p> Returns the issuer id.</p> 
+    </desc> 
   </func>
-
+  
+ 
   <func>
     <name>pkix_normalize_name(Issuer) -> Normalized</name>
     <fsummary>Normalizes a issuer name so that it can be easily
     compared to another issuer name. </fsummary>
     <type>
-      <v>Issuer = {rdnSequence,[#'AttributeTypeAndValue'{}]}</v>
-      <v>Normalized = {rdnSequence, [#'AttributeTypeAndValue'{}]}</v>
+      <v>Issuer = issuer_name()</v>
+      <v>Normalized = issuer_name()</v>
   </type> 
   <desc> 
     <p>Normalizes a issuer name so that it can be easily
@@ -431,13 +434,13 @@
     <name>pkix_path_validation(TrustedCert, CertChain, Options) -> {ok, {PublicKeyInfo, PolicyTree}} | {error, {bad_cert, Reason}} </name>
     <fsummary> Performs a basic path validation according to RFC 5280.</fsummary>
      <type>
-       <v> TrustedCert =  #'OTPCertificate'{} | der_encode() | atom()  </v>
+       <v> TrustedCert =  #'OTPCertificate'{} | der_encoded() | atom()  </v>
        <d>Normally a trusted certificate but it can also be a path validation
        error that can be discovered while
        constructing the input to this function and that should be run through the <c>verify_fun</c>.
        For example <c>unknown_ca </c> or <c>selfsigned_peer </c>
        </d>
-       <v> CertChain = [der_encode()]</v>
+       <v> CertChain = [der_encoded()]</v>
        <d>A list of DER encoded certificates in trust order ending with the peer certificate.</d>
        <v> Options = proplists:proplist()</v>
        <v>PublicKeyInfo = {?'rsaEncryption' | ?'id-dsa',
@@ -527,6 +530,17 @@ fun(OtpCert :: #'OTPCertificate'{},
     </desc>
    </func>
 
+    <func>  
+      <name>pkix_crl_issuer(CRL) -> issuer_name()</name>
+      <fsummary>Returns the issuer of the <c>CRL</c>.</fsummary>
+      <type>
+	<v>CRL = der_encoded() | #'CertificateList'{} </v> 
+      </type> 
+      <desc> 
+	<p>Returns the issuer of the <c>CRL</c>.</p>
+      </desc> 
+    </func> 
+   
    <func>
      <name>pkix_crls_validate(OTPCertificate, DPAndCRLs, Options) -> CRLStatus()</name>
      <fsummary> Performs CRL validation.</fsummary>
@@ -574,9 +588,48 @@ fun(#'DistributionPoint'{}, #'CertificateList'{},
       </taglist>
     </desc>
    </func>
+   
+   <func>  
+     <name>pkix_crl_verify(CRL, Cert) -> boolean()</name>
+     <fsummary> Verify that  <c>Cert</c>  is the <c> CRL</c>  signer. </fsummary>
+     <type>
+       <v>CRL = der_encoded() | #'CertificateList'{} </v> 
+       <v>Cert = der_encoded() | #'OTPCertificate'{} </v> 
+     </type> 
+     <desc> 
+       <p>Verify that <c>Cert</c> is the <c>CRL</c> signer.</p>
+     </desc> 
+   </func>
 
+   <func>  
+     <name>pkix_dist_point(Cert) -> DistPoint</name>
+     <fsummary>Creates a distribution point for CRLs issued by the same issuer as <c>Cert</c>.</fsummary>
+     <type>
+       <v> Cert  = der_encoded() | #'OTPCertificate'{} </v> 
+       <v> DistPoint =  #'DistributionPoint'{}</v> 
+     </type> 
+     <desc> 
+       <p>Creates a distribution point for CRLs issued by the same issuer as <c>Cert</c>.
+       Can be used as input to <seealso
+       marker="#pkix_crls_validate-3">pkix_crls_validate/3 </seealso>
+       </p>
+     </desc> 
+   </func>
+   
+   <func>  
+     <name>pkix_dist_points(Cert) -> DistPoints</name>
+     <fsummary> Extracts distribution points from the certificates extensions.</fsummary>
+     <type>
+       <v> Cert  = der_encoded() | #'OTPCertificate'{} </v> 
+       <v> DistPoints =  [#'DistributionPoint'{}]</v> 
+     </type> 
+     <desc> 
+       <p> Extracts distribution points from the certificates extensions.</p>
+     </desc> 
+ </func>
+   
   <func>
-    <name>pkix_sign(#'OTPTBSCertificate'{}, Key) -> der_encode()</name>
+    <name>pkix_sign(#'OTPTBSCertificate'{}, Key) -> der_encoded()</name>
     <fsummary>Signs certificate.</fsummary>
     <type>
       <v>Key = rsa_public_key() | dsa_public_key()</v> 
@@ -606,7 +659,7 @@ fun(#'DistributionPoint'{}, #'CertificateList'{},
     <name>pkix_verify(Cert, Key) -> boolean()</name>
     <fsummary> Verify pkix x.509 certificate signature.</fsummary>
     <type>
-      <v>Cert = der_encode()</v> 
+      <v>Cert = der_encoded()</v>
       <v>Key = rsa_public_key() | dsa_public_key()</v> 
     </type> 
   <desc> 

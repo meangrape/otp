@@ -107,7 +107,8 @@ getopts(Handle, OptNames) when is_pid(Handle), is_list(OptNames) ->
 %%% --------------------------------------------------------------------
 
 close(Handle) when is_pid(Handle) ->
-    send(Handle, close).
+    send(Handle, close),
+    ok.
 
 %%% --------------------------------------------------------------------
 %%% Set who we should link ourselves to
@@ -394,7 +395,7 @@ parse_args([{port, Port}|T], Cpid, Data) when is_integer(Port) ->
 parse_args([{timeout, Timeout}|T], Cpid, Data) when is_integer(Timeout),Timeout>0 ->
     parse_args(T, Cpid, Data#eldap{timeout = Timeout});
 parse_args([{anon_auth, true}|T], Cpid, Data) ->
-    parse_args(T, Cpid, Data#eldap{anon_auth = false});
+    parse_args(T, Cpid, Data#eldap{anon_auth = true});
 parse_args([{anon_auth, _}|T], Cpid, Data) ->
     parse_args(T, Cpid, Data);
 parse_args([{ssl, true}|T], Cpid, Data) ->

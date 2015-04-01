@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2010-2013. All Rights Reserved.
+%% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -18,8 +18,10 @@
 %%
 
 -module(diameter_peer).
-
 -behaviour(gen_server).
+
+-compile({no_auto_import, [now/0]}).
+-import(diameter_lib, [now/0]).
 
 %% Interface towards transport modules ...
 -export([recv/2,
@@ -230,12 +232,22 @@ recv(Pid, Pkt) ->
 %% # send/2
 %% ---------------------------------------------------------------------------
 
-send(Pid, #diameter_packet{transport_data = undefined,
-			   bin = Bin}) ->
-    send(Pid, Bin);
+send(Pid, Msg) ->
+    ifc_send(Pid, {send, strip(Msg)}).
 
-send(Pid, Pkt) ->
-    ifc_send(Pid, {send, Pkt}).
+%% Send only binary when possible.
+strip(#diameter_packet{transport_data = undefined,
+                       bin = Bin}) ->
+    Bin;
+
+%% Strip potentially large message terms.
+strip(#diameter_packet{transport_data = T,
+                       bin = Bin}) ->
+    #diameter_packet{transport_data = T,
+                     bin = Bin};
+
+strip(Msg) ->
+    Msg.
 
 %% ---------------------------------------------------------------------------
 %% # close/1
@@ -324,7 +336,6 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% ---------------------------------------------------------
-%% INTERNAL FUNCTIONS
 %% ---------------------------------------------------------
 
 %% ifc_send/2

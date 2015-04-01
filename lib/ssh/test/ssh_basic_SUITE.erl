@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2008-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2008-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -723,16 +723,23 @@ ssh_connect_arg4_timeout(_Config) ->
 
     %% Wait for client reaction on the connection try:
     receive
-	{done, Client, {error,_E}, T0} ->
+	{done, Client, {error,timeout}, T0} ->
 	    Msp = ms_passed(T0, now()),
 	    exit(Server,hasta_la_vista___baby),
 	    Low = 0.9*Timeout,
 	    High =  1.1*Timeout,
-	    ct:log("Timeout limits: ~p--~p, timeout was ~p, expected ~p",[Low,High,Msp,Timeout]),
+	    ct:log("Timeout limits: ~.4f - ~.4f ms, timeout "
+                   "was ~.4f ms, expected ~p ms",[Low,High,Msp,Timeout]),
+	    %%ct:log("Timeout limits: ~p--~p, my timeout was ~p, expected ~p",[Low,High,Msp0,Timeout]),
 	    if
 		Low<Msp, Msp<High -> ok;
 		true -> {fail, "timeout not within limits"}
 	    end;
+
+	{done, Client, {error,Other}, _T0} ->
+	    ct:log("Error message \"~p\" from the client is unexpected.",[{error,Other}]),
+	    {fail, "Unexpected error message"};
+
 	{done, Client, {ok,_Ref}, _T0} ->
 	    {fail,"ssh-connected ???"}
     after
@@ -741,7 +748,6 @@ ssh_connect_arg4_timeout(_Config) ->
 	    exit(Client,hasta_la_vista___baby),
 	    {fail, "Didn't timeout"}
     end.
-
 
 %% Help function
 %% N2-N1

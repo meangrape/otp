@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2013. All Rights Reserved.
+%% Copyright Ericsson AB 2013-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -82,6 +82,15 @@
            [false],
            [[node(), node()]]],
           [[x]]},
+         {string_decode,
+          [[true], [false]],
+          [[0], [x]]},
+         {incoming_maxlen,
+          [[0], [65536], [16#FFFFFF]],
+          [[-1], [1 bsl 24], [infinity], [false]]},
+         {spawn_opt,
+          [[[]], [[monitor, link]]],
+          [[false]]},
          {invalid_option,  %% invalid service options are rejected
           [],
           [[x],
@@ -157,6 +166,12 @@
          {length_errors,
           [[exit], [handle], [discard]],
           [[x]]},
+         {dpr_timeout,
+          [[0], [3000], [16#FFFFFFFF]],
+          [[infinity], [-1], [1 bsl 32], [x]]},
+         {dpa_timeout,
+          [[0], [3000], [16#FFFFFFFF]],
+          [[infinity], [-1], [1 bsl 32], [x]]},
          {connect_timer,
           [[3000]],
           [[infinity]]},
@@ -171,9 +186,15 @@
            [[{suspect, 2}]]],
           [[x],
            [[{open, 0}]]]},
+         {pool_size,
+          [[1], [100]],
+          [[0], [infinity], [-1], [x]]},
          {private,
           [[x]],
           []},
+         {spawn_opt,
+          [[[]], [[monitor, link]]],
+          [[false]]},
          {invalid_option,  %% invalid transport options are silently ignored
           [[x],
            [x,x]],

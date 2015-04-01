@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2010-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -229,8 +229,7 @@ v(Max, Ord, E)
   when Ord =< Max ->
     diameter_enum:to_list(E);
 v(Max, Ord, E) ->
-    {M,S,U} = now(),
-    random:seed(M,S,U),
+    random:seed(diameter_util:seed()),
     v(Max, Ord, E, []).
 
 v(0, _, _, Acc) ->
@@ -353,12 +352,23 @@ values('DiameterURI') ->
     {[],
      ["aaa" ++ S ++ "://diameter.se" ++ P ++ Tr ++ Pr
       || S  <- ["", "s"],
-         P  <- ["", ":1234"],
+         P  <- ["", ":1234", ":0", ":65535"],
          Tr <- ["" | [";transport=" ++ X
                       || X <- ["tcp", "sctp", "udp"]]],
          Pr <- ["" | [";protocol=" ++ X
-                      || X <- ["diameter","radius","tacacs+"]]]],
-     []};
+                      || X <- ["diameter","radius","tacacs+"]]],
+         Tr /= ";transport=udp"
+             orelse (Pr /= ";protocol=diameter" andalso Pr /= "")]
+     ++ ["aaa://" ++ lists:duplicate(255, $x)],
+     ["aaa://diameter.se:65536",
+      "aaa://diameter.se:-1",
+      "aaa://diameter.se;transport=udp;protocol=diameter",
+      "aaa://diameter.se;transport=udp",
+      "aaa://" ++ lists:duplicate(256, $x),
+      "aaa://:3868",
+      "aaax://diameter.se",
+      "aaa://diameter.se;transport=tcpx",
+      "aaa://diameter.se;transport=tcp;protocol=diameter "]};
 
 values(T)
   when T == 'IPFilterRule';
@@ -512,7 +522,7 @@ random(Mn,Mx) ->
 
 seed(undefined) ->
     put({?MODULE, seed}, true),
-    random:seed(now());
+    random:seed(diameter_util:seed());
 
 seed(true) ->
     ok.

@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2010-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -18,12 +18,18 @@
 %%
 
 -module(diameter_lib).
+-compile({no_auto_import, [now/0]}).
 
 -export([info_report/2,
          error_report/2,
          warning_report/2,
+         now/0,
+         timestamp/1,
          now_diff/1,
+         micro_diff/1,
+         micro_diff/2,
          time/1,
+         seed/0,
          eval/1,
          eval_name/1,
          get_stacktrace/0,
@@ -31,6 +37,8 @@
          spawn_opts/2,
          wait/1,
          fold_tuple/3,
+         fold_n/3,
+         for_n/2,
          log/4]).
 
 %% ---------------------------------------------------------------------------
@@ -90,13 +98,51 @@ fmt(T) ->
     end.
 
 %% ---------------------------------------------------------------------------
+%% # now/0
+%% ---------------------------------------------------------------------------
+
+-type timestamp() :: {non_neg_integer(), 0..999999, 0..999999}.
+-type now() :: integer() %% monotonic time
+             | timestamp().
+
+-spec now()
+   -> now().
+
+%% Use monotonic time if it exists, fall back to erlang:now()
+%% otherwise.
+
+now() ->
+    try
+        erlang:monotonic_time() 
+    catch
+        error: undef -> erlang:now()
+    end.
+
+%% ---------------------------------------------------------------------------
+%% # timestamp/1
+%% ---------------------------------------------------------------------------
+
+-spec timestamp(NowT :: now())
+   -> timestamp().
+
+timestamp({_,_,_} = T) ->  %% erlang:now()
+    T;
+
+timestamp(MonoT) ->  %% monotonic time
+    MicroSecs = monotonic_to_microseconds(MonoT + erlang:time_offset()),
+    Secs = MicroSecs div 1000000,
+    {Secs div 1000000, Secs rem 1000000, MicroSecs rem 1000000}.
+
+monotonic_to_microseconds(MonoT) ->
+    erlang:convert_time_unit(MonoT, native, micro_seconds).
+
+%% ---------------------------------------------------------------------------
 %% # now_diff/1
 %% ---------------------------------------------------------------------------
 
--spec now_diff(NowT)
+-spec now_diff(NowT :: now())
    -> {Hours, Mins, Secs, MicroSecs}
- when NowT  :: {non_neg_integer(), 0..999999, 0..999999},
-      Hours :: non_neg_integer(),
+ when Hours :: non_neg_integer(),
       Mins  :: 0..59,
       Secs  :: 0..59,
       MicroSecs :: 0..999999.
@@ -104,8 +150,37 @@ fmt(T) ->
 %% Return timer:now_diff(now(), NowT) as an {H, M, S, MicroS} tuple
 %% instead of as integer microseconds.
 
-now_diff({_,_,_} = Time) ->
-    time(timer:now_diff(now(), Time)).
+now_diff(Time) ->
+    time(micro_diff(Time)).
+
+%% ---------------------------------------------------------------------------
+%% # micro_diff/1
+%% ---------------------------------------------------------------------------
+
+-spec micro_diff(NowT :: now())
+   -> MicroSecs
+ when MicroSecs :: non_neg_integer().
+
+micro_diff({_,_,_} = T0) ->
+    timer:now_diff(erlang:now(), T0);
+
+micro_diff(T0) ->  %% monotonic time
+    monotonic_to_microseconds(erlang:monotonic_time() - T0).
+
+%% ---------------------------------------------------------------------------
+%% # micro_diff/2
+%% ---------------------------------------------------------------------------
+
+-spec micro_diff(T1 :: now(), T0 :: now())
+   -> MicroSecs
+ when MicroSecs :: non_neg_integer().
+
+micro_diff(T1, T0)
+  when is_integer(T1), is_integer(T0) ->  %% monotonic time
+    monotonic_to_microseconds(T1 - T0);
+
+micro_diff(T1, T0) ->  %% at least one erlang:now()
+    timer:now_diff(timestamp(T1), timestamp(T0)).
 
 %% ---------------------------------------------------------------------------
 %% # time/1
@@ -115,7 +190,7 @@ now_diff({_,_,_} = Time) ->
 
 -spec time(NowT | Diff)
    -> {Hours, Mins, Secs, MicroSecs}
- when NowT  :: {non_neg_integer(), 0..999999, 0..999999},
+ when NowT  :: timestamp(),
       Diff  :: non_neg_integer(),
       Hours :: non_neg_integer(),
       Mins  :: 0..59,
@@ -132,6 +207,27 @@ time(Micro) ->  %% elapsed time
     M = (Seconds rem 3600) div 60,
     S = Seconds rem 60,
     {H, M, S, Micro rem 1000000}.
+
+%% ---------------------------------------------------------------------------
+%% # seed/0
+%% ---------------------------------------------------------------------------
+
+-spec seed()
+   -> {timestamp(), {integer(), integer(), integer()}}.
+
+%% Return an argument for random:seed/1.
+
+seed() ->
+    T = now(),
+    {timestamp(T), seed(T)}.
+
+%% seed/1
+
+seed({_,_,_} = T) ->
+    T;
+
+seed(T) ->  %% monotonic time
+    {erlang:phash2(node()), T, erlang:unique_integer()}.
 
 %% ---------------------------------------------------------------------------
 %% # eval/1
@@ -247,17 +343,19 @@ opts(HeapSize, Opts) ->
 %% # wait/1
 %% ---------------------------------------------------------------------------
 
--spec wait([pid()])
+-spec wait([pid() | reference()])
    -> ok.
 
 wait(L) ->
-    down([erlang:monitor(process, P) || P <- L]).
+    lists:foreach(fun down/1, L).
 
-down([]) ->
-    ok;
-down([MRef|T]) ->
-    receive {'DOWN', MRef, process, _, _} -> ok end,
-    down(T).
+down(Pid)
+  when is_pid(Pid) ->
+    down(monitor(process, Pid));
+
+down(MRef)
+  when is_reference(MRef) ->
+    receive {'DOWN', MRef, process, _, _} = T -> T end.
 
 %% ---------------------------------------------------------------------------
 %% # fold_tuple/3
@@ -288,6 +386,35 @@ ft(undefined, {_, T}) ->
     T;
 ft(Value, {Idx, T}) ->
     setelement(Idx, T, Value).
+
+%% ---------------------------------------------------------------------------
+%% # fold_n/3
+%% ---------------------------------------------------------------------------
+
+-spec fold_n(F, Acc0, N)
+   -> term()
+ when F    :: fun((non_neg_integer(), term()) -> term()),
+      Acc0 :: term(),
+      N    :: non_neg_integer().
+
+fold_n(F, Acc, N)
+  when is_integer(N), 0 < N ->
+    fold_n(F, F(N, Acc), N-1);
+
+fold_n(_, Acc, _) ->
+    Acc.
+
+%% ---------------------------------------------------------------------------
+%% # for_n/2
+%% ---------------------------------------------------------------------------
+
+-spec for_n(F, N)
+   -> non_neg_integer()
+ when F :: fun((non_neg_integer()) -> term()),
+      N :: non_neg_integer().
+
+for_n(F, N) ->
+    fold_n(fun(M,A) -> F(M), A+1 end, 0, N).
 
 %% ---------------------------------------------------------------------------
 %% # log/4

@@ -29,6 +29,7 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("common_test/src/ct_util.hrl").
 
 %-include_lib("common_test/include/ct_event.hrl").
 
@@ -59,7 +60,7 @@ end_per_testcase(TestCase, Config) ->
 suite() -> [{ct_hooks,[ts_install_cth]}].
 
 all() -> 
-    [start_stop, results].
+    [start_stop, results, event_mgrs].
 
 groups() -> 
     [].
@@ -156,24 +157,39 @@ results(Config) when is_list(Config) ->
     TestEvents =
 	[{eh_A,start_logging,{'DEF','RUNDIR'}},
 	 {eh_A,test_start,{'DEF',{'START_TIME','LOGDIR'}}},
-	 {eh_A,start_info,{1,1,3}},
+	 {eh_A,start_info,{1,1,5}},
 	 {eh_A,tc_start,{eh_11_SUITE,init_per_suite}},
 	 {eh_A,tc_done,{eh_11_SUITE,init_per_suite,ok}},
-	 {eh_A,tc_start,{eh_11_SUITE,tc1}},
-	 {eh_A,tc_done,{eh_11_SUITE,tc1,ok}},
-	 {eh_A,test_stats,{1,0,{0,0}}},
-	 {eh_A,tc_start,{eh_11_SUITE,tc2}},
-	 {eh_A,tc_done,{eh_11_SUITE,tc2,{skipped,"Skipped"}}},
-	 {eh_A,test_stats,{1,0,{1,0}}},
-	 {eh_A,tc_start,{eh_11_SUITE,tc3}},
-	 {eh_A,tc_done,{eh_11_SUITE,tc3,{failed,{error,'Failing'}}}},
-	 {eh_A,test_stats,{1,1,{1,0}}},
+	 [{eh_A,tc_start,{eh_11_SUITE,{init_per_group,g1,[]}}},
+	  {eh_A,tc_done,{eh_11_SUITE,{init_per_group,g1,[]},ok}},
+	  {eh_A,tc_start,{eh_11_SUITE,tc1}},
+	  {eh_A,tc_done,{eh_11_SUITE,tc1,ok}},
+	  {eh_A,test_stats,{1,0,{0,0}}},
+	  {eh_A,tc_start,{eh_11_SUITE,tc2}},
+	  {eh_A,tc_done,{eh_11_SUITE,tc2,ok}},
+	  {eh_A,test_stats,{2,0,{0,0}}},
+	  {eh_A,tc_start,{eh_11_SUITE,tc3}},
+	  {eh_A,tc_done,{eh_11_SUITE,tc3,{skipped,"Skip"}}},
+	  {eh_A,test_stats,{2,0,{1,0}}},
+	  {eh_A,tc_start,{eh_11_SUITE,tc4}},
+	  {eh_A,tc_done,{eh_11_SUITE,tc4,{skipped,"Skipped"}}},
+	  {eh_A,test_stats,{2,0,{2,0}}},
+	  {eh_A,tc_start,{eh_11_SUITE,tc5}},
+	  {eh_A,tc_done,{eh_11_SUITE,tc5,{failed,{error,'Failing'}}}},
+	  {eh_A,test_stats,{2,1,{2,0}}},
+	  {eh_A,tc_start,{eh_11_SUITE,{end_per_group,g1,[]}}},
+	  {eh_A,tc_done,{eh_11_SUITE,{end_per_group,g1,[]},ok}}],
 	 {eh_A,tc_start,{eh_11_SUITE,end_per_suite}},
 	 {eh_A,tc_done,{eh_11_SUITE,end_per_suite,ok}},
 	 {eh_A,test_done,{'DEF','STOP_TIME'}},
 	 {eh_A,stop_logging,[]}],
 
     ok = ct_test_support:verify_events(TestEvents++TestEvents, Events, Config).
+
+
+event_mgrs(_) ->
+    ?CT_EVMGR_REF = ct:get_event_mgr_ref(),
+    ?CT_MEVMGR_REF = ct_master:get_event_mgr_ref().
 
 
 %%%-----------------------------------------------------------------

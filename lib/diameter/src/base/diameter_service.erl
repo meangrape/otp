@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2010-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -23,6 +23,9 @@
 
 -module(diameter_service).
 -behaviour(gen_server).
+
+-compile({no_auto_import, [now/0]}).
+-import(diameter_lib, [now/0]).
 
 %% towards diameter_service_sup
 -export([start_link/1]).
@@ -127,7 +130,9 @@
          :: [{sequence, diameter:sequence()}  %% sequence mask
              | {share_peers, diameter:remotes()}       %% broadcast to
              | {use_shared_peers, diameter:remotes()}  %% use from
-             | {restrict_connections, diameter:restriction()}]}).
+             | {restrict_connections, diameter:restriction()}
+             | {string_decode, boolean()}
+             | {incoming_maxlen, diameter:message_length()}]}).
 %% shared_peers reflects the peers broadcast from remote nodes.
 
 %% Record representing an RFC 3539 watchdog process implemented by
@@ -258,16 +263,22 @@ whois(SvcName) ->
 %% ---------------------------------------------------------------------------
 
 -spec pick_peer(SvcName, AppOrAlias, Opts)
-   -> {{TPid, Caps, App}, Mask}
-    | false
-    | {error, term()}
+   -> {{TPid, Caps, App}, Mask, SvcOpts}
+    | false  %% no selection
+    | {error, no_service}
  when SvcName :: diameter:service_name(),
-      AppOrAlias :: {alias, diameter:app_alias()} | #diameter_app{},
-      Opts :: tuple(),
+      AppOrAlias :: #diameter_app{}
+                  | {alias, diameter:app_alias()},
+      Opts :: {fun((Dict :: module()) -> [term()]),
+               diameter:peer_filter(),
+               Xtra :: list()},
       TPid :: pid(),
       Caps :: #diameter_caps{},
       App  :: #diameter_app{},
-      Mask :: diameter:sequence().
+      Mask :: diameter:sequence(),
+      SvcOpts :: [diameter:service_opt()].
+%% Extract Mask in the returned tuple so that diameter_traffic doesn't
+%% need to know about the ordering of SvcOpts used here.
 
 pick_peer(SvcName, App, Opts) ->
     pick(lookup_state(SvcName), App, Opts).
@@ -284,10 +295,10 @@ pick(#state{service = #diameter_service{applications = Apps}}
      Opts) ->  %% initial call from diameter:call/4
     pick(S, find_outgoing_app(Alias, Apps), Opts);
 
-pick(_, false, _) ->
-    false;
+pick(_, false = No, _) ->
+    No;
 
-pick(#state{options = [{_, Mask} | _]}
+pick(#state{options = [{_, Mask} | SvcOpts]}
      = S,
      #diameter_app{module = ModX, dictionary = Dict}
      = App0,
@@ -296,7 +307,7 @@ pick(#state{options = [{_, Mask} | _]}
     [_,_] = RealmAndHost = diameter_lib:eval([DestF, Dict]),
     case pick_peer(App, RealmAndHost, Filter, S) of
         {TPid, Caps} ->
-            {{TPid, Caps, App}, Mask};
+            {{TPid, Caps, App}, Mask, SvcOpts};
         false = No ->
             No
     end.
@@ -610,8 +621,9 @@ st(#watchdog{ref = Ref, pid = Pid}, Refs) ->
 %% st/3
 
 st(#watchdog{pid = Pid}, Reason, Acc) ->
+    MRef = monitor(process, Pid),
     Pid ! {shutdown, self(), Reason},
-    [Pid | Acc].
+    [MRef | Acc].
 
 %% ---------------------------------------------------------------------------
 %% # call_service/2
@@ -686,7 +698,9 @@ service_options(Opts) ->
      {restrict_connections, proplists:get_value(restrict_connections,
                                                 Opts,
                                                 ?RESTRICT)},
-     {spawn_opt, proplists:get_value(spawn_opt, Opts, [])}].
+     {spawn_opt, proplists:get_value(spawn_opt, Opts, [])},
+     {string_decode, proplists:get_value(string_decode, Opts, true)},
+     {incoming_maxlen, proplists:get_value(incoming_maxlen, Opts, 16#FFFFFF)}].
 %% The order of options is significant since we match against the list.
 
 mref(false = No) ->
@@ -765,8 +779,9 @@ reason(failure) ->
 start(Ref, {T, Opts}, S)
   when T == connect;
        T == listen ->
+    N = proplists:get_value(pool_size, Opts, 1),
     try
-        {ok, start(Ref, type(T), Opts, S)}
+        {ok, start(Ref, type(T), Opts, N, S)}
     catch
         ?FAILURE(Reason) ->
             {error, Reason}
@@ -784,26 +799,44 @@ type(connect = T) -> T.
 
 %% start/4
 
-start(Ref, Type, Opts, #state{watchdogT = WatchdogT,
-                              peerT = PeerT,
-                              options = SvcOpts,
-                              service_name = SvcName,
-                              service = Svc0})
+start(Ref, Type, Opts, State) ->
+    start(Ref, Type, Opts, 1, State).
+
+%% start/5
+
+start(Ref, Type, Opts, N, #state{watchdogT = WatchdogT,
+                                 peerT = PeerT,
+                                 options = SvcOpts,
+                                 service_name = SvcName,
+                                 service = Svc0})
   when Type == connect;
        Type == accept ->
     #diameter_service{applications = Apps}
-        = Svc
+        = Svc1
         = merge_service(Opts, Svc0),
-    {_,_} = Mask = proplists:get_value(sequence, SvcOpts),
-    RecvData = diameter_traffic:make_recvdata([SvcName, PeerT, Apps, Mask]),
-    Pid = s(Type, Ref, {{spawn_opts([Opts, SvcOpts]), RecvData},
-                        Opts,
-                        SvcOpts,
-                        Svc}),
-    insert(WatchdogT, #watchdog{pid = Pid,
-                                type = Type,
-                                ref = Ref,
-                                options = Opts}),
+    Svc = binary_caps(Svc1, proplists:get_value(string_decode, SvcOpts, true)),
+    RecvData = diameter_traffic:make_recvdata([SvcName,
+                                               PeerT,
+                                               Apps,
+                                               SvcOpts]),
+    T = {{spawn_opts([Opts, SvcOpts]), RecvData}, Opts, SvcOpts, Svc},
+    Rec = #watchdog{type = Type,
+                    ref = Ref,
+                    options = Opts},
+    diameter_lib:fold_n(fun(_,A) ->
+                                [wd(Type, Ref, T, WatchdogT, Rec) | A]
+                        end,
+                        [],
+                        N).
+
+binary_caps(Svc, true) ->
+    Svc;
+binary_caps(#diameter_service{capabilities = Caps} = Svc, false) ->
+    Svc#diameter_service{capabilities = diameter_capx:binary_caps(Caps)}.
+
+wd(Type, Ref, T, WatchdogT, Rec) ->
+    Pid = start_watchdog(Type, Ref, T),
+    insert(WatchdogT, Rec#watchdog{pid = Pid}),
     Pid.
 
 %% Note that the service record passed into the watchdog is the merged
@@ -816,7 +849,7 @@ spawn_opts(Optss) ->
           T /= link,
           T /= monitor].
 
-s(Type, Ref, T) ->
+start_watchdog(Type, Ref, T) ->
     {_MRef, Pid} = diameter_watchdog:start({Type, Ref}, T),
     Pid.
 
@@ -837,7 +870,7 @@ ms({applications, As}, #diameter_service{applications = Apps} = S)
 
 %% The fact that all capabilities can be configured on the transports
 %% means that the service doesn't necessarily represent a single
-%% locally implemented Diameter peer as identified by Origin-Host: a
+%% locally implemented Diameter node as identified by Origin-Host: a
 %% transport can configure its own Origin-Host. This means that the
 %% service little more than a placeholder for default capabilities
 %% plus a list of applications that individual transports can choose
@@ -1185,7 +1218,7 @@ connect_timer(Opts, Def0) ->
 %% continuous restarted in case of faulty config or other problems.
 tc(Time, Tc) ->
     choose(Tc > ?RESTART_TC
-             orelse timer:now_diff(now(), Time) > 1000*?RESTART_TC,
+             orelse diameter_lib:micro_diff(Time) > 1000*?RESTART_TC,
            Tc,
            ?RESTART_TC).
 
@@ -1718,31 +1751,43 @@ info_transport(S) ->
               [],
               PeerD).
 
-%% Only a config entry for a listening transport: use it.
-transport([[{type, listen}, _] = L]) ->
-    L ++ [{accept, []}];
-
-%% Only one config or peer entry for a connecting transport: use it.
-transport([[{type, connect} | _] = L]) ->
-    L;
+%% Single config entry. Distinguish between pool_size config or not on
+%% a connecting transport for backwards compatibility: with the option
+%% the form is similar to the listening case, with connections grouped
+%% in a pool tuple (for lack of a better name), without as before.
+transport([[{type, Type}, {options, Opts}] = L])
+  when Type == listen;
+       Type == connect ->
+    L ++ [{K, []} || [{_,K}] <- [keys(Type, Opts)]];
 
 %% Peer entries: discard config. Note that the peer entries have
 %% length at least 3.
 transport([[_,_] | L]) ->
     transport(L);
 
-%% Possibly many peer entries for a listening transport. Note that all
-%% have the same options by construction, which is not terribly space
-%% efficient.
-transport([[{type, accept}, {options, Opts} | _] | _] = Ls) ->
-    [{type, listen},
+%% Multiple tranports. Note that all have the same options by
+%% construction, which is not terribly space efficient.
+transport([[{type, Type}, {options, Opts} | _] | _] = Ls) ->
+    transport(keys(Type, Opts), Ls).
+
+%% Group transports in an accept or pool tuple ...
+transport([{Type, Key}], [[{type, _}, {options, Opts} | _] | _] = Ls) ->
+    [{type, Type},
      {options, Opts},
-     {accept, [lists:nthtail(2,L) || L <- Ls]}].
+     {Key, [tl(tl(L)) || L <- Ls]}];
+
+%% ... or not: there can only be one.
+transport([], [L]) ->
+    L.
+
+keys(connect = T, Opts) ->
+    [{T, pool} || lists:keymember(pool_size, 1, Opts)];
+keys(_, _) ->
+    [{listen, accept}].
 
 peer_dict(#state{watchdogT = WatchdogT, peerT = PeerT}, Dict0) ->
     try ets:tab2list(WatchdogT) of
-        L ->
-            lists:foldl(fun(T,A) -> peer_acc(PeerT, A, T) end, Dict0, L)
+        L -> lists:foldl(fun(T,A) -> peer_acc(PeerT, A, T) end, Dict0, L)
     catch
         error: badarg -> Dict0  %% service has gone down
     end.

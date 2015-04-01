@@ -4087,14 +4087,15 @@ erts_port_control(Process* c_p,
 				      size,
 				      &resp_bufp,
 				      &resp_size);
+
+	    control_flags = prt->control_flags;
+
 	    finalize_imm_drv_call(&try_call_state);
 	    if (tmp_alloced)
 		erts_free(ERTS_ALC_T_TMP, bufp);
 	    if (res == ERTS_PORT_OP_BADARG) {
 		return ERTS_PORT_OP_BADARG;
 	    }
-
-	    control_flags = prt->control_flags;
 
 	    hsz = port_control_result_size(control_flags,
 					   resp_bufp,
@@ -4484,7 +4485,7 @@ make_port_info_term(Eterm **hpp_start,
 	int len;
 	int start;
 	static Eterm item[] = ERTS_PORT_INFO_1_ITEMS;
-	static Eterm value[sizeof(item)/sizeof(item[0])];
+        Eterm value[sizeof(item)/sizeof(item[0])];
 
 	start = 0;
 	len = sizeof(item)/sizeof(item[0]);

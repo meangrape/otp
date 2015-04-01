@@ -4,7 +4,7 @@
 <erlref>
   <header>
     <copyright>
-      <year>1999</year><year>2014</year>
+      <year>1999</year><year>2015</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -163,7 +163,7 @@
       is supplied it will override the certfile option.</item>
       
       <tag>{certfile, path()}</tag>
-      <item>Path to a file containing the user's certificate.</item>
+      <item>Path to a file containing the user's PEM encoded certificate.</item>
       
       <tag>{key, {'RSAPrivateKey'| 'DSAPrivateKey' | 'ECPrivateKey' |'PrivateKeyInfo', der_encoded()}}</tag>
       <item> The DER encoded users private key. If this option
@@ -348,11 +348,23 @@ fun(srp, Username :: string(), UserState :: term()) ->
 	</p>
       </item>
 
+      <tag>{padding_check, boolean()}</tag>
+      <item>
+	<p> This option only affects TLS-1.0 connections.
+	If set to false it disables the block cipher padding check
+	to be able to interoperate with legacy software.
+	</p>
+	
+	<warning><p> Using this option makes TLS vulnerable to
+	the Poodle attack</p></warning>
+	
+      </item>
+      
     </taglist>
-
+    
   </section>
-
-   <section>
+  
+  <section>
     <title>SSL OPTION DESCRIPTIONS - CLIENT SIDE</title>
 
     <p>Options described here are client specific or has a slightly different
@@ -413,6 +425,23 @@ fun(srp, Username :: string(), UserState :: term()) ->
         Indication extension will be sent if possible, this option may also be
         used to disable that behavior.</p>
       </item>
+      <tag>{fallback, boolean()}</tag>
+      <item>
+	<p> Send special cipher suite TLS_FALLBACK_SCSV to avoid undesired TLS version downgrade.
+	Defaults to false</p>
+	<warning><p>Note this option is not needed in normal TLS usage and should not be used
+	to implement new clients. But legacy clients that that retries connections in the following manner</p>
+
+	<p><c> ssl:connect(Host, Port, [...{versions, ['tlsv2', 'tlsv1.1', 'tlsv1', 'sslv3']}])</c></p>
+	<p><c>  ssl:connect(Host, Port, [...{versions, [tlsv1.1', 'tlsv1', 'sslv3']}, {fallback, true}])</c></p>
+	<p><c>  ssl:connect(Host, Port, [...{versions, ['tlsv1', 'sslv3']}, {fallback, true}]) </c></p>
+	<p><c>  ssl:connect(Host, Port, [...{versions, ['sslv3']}, {fallback, true}]) </c></p>
+	 
+	 <p>may use it to avoid undesired TLS version downgrade. Note that TLS_FALLBACK_SCSV must also
+	 be supported by the server for the prevention to work.
+	</p></warning>
+      </item>
+      
     </taglist>
    </section>
 
@@ -538,7 +567,19 @@ fun(srp, Username :: string(), UserState :: term()) ->
 	</p>
     </desc>
     </func>
-    
+
+    <func>
+      <name>clear_pem_cache() -> ok </name>
+      <fsummary> Clears the pem cache</fsummary>
+
+      <desc><p>PEM files, used by ssl API-functions, are cached. The
+      cache is regularly checked to see if any cache entries should be
+      invalidated, however this function provides a way to
+      unconditionally clear the whole cache.
+      </p>
+      </desc>
+    </func>
+   
     <func>
       <name>connect(Socket, SslOptions) -> </name>
       <name>connect(Socket, SslOptions, Timeout) -> {ok, SslSocket}

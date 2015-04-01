@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2013-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2013-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -77,7 +77,12 @@
         {peerT        :: ets:tid(),
          service_name :: diameter:service_name(),
          apps         :: [#diameter_app{}],
-         sequence     :: diameter:sequence()}).
+         sequence     :: diameter:sequence(),
+         codec        :: [{string_decode, boolean()}
+                          | {incoming_maxlen, diameter:message_length()}]}).
+%% Note that incoming_maxlen is currently handled in diameter_peer_fsm,
+%% so that any message exceeding the maximum is discarded. Retain the
+%% option in case we want to extend the values and semantics.
 
 %% Record stored in diameter_request for each outgoing request.
 -record(request,
@@ -92,11 +97,18 @@
 %% # make_recvdata/1
 %% ---------------------------------------------------------------------------
 
-make_recvdata([SvcName, PeerT, Apps, Mask | _]) ->
+make_recvdata([SvcName, PeerT, Apps, {_,_} = Mask | _]) ->  %% from old code
+    make_recvdata([SvcName, PeerT, Apps, [{sequence, Mask}]]);
+
+make_recvdata([SvcName, PeerT, Apps, SvcOpts | _]) ->
+    {_,_} = Mask = proplists:get_value(sequence, SvcOpts),
     #recvdata{service_name = SvcName,
               peerT = PeerT,
               apps = Apps,
-              sequence = Mask}.
+              sequence = Mask,
+              codec = [T || {K,_} = T <- SvcOpts,
+                            lists:member(K, [string_decode,
+                                             incoming_maxlen])]}.
 
 %% ---------------------------------------------------------------------------
 %% peer_up/1
@@ -162,24 +174,28 @@ incr_error(Dir, Id, TPid) ->
 %% incr_rc/4
 %% ---------------------------------------------------------------------------
 
--spec incr_rc(send|recv, Pkt, TPid, Dict0)
+-spec incr_rc(send|recv, Pkt, TPid, DictT)
    -> {Counter, non_neg_integer()}
     | Reason
  when Pkt :: #diameter_packet{},
       TPid :: pid(),
-      Dict0 :: module(),
+      DictT :: module() | {module(), module(), module()},
       Counter :: {'Result-Code', integer()}
                | {'Experimental-Result', integer(), integer()},
       Reason :: atom().
 
-incr_rc(Dir, Pkt, TPid, Dict0) ->
+incr_rc(Dir, Pkt, TPid, {Dict, _, _} = DictT) ->
     try
-        incr_result(Dir, Pkt, TPid, {Dict0, Dict0, Dict0})
+        incr_result(Dir, Pkt, TPid, DictT)
     catch
         exit: {E,_} when E == no_result_code;
                          E == invalid_error_bit ->
+            incr(TPid, {msg_id(Pkt#diameter_packet.header, Dict), Dir, E}),
             E
-    end.
+    end;
+
+incr_rc(Dir, Pkt, TPid, Dict0) ->
+    incr_rc(Dir, Pkt, TPid, {Dict0, Dict0, Dict0}).
 
 %% ---------------------------------------------------------------------------
 %% pending/1
@@ -223,6 +239,8 @@ receive_message(TPid, Pkt, Dict0, RecvData)
          Dict0,
          RecvData).
 
+%% recv/6
+
 %% Incoming request ...
 recv(true, false, TPid, Pkt, Dict0, T) ->
     spawn_request(TPid, Pkt, Dict0, T);
@@ -230,6 +248,7 @@ recv(true, false, TPid, Pkt, Dict0, T) ->
 %% ... answer to known request ...
 recv(false, #request{ref = Ref, handler = Pid} = Req, _, Pkt, Dict0, _) ->
     Pid ! {answer, Ref, Req, Dict0, Pkt};
+
 %% Note that failover could have happened prior to this message being
 %% received and triggering failback. That is, both a failover message
 %% and answer may be on their way to the handler process. In the worst
@@ -266,8 +285,11 @@ recv_request(TPid,
              #diameter_packet{header = #diameter_header{application_id = Id}}
              = Pkt,
              Dict0,
-             #recvdata{peerT = PeerT, apps = Apps}
+             #recvdata{peerT = PeerT,
+                       apps = Apps,
+                       codec = Opts}
              = RecvData) ->
+    diameter_codec:setopts([{common_dictionary, Dict0} | Opts]),
     send_A(recv_R(diameter_service:find_incoming_app(PeerT, TPid, Id, Apps),
                   TPid,
                   Pkt,
@@ -275,7 +297,13 @@ recv_request(TPid,
                   RecvData),
            TPid,
            Dict0,
-           RecvData).
+           RecvData);
+
+recv_request(TPid, Pkt, Dict0, RecvData) -> %% from old code
+    recv_request(TPid,
+                 Pkt,
+                 Dict0,
+                 #recvdata{} = erlang:append_element(RecvData, [])).
 
 %% recv_R/5
 
@@ -592,7 +620,7 @@ resend(false,
     Route = #diameter_avp{data = {Dict0, 'Route-Record', OH}},
     Seq = diameter_session:sequence(Mask),
     Hdr = Hdr0#diameter_header{hop_by_hop_id = Seq},
-    Msg = [Hdr, Route | Avps],
+    Msg = [Hdr, Route | Avps],  %% reordered at encode
     resend(send_request(SvcName, App, Msg, Opts), Caps, Dict0, Pkt).
 %% The incoming request is relayed with the addition of a
 %% Route-Record. Note the requirement on the return from call/4 below,
@@ -678,7 +706,7 @@ local(Msg, TPid, {Dict, AppDict, Dict0} = DictT, Fs, ReqPkt) ->
                  reset(make_answer_packet(Msg, ReqPkt), Dict, Dict0),
                  Fs),
     incr(send, Pkt, TPid, AppDict),
-    incr_result(send, Pkt, TPid, DictT),  %% count outgoing
+    incr_rc(send, Pkt, TPid, DictT),  %% count outgoing
     send(TPid, Pkt).
 
 %% reset/3
@@ -1221,10 +1249,9 @@ answer_rc(_, _, Sent) ->
 
 send_R(SvcName, AppOrAlias, Msg, Opts, Caller) ->
     case pick_peer(SvcName, AppOrAlias, Msg, Opts) of
-        {{_,_,_} = Transport, Mask} ->
+        {Transport, Mask, SvcOpts} ->
+            diameter_codec:setopts(SvcOpts),
             send_request(Transport, Mask, Msg, Opts, Caller, SvcName);
-        false ->
-            {error, no_connection};
         {error, _} = No ->
             No
     end.
@@ -1285,6 +1312,8 @@ send_request({TPid, Caps, App}
            Caller,
            SvcName,
            []).
+
+%% send_R/7
 
 send_R({send, Msg}, Pkt, Transport, Opts, Caller, SvcName, Fs) ->
     send_R(make_request_packet(Msg, Pkt),
@@ -1387,6 +1416,21 @@ make_request_packet(#diameter_packet{header = Hdr} = Pkt,
 
 make_request_packet(Msg, Pkt) ->
     Pkt#diameter_packet{msg = Msg}.
+
+%% make_retransmit_packet/2
+
+make_retransmit_packet(#diameter_packet{msg = [#diameter_header{} = Hdr
+                                               | Avps]}
+                       = Pkt) ->
+    Pkt#diameter_packet{msg = [make_retransmit_header(Hdr) | Avps]};
+
+make_retransmit_packet(#diameter_packet{header = Hdr} = Pkt) ->
+    Pkt#diameter_packet{header = make_retransmit_header(Hdr)}.
+
+%% make_retransmit_header/1
+
+make_retransmit_header(Hdr) ->
+    Hdr#diameter_header{is_retransmitted = true}.
 
 %% fold_record/2
 
@@ -1531,7 +1575,9 @@ a(Hdr, SvcName, discard) ->
 %% timer value is ignored. This means that an answer could be accepted
 %% from a peer after timeout in the case of failover.
 
-retransmit({{_,_,App} = Transport, _Mask}, Req, Opts, SvcName, Timeout) ->
+%% retransmit/5
+
+retransmit({{_,_,App} = Transport, _, _}, Req, Opts, SvcName, Timeout) ->
     try retransmit(Transport, Req, SvcName, Timeout) of
         T -> recv_A(Timeout, SvcName, App, Opts, T)
     catch
@@ -1552,17 +1598,26 @@ pick_peer(SvcName,
     pick_peer(SvcName, App, Msg, Opts#options{extra = []});
 
 pick_peer(_, _, undefined, _) ->
-    false;
+    {error, no_connection};
 
 pick_peer(SvcName,
           AppOrAlias,
           Msg,
           #options{filter = Filter, extra = Xtra}) ->
-    diameter_service:pick_peer(SvcName,
-                               AppOrAlias,
-                               {fun(D) -> get_destination(D, Msg) end,
-                                Filter,
-                                Xtra}).
+    pick(diameter_service:pick_peer(SvcName,
+                                    AppOrAlias,
+                                    {fun(D) -> get_destination(D, Msg) end,
+                                     Filter,
+                                     Xtra})).
+
+pick({{_,_,_} = Transport, Mask}) ->  %% from old code; dialyzer complains
+    {Transport, Mask, []};            %% about this
+
+pick(false) ->
+    {error, no_connection};
+
+pick(T) ->
+    T.
 
 %% handle_error/4
 
@@ -1647,6 +1702,8 @@ send({TPid, Pkt, #request{handler = Pid} = Req0, SvcName, Timeout, TRef}) ->
     end.
 
 %% recv/4
+%%
+%% Relay an answer from a remote node.
 
 recv(TPid, Pid, TRef, Ref) ->        
     receive
@@ -1660,8 +1717,14 @@ recv(TPid, Pid, TRef, Ref) ->
 
 %% send/2
 
-send(Pid, Pkt) ->
-    Pid ! {send, Pkt}.
+send(Pid, Pkt) ->  %% Strip potentially large message terms.
+    #diameter_packet{header = H,
+                     bin = Bin,
+                     transport_data = T}
+        = Pkt,
+    Pid ! {send, #diameter_packet{header = H,
+                                  bin = Bin,
+                                  transport_data = T}}.
 
 %% retransmit/4
 
@@ -1674,9 +1737,7 @@ retransmit({TPid, Caps, App}
     have_request(Pkt0, TPid)     %% Don't failover to a peer we've
         andalso ?THROW(timeout), %% already sent to.
 
-    #diameter_packet{header = Hdr0} = Pkt0,
-    Hdr = Hdr0#diameter_header{is_retransmitted = true},
-    Pkt = Pkt0#diameter_packet{header = Hdr},
+    Pkt = make_retransmit_packet(Pkt0),
 
     retransmit(cb(App, prepare_retransmit, [Pkt, SvcName, {TPid, Caps}]),
                Transport,

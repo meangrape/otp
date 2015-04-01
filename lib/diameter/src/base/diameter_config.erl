@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2010-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -35,9 +35,10 @@
 %%
 
 -module(diameter_config).
--compile({no_auto_import, [monitor/2]}).
-
 -behaviour(gen_server).
+
+-compile({no_auto_import, [monitor/2, now/0]}).
+-import(diameter_lib, [now/0]).
 
 -export([start_service/2,
          stop_service/1,
@@ -158,7 +159,8 @@ stop_service(SvcName) ->
 %% # add_transport/2
 %% --------------------------------------------------------------------------
 
--spec add_transport(diameter:service_name(), {connect|listen, [diameter:transport_opt()]})
+-spec add_transport(diameter:service_name(),
+                    {connect|listen, [diameter:transport_opt()]})
    -> {ok, diameter:transport_ref()}
     | {error, term()}.
 
@@ -531,7 +533,10 @@ opt({applications, As}) ->
 opt({capabilities, Os}) ->
     is_list(Os) andalso ok == encode_CER(Os);
 
-opt({capx_timeout, Tmo}) ->
+opt({K, Tmo})
+  when K == capx_timeout;
+       K == dpr_timeout;
+       K == dpa_timeout ->
     ?IS_UINT32(Tmo);
 
 opt({length_errors, T}) ->
@@ -553,6 +558,9 @@ opt({watchdog_config, L}) ->
 
 opt({spawn_opt, Opts}) ->
     is_list(Opts);
+
+opt({pool_size, N}) ->
+    is_integer(N) andalso 0 < N;
 
 %% Options that we can't validate.
 opt({K, _})
@@ -638,12 +646,23 @@ make_config(SvcName, Opts) ->
                          {false, monitor},
                          {?NOMASK, sequence},
                          {nodes, restrict_connections},
+                         {16#FFFFFF, incoming_maxlen},
+                         {true, string_decode},
                          {[], spawn_opt}]),
+
+    D = proplists:get_value(string_decode, SvcOpts, true),
 
     #service{name = SvcName,
              rec = #diameter_service{applications = Apps,
-                                     capabilities = Caps},
+                                     capabilities = binary_caps(Caps, D)},
              options = SvcOpts}.
+
+binary_caps(Caps, true) ->
+    Caps;
+binary_caps(Caps, false) ->
+    diameter_capx:binary_caps(Caps).
+
+%% make_opts/2
 
 make_opts(Opts, Defs) ->
     Known = [{K, get_opt(K, Opts, D)} || {D,K} <- Defs],
@@ -653,17 +672,26 @@ make_opts(Opts, Defs) ->
 
     [{K, opt(K,V)} || {K,V} <- Known].
 
+opt(incoming_maxlen, N)
+  when 0 =< N, N < 1 bsl 24 ->
+    N;
+
 opt(spawn_opt, L)
   when is_list(L) ->
     L;
 
 opt(K, false = B)
-  when K /= sequence ->
+  when K == share_peers;
+       K == use_shared_peers;
+       K == monitor;
+       K == restrict_connections;
+       K == string_decode ->
     B;
 
 opt(K, true = B)
   when K == share_peers;
-       K == use_shared_peers ->
+       K == use_shared_peers;
+       K == string_decode ->
     B;
 
 opt(restrict_connections, T)

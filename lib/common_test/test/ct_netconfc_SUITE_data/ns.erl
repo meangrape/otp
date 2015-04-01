@@ -351,7 +351,7 @@ check_expected(SessionId,ConnRef,Msg) ->
 	    do(ConnRef, Do),
 	    reply(ConnRef,Reply);
 	error ->
-	    timer:sleep(1000),
+	    ct:sleep(1000),
 	    exit({error,{got_unexpected,SessionId,Msg,ets:tab2list(ns_tab)}})
     end.
 
@@ -540,8 +540,13 @@ make_msg({hello,SessionId,Stuff}) ->
 	  SessionIdXml/binary,"</hello>">>);
 make_msg(ok) ->
     xml(rpc_reply("<ok/>"));
+
+make_msg({ok,Data}) ->
+    xml(rpc_reply(from_simple({ok,Data})));
+
 make_msg({data,Data}) ->
     xml(rpc_reply(from_simple({data,Data})));
+
 make_msg(event) ->
     xml(<<"<notification xmlns=\"",?NETCONF_NOTIF_NAMESPACE,"\">"
 	  "<eventTime>2012-06-14T14:50:54+02:00</eventTime>"

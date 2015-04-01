@@ -289,8 +289,13 @@ renegotiate_data(ConnectionHandler) ->
 -spec close(pid(), channel_id()) -> ok.
 %%--------------------------------------------------------------------
 close(ConnectionHandler, ChannelId) ->
-    sync_send_all_state_event(ConnectionHandler, {close, ChannelId}).
-
+    case sync_send_all_state_event(ConnectionHandler, {close, ChannelId}) of
+	ok ->
+	    ok;
+	{error, closed} -> 
+	    ok
+    end.	
+	
 %%--------------------------------------------------------------------
 -spec stop(pid()) -> ok | {error, term()}.
 %%--------------------------------------------------------------------
@@ -1204,7 +1209,11 @@ sync_send_all_state_event(FsmPid, Event) ->
     sync_send_all_state_event(FsmPid, Event, infinity).
 
 sync_send_all_state_event(FsmPid, Event, Timeout) ->
-    try gen_fsm:sync_send_all_state_event(FsmPid, Event, Timeout)
+    try gen_fsm:sync_send_all_state_event(FsmPid, Event, Timeout) of
+	{closed, _Channel} ->
+	    {error, closed};
+	Result ->
+	    Result
     catch
 	exit:{noproc, _} ->
 	    {error, closed};
@@ -1702,7 +1711,7 @@ handshake(Pid, Ref, Timeout) ->
 	    {error, Reason}
     after Timeout ->
 	    stop(Pid),
-	    {error, Timeout}
+	    {error, timeout}
     end.
 
 start_timeout(_,_, infinity) ->

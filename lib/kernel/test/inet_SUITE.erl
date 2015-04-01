@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 1997-2014. All Rights Reserved.
+%% Copyright Ericsson AB 1997-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -36,6 +36,7 @@
 	 gethostnative_parallell/1, cname_loop/1, 
          gethostnative_soft_restart/0, gethostnative_soft_restart/1,
 	 gethostnative_debug_level/0, gethostnative_debug_level/1,
+	 lookup_bad_search_option/1,
 	 getif/1,
 	 getif_ifr_name_overflow/1,getservbyname_overflow/1, getifaddrs/1,
 	 parse_strict_address/1, simple_netns/1, simple_netns_open/1]).
@@ -52,6 +53,7 @@ all() ->
      ipv4_to_ipv6, host_and_addr, {group, parse},
      t_gethostnative, gethostnative_parallell, cname_loop,
      gethostnative_debug_level, gethostnative_soft_restart,
+     lookup_bad_search_option,
      getif, getif_ifr_name_overflow, getservbyname_overflow,
      getifaddrs, parse_strict_address, simple_netns, simple_netns_open].
 
@@ -86,10 +88,30 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(lookup_bad_search_option, Config) ->
+    Db = inet_db,
+    Key = res_lookup,
+    %% The bad option can not enter through inet_db:set_lookup/1,
+    %% but through e.g .inetrc.
+    Prev = ets:lookup(Db, Key),
+    ets:delete(Db, Key),
+    ets:insert(Db, {Key,[lookup_bad_search_option]}),
+    ?t:format("Misconfigured resolver lookup order", []),
+    Dog = test_server:timetrap(test_server:seconds(60)),
+    [{Key,Prev},{watchdog,Dog}|Config];
 init_per_testcase(_Func, Config) ->
     Dog = test_server:timetrap(test_server:seconds(60)),
     [{watchdog,Dog}|Config].
 
+end_per_testcase(lookup_bad_search_option, Config) ->
+    Dog = ?config(watchdog, Config),
+    test_server:timetrap_cancel(Dog),
+    Db = inet_db,
+    Key = res_lookup,
+    Prev = ?config(Key, Config),
+    ets:delete(Db, Key),
+    ets:insert(Db, Prev),
+    ?t:format("Restored resolver lookup order", []);
 end_per_testcase(_Func, Config) ->
     Dog = ?config(watchdog, Config),
     test_server:timetrap_cancel(Dog).
@@ -905,6 +927,19 @@ lookup_loop([H|Hs], Delay, Tag, Parent, Cnt, Hosts) ->
     after random:uniform(Delay) -> 
 	    lookup_loop(Hs, Delay, Tag, Parent, Cnt-1, Hosts) 
     end.
+
+
+
+lookup_bad_search_option(suite) ->
+    [];
+lookup_bad_search_option(doc) ->
+    ["Test lookup with erroneously configured lookup option (OTP-12133)"];
+lookup_bad_search_option(Config) when is_list(Config) ->
+    %% Manipulation of resolver config is done in init_per_testcase
+    %% and end_per_testcase to ensure cleanup.
+    {ok,Hostname} = inet:gethostname(),
+    {ok,_Hent} = inet:gethostbyname(Hostname), % Will hang loop for this bug
+    ok.
 
 
 

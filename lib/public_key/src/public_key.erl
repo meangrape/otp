@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2008-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2008-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -46,7 +46,11 @@
 	 pkix_normalize_name/1,
 	 pkix_path_validation/3,
 	 ssh_decode/2, ssh_encode/2,
-	 pkix_crls_validate/3
+	 pkix_crls_validate/3,
+	 pkix_dist_point/1,
+	 pkix_dist_points/1,
+	 pkix_crl_verify/2,
+	 pkix_crl_issuer/1
 	]).
 
 -export_type([public_key/0, private_key/0, pem_entry/0,
@@ -110,7 +114,7 @@ pem_encode(PemEntries) when is_list(PemEntries) ->
     iolist_to_binary(pubkey_pem:encode(PemEntries)).
 
 %%--------------------------------------------------------------------
--spec pem_entry_decode(pem_entry(), [string()]) -> term().
+-spec pem_entry_decode(pem_entry(), string()) -> term().
 %
 %% Description: Decodes a pem entry. pem_decode/1 returns a list of
 %% pem entries.
@@ -142,14 +146,16 @@ pem_entry_decode({Asn1Type, CryptDer, {Cipher, #'PBES2-params'{}}} = PemEntry,
 pem_entry_decode({Asn1Type, CryptDer, {Cipher, {#'PBEParameter'{},_}}} = PemEntry, 
  		 Password) when is_atom(Asn1Type) andalso
  				is_binary(CryptDer) andalso
- 				is_list(Cipher) ->
+ 				is_list(Cipher) andalso
+				is_list(Password) ->
     do_pem_entry_decode(PemEntry, Password);
 pem_entry_decode({Asn1Type, CryptDer, {Cipher, Salt}} = PemEntry, 
 		 Password) when is_atom(Asn1Type) andalso
 				is_binary(CryptDer) andalso
 				is_list(Cipher) andalso
 				is_binary(Salt) andalso
-				((erlang:byte_size(Salt) == 8) or (erlang:byte_size(Salt) == 16)) ->
+				((erlang:byte_size(Salt) == 8) or (erlang:byte_size(Salt) == 16)) andalso
+				is_list(Password) ->
     do_pem_entry_decode(PemEntry, Password).	
 
 
@@ -470,6 +476,45 @@ verify(DigestOrPlainText, sha = DigestType, Signature, {Key,  #'Dss-Parms'{p = P
     crypto:verify(dss, DigestType, DigestOrPlainText, Signature, [P, Q, G, Key]).
 
 %%--------------------------------------------------------------------
+-spec pkix_dist_point(der_encoded() | #'OTPCertificate'{}) -> 
+			      #'DistributionPoint'{}.  
+%% Description:  Creates a distribution point for CRLs issued by the same issuer as <c>Cert</c>.
+%%--------------------------------------------------------------------
+pkix_dist_point(OtpCert) when is_binary(OtpCert) ->
+    pkix_dist_point(pkix_decode_cert(OtpCert, otp));
+pkix_dist_point(OtpCert) ->
+    Issuer = public_key:pkix_normalize_name(
+	       pubkey_cert_records:transform(
+		 OtpCert#'OTPCertificate'.tbsCertificate#'OTPTBSCertificate'.issuer, encode)),
+    
+    TBSCert = OtpCert#'OTPCertificate'.tbsCertificate,
+    Extensions = pubkey_cert:extensions_list(TBSCert#'OTPTBSCertificate'.extensions),
+    AltNames = case pubkey_cert:select_extension(?'id-ce-issuerAltName', Extensions) of 
+		   undefined ->
+		       [];
+		   #'Extension'{extnValue = Value} ->
+		       Value
+	       end,
+    Point = {fullName, [{directoryName, Issuer} | AltNames]},
+    #'DistributionPoint'{cRLIssuer = asn1_NOVALUE,
+			 reasons = asn1_NOVALUE,
+			 distributionPoint =  Point}.	
+%%--------------------------------------------------------------------
+-spec pkix_dist_points(der_encoded() | #'OTPCertificate'{}) -> 
+			      [#'DistributionPoint'{}].  
+%% Description:  Extracts distributionpoints specified in the certificates extensions.
+%%--------------------------------------------------------------------
+pkix_dist_points(OtpCert) when is_binary(OtpCert) ->
+    pkix_dist_points(pkix_decode_cert(OtpCert, otp));
+pkix_dist_points(OtpCert) ->
+    Value = pubkey_cert:distribution_points(OtpCert),
+    lists:foldl(fun(Point, Acc0) ->
+			DistPoint = pubkey_cert_records:transform(Point, decode),
+			[DistPoint | Acc0]
+		end, 
+		[], Value).
+
+%%--------------------------------------------------------------------
 -spec pkix_sign(#'OTPTBSCertificate'{},
 		rsa_private_key() | dsa_private_key()) -> Der::binary().
 %%
@@ -509,6 +554,25 @@ pkix_verify(DerCert, Key = {#'ECPoint'{}, _})
   when is_binary(DerCert) ->
     {DigestType, PlainText, Signature} = pubkey_cert:verify_data(DerCert),
     verify(PlainText, DigestType, Signature,  Key).
+
+%%--------------------------------------------------------------------
+-spec pkix_crl_verify(CRL::binary() | #'CertificateList'{}, Cert::binary() | #'OTPCertificate'{}) -> boolean().
+%%
+%% Description: Verify that Cert is the CRL signer.
+%%--------------------------------------------------------------------
+pkix_crl_verify(CRL, Cert) when is_binary(CRL) ->
+    pkix_crl_verify(der_decode('CertificateList', CRL), Cert);
+pkix_crl_verify(CRL, Cert) when is_binary(Cert) ->
+    pkix_crl_verify(CRL, pkix_decode_cert(Cert, otp));
+pkix_crl_verify(#'CertificateList'{} = CRL, #'OTPCertificate'{} = Cert) ->
+    TBSCert = Cert#'OTPCertificate'.tbsCertificate, 
+    PublicKeyInfo = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
+    PublicKey = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.subjectPublicKey,
+    AlgInfo = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.algorithm,
+    PublicKeyParams = AlgInfo#'PublicKeyAlgorithm'.parameters,
+    pubkey_crl:verify_crl_signature(CRL, 
+				    der_encode('CertificateList', CRL), 
+				    PublicKey, PublicKeyParams).
 
 %%--------------------------------------------------------------------
 -spec pkix_is_issuer(Cert :: der_encoded()| #'OTPCertificate'{} | #'CertificateList'{},
@@ -564,15 +628,25 @@ pkix_is_fixed_dh_cert(Cert) when is_binary(Cert) ->
 %
 %% Description: Returns the issuer id.
 %%--------------------------------------------------------------------
-pkix_issuer_id(#'OTPCertificate'{} = OtpCert, self) ->
-    pubkey_cert:issuer_id(OtpCert, self);
-
-pkix_issuer_id(#'OTPCertificate'{} = OtpCert, other) ->
-    pubkey_cert:issuer_id(OtpCert, other);
-
-pkix_issuer_id(Cert, Signed) when is_binary(Cert) ->
+pkix_issuer_id(#'OTPCertificate'{} = OtpCert, Signed) when (Signed == self) or 
+							   (Signed == other) ->
+    pubkey_cert:issuer_id(OtpCert, Signed);
+pkix_issuer_id(Cert, Signed) when is_binary(Cert) -> 
     OtpCert = pkix_decode_cert(Cert, otp),
     pkix_issuer_id(OtpCert, Signed).
+
+%%--------------------------------------------------------------------
+-spec pkix_crl_issuer(CRL::binary()| #'CertificateList'{}) -> 
+			     {rdnSequence,
+			      [#'AttributeTypeAndValue'{}]}.
+%
+%% Description: Returns the issuer.
+%%--------------------------------------------------------------------
+pkix_crl_issuer(CRL) when is_binary(CRL) ->
+    pkix_crl_issuer(der_decode('CertificateList', CRL));
+pkix_crl_issuer(#'CertificateList'{} = CRL) ->
+    pubkey_cert_records:transform(
+      CRL#'CertificateList'.tbsCertList#'TBSCertList'.issuer, decode).
 
 %%--------------------------------------------------------------------
 -spec pkix_normalize_name({rdnSequence,
@@ -921,3 +995,4 @@ ec_key({PubKey, PrivateKey}, Params) ->
 		    privateKey = binary_to_list(PrivateKey),
 		    parameters = Params,
 		    publicKey = {0, PubKey}}.
+

@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2007-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2007-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -34,14 +34,14 @@
 -export([get_tls_records/2]).
 
 %% Decoding
--export([decode_cipher_text/2]).
+-export([decode_cipher_text/3]).
 
 %% Encoding
 -export([encode_plain_text/4]).
 
 %% Protocol version handling
 -export([protocol_version/1, lowest_protocol_version/2,
-	 highest_protocol_version/1, supported_protocol_versions/0,
+	 highest_protocol_version/1, is_higher/2, supported_protocol_versions/0,
 	 is_acceptable_version/1, is_acceptable_version/2]).
 
 -export_type([tls_version/0, tls_atom_version/0]).
@@ -142,19 +142,21 @@ encode_plain_text(Type, Version, Data,
     {CipherText, ConnectionStates#connection_states{current_write = WriteState#connection_state{sequence_number = Seq +1}}}.
 
 %%--------------------------------------------------------------------
--spec decode_cipher_text(#ssl_tls{}, #connection_states{}) ->
+-spec decode_cipher_text(#ssl_tls{}, #connection_states{}, boolean()) ->
 				{#ssl_tls{}, #connection_states{}}| #alert{}.
 %%
 %% Description: Decode cipher text
 %%--------------------------------------------------------------------
 decode_cipher_text(#ssl_tls{type = Type, version = Version,
-			    fragment = CipherFragment} = CipherText, ConnnectionStates0) ->
-    ReadState0 = ConnnectionStates0#connection_states.current_read,
-    #connection_state{compression_state = CompressionS0,
-		      sequence_number = Seq,
-		      security_parameters = SecParams} = ReadState0,
-    CompressAlg = SecParams#security_parameters.compression_algorithm,
-    case ssl_record:decipher(Version, CipherFragment, ReadState0) of
+			    fragment = CipherFragment} = CipherText,
+		   #connection_states{current_read =
+					  #connection_state{
+					     compression_state = CompressionS0,
+					     sequence_number = Seq,
+					     security_parameters=
+						 #security_parameters{compression_algorithm = CompressAlg}
+					    } = ReadState0} = ConnnectionStates0, PaddingCheck) ->
+    case ssl_record:decipher(Version, CipherFragment, ReadState0, PaddingCheck) of
 	{PlainFragment, Mac, ReadState1} ->
 	    MacHash = calc_mac_hash(Type, Version, PlainFragment, ReadState1),
 	    case ssl_record:is_correct_mac(Mac, MacHash) of
@@ -233,6 +235,13 @@ highest_protocol_version(Version = {M,_}, [{N,_} | Rest])  when M > N ->
     highest_protocol_version(Version, Rest);
 highest_protocol_version(_, [Version | Rest]) ->
     highest_protocol_version(Version, Rest).
+
+is_higher({M, N}, {M, O}) when N > O ->
+    true;
+is_higher({M, _}, {N, _}) when M > N ->
+    true; 
+is_higher(_, _) ->
+    false.
 
 %%--------------------------------------------------------------------
 -spec supported_protocol_versions() -> [tls_version()].					 

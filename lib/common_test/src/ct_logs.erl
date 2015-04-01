@@ -29,6 +29,7 @@
 -module(ct_logs).
 
 -export([init/2, close/2, init_tc/1, end_tc/1]).
+-export([register_groupleader/2, unregister_groupleader/1]).
 -export([get_log_dir/0, get_log_dir/1]).
 -export([log/3, start_log/1, cont_log/2, end_log/0]).
 -export([set_stylesheet/2, clear_stylesheet/1]).
@@ -267,7 +268,7 @@ init_tc(RefreshLog) ->
     ok.
 
 %%%-----------------------------------------------------------------
-%%% @spec end_tc(TCPid) -> ok | {error,Reason}
+%%% @spec end_tc(TCPid) -> ok
 %%%
 %%% @doc Test case clean up (tool-internal use only).
 %%%
@@ -276,6 +277,26 @@ end_tc(TCPid) ->
     %% use call here so that the TC process will wait and receive
     %% possible exit signals from ct_logs before end_tc returns ok 
     call({end_tc,TCPid}).
+
+%%%-----------------------------------------------------------------
+%%% @spec register_groupleader(Pid,GroupLeader) -> ok
+%%%
+%%% @doc To enable logging to a group leader (tool-internal use only).
+%%%
+%%% <p>This function is called by ct_framework:report/2</p>
+register_groupleader(Pid,GroupLeader) ->
+    call({register_groupleader,Pid,GroupLeader}),
+    ok.
+
+%%%-----------------------------------------------------------------
+%%% @spec unregister_groupleader(Pid) -> ok
+%%%
+%%% @doc To disable logging to a group leader (tool-internal use only).
+%%%
+%%% <p>This function is called by ct_framework:report/2</p>
+unregister_groupleader(Pid) ->
+    call({unregister_groupleader,Pid}),
+    ok.
 
 %%%-----------------------------------------------------------------
 %%% @spec log(Heading,Format,Args) -> ok
@@ -764,6 +785,14 @@ logger_loop(State) ->
 	    return(From,ok),
 	    logger_loop(State#logger_state{tc_groupleaders =
 					       rm_tc_gl(TCPid,State)});
+	{{register_groupleader,Pid,GL},From} ->
+	    GLs = add_tc_gl(Pid,GL,State),
+	    return(From,ok),
+	    logger_loop(State#logger_state{tc_groupleaders = GLs});
+	{{unregister_groupleader,Pid},From} ->
+	    return(From,ok),
+	    logger_loop(State#logger_state{tc_groupleaders =
+					       rm_tc_gl(Pid,State)});
 	{{get_log_dir,true},From} ->
 	    return(From,{ok,State#logger_state.log_dir}),
 	    logger_loop(State);
@@ -1876,6 +1905,17 @@ sort_all_runs(Dirs) ->
 		       {Date1,HH1,MM1,SS1} > {Date2,HH2,MM2,SS2}
 	       end, Dirs).
 
+sort_ct_runs(Dirs) ->
+    %% Directory naming: <Prefix>.NodeName.Date_Time[/...]
+    %% Sort on Date_Time string: "YYYY-MM-DD_HH.MM.SS"
+    lists:sort(fun(Dir1,Dir2) ->
+		       [_Prefix,_Node1,DateHH1,MM1,SS1] =
+			   string:tokens(filename:dirname(Dir1),[$.]),
+		       [_Prefix,_Node2,DateHH2,MM2,SS2] =
+			   string:tokens(filename:dirname(Dir2),[$.]),
+		       {DateHH1,MM1,SS1} =< {DateHH2,MM2,SS2}
+	       end, Dirs).
+
 dir_diff_all_runs(Dirs, LogCache) ->
     case LogCache#log_cache.all_runs of
 	[] ->
@@ -2188,7 +2228,8 @@ make_all_suites_index(When) when is_atom(When) ->
 		end
 	end,	
 
-    LogDirs = filelib:wildcard(logdir_prefix()++".*/*"++?logdir_ext),
+    Wildcard = logdir_prefix()++".*/*"++?logdir_ext,
+    LogDirs = sort_ct_runs(filelib:wildcard(Wildcard)),
 
     LogCacheInfo = get_cache_data(UseCache),
 

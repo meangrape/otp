@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2010-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -59,6 +59,7 @@
          send_unexpected_mandatory_decode/1,
          send_unexpected_mandatory/1,
          send_long/1,
+         send_maxlen/1,
          send_nopeer/1,
          send_noapp/1,
          send_discard/1,
@@ -122,8 +123,6 @@
 
 -define(ADDR, {127,0,0,1}).
 
--define(CLIENT, "CLIENT").
--define(SERVER, "SERVER").
 -define(REALM, "erlang.org").
 -define(HOST(Host, Realm), Host ++ [$.|Realm]).
 
@@ -141,11 +140,19 @@
 %% Which common dictionary to use in the clients.
 -define(RFCS, [rfc3588, rfc6733]).
 
+%% Whether to decode stringish Diameter types to strings, or leave
+%% them as binary.
+-define(STRING_DECODES, [true, false]).
+
 -record(group,
-        {client_encoding,
+        {client_service,
+         client_encoding,
          client_dict0,
+         client_strings,
+         server_service,
          server_encoding,
-         server_container}).
+         server_container,
+         server_strings}).
 
 %% Not really what we should be setting unless the message is sent in
 %% the common application but diameter doesn't care.
@@ -166,7 +173,7 @@
         ?answer_message(_, ResultCode)).
 
 %% Config for diameter:start_service/2.
--define(SERVICE(Name),
+-define(SERVICE(Name, Decode),
         [{'Origin-Host', Name ++ "." ++ ?REALM},
          {'Origin-Realm', ?REALM},
          {'Host-IP-Address', [?ADDR]},
@@ -175,6 +182,8 @@
          {'Auth-Application-Id', [?DIAMETER_APP_ID_COMMON]},
          {'Acct-Application-Id', [?DIAMETER_APP_ID_ACCOUNTING]},
          {restrict_connections, false},
+         {string_decode, Decode},
+         {incoming_maxlen, 1 bsl 21},
          {spawn_opt, [{min_heap_size, 5000}]}
          | [{application, [{dictionary, D},
                            {module, ?MODULE},
@@ -227,28 +236,53 @@ suite() ->
     [{timetrap, {seconds, 60}}].
 
 all() ->
-    [start, start_services, add_transports, result_codes]
-        ++ [{group, ?util:name([R,D,A,C]), P} || R <- ?ENCODINGS,
-                                                 D <- ?RFCS,
-                                                 A <- ?ENCODINGS,
-                                                 C <- ?CONTAINERS,
-                                                 P <- [[], [parallel]]]
-        ++ [outstanding, remove_transports, empty, stop_services, stop].
+    [start, result_codes, {group, traffic}, outstanding, empty, stop].
 
 groups() ->
     Ts = tc(),
-    [{?util:name([R,D,A,C]), [], Ts} || R <- ?ENCODINGS,
-                                        D <- ?RFCS,
-                                        A <- ?ENCODINGS,
-                                        C <- ?CONTAINERS].
+    [{?util:name([R,D,A,C]), [parallel], Ts} || R <- ?ENCODINGS,
+                                                D <- ?RFCS,
+                                                A <- ?ENCODINGS,
+                                                C <- ?CONTAINERS]
+        ++
+        [{?util:name([R,D,A,C,SD,CD]),
+          [],
+          [start_services,
+           add_transports,
+           result_codes,
+           {group, ?util:name([R,D,A,C])},
+           remove_transports,
+           stop_services]}
+         || R <- ?ENCODINGS,
+            D <- ?RFCS,
+            A <- ?ENCODINGS,
+            C <- ?CONTAINERS,
+            SD <- ?STRING_DECODES,
+            CD <- ?STRING_DECODES]
+        ++
+        [{traffic, [parallel], [{group, ?util:name([R,D,A,C,SD,CD])}
+                                || R <- ?ENCODINGS,
+                                   D <- ?RFCS,
+                                   A <- ?ENCODINGS,
+                                   C <- ?CONTAINERS,
+                                   SD <- ?STRING_DECODES,
+                                   CD <- ?STRING_DECODES]}].
 
 init_per_group(Name, Config) ->
-    [R,D,A,C] = ?util:name(Name),
-    G = #group{client_encoding = R,
-               client_dict0 = dict0(D),
-               server_encoding = A,
-               server_container = C},
-    [{group, G} | Config].
+    case ?util:name(Name) of
+        [R,D,A,C,SD,CD] ->
+            G = #group{client_service = [$C|?util:unique_string()],
+                       client_encoding = R,
+                       client_dict0 = dict0(D),
+                       client_strings = CD,
+                       server_service = [$S|?util:unique_string()],
+                       server_encoding = A,
+                       server_container = C,
+                       server_strings = SD},
+            [{group, G} | Config];
+        _ ->
+            Config
+    end.
 
 end_per_group(_, _) ->
     ok.
@@ -285,6 +319,7 @@ tc() ->
      send_unexpected_mandatory_decode,
      send_unexpected_mandatory,
      send_long,
+     send_maxlen,
      send_nopeer,
      send_noapp,
      send_discard,
@@ -319,18 +354,26 @@ tc() ->
 start(_Config) ->
     ok = diameter:start().
 
-start_services(_Config) ->
-    ok = diameter:start_service(?SERVER, ?SERVICE(?SERVER)),
-    ok = diameter:start_service(?CLIENT, [{sequence, ?CLIENT_MASK}
-                                          | ?SERVICE(?CLIENT)]).
+start_services(Config) ->
+    #group{client_service = CN,
+           client_strings = CD,
+           server_service = SN,
+           server_strings = SD}
+        = group(Config),
+    ok = diameter:start_service(SN, ?SERVICE(SN, SD)),
+    ok = diameter:start_service(CN, [{sequence, ?CLIENT_MASK}
+                                     | ?SERVICE(CN, CD)]).
 
 add_transports(Config) ->
-    LRef = ?util:listen(?SERVER,
+    #group{client_service = CN,
+           server_service = SN}
+        = group(Config), 
+    LRef = ?util:listen(SN,
                         tcp,
                         [{capabilities_cb, fun capx/2},
                          {spawn_opt, [{min_heap_size, 8096}]},
                          {applications, apps(rfc3588)}]),
-    Cs = [?util:connect(?CLIENT,
+    Cs = [?util:connect(CN,
                         tcp,
                         LRef,
                         [{id, Id},
@@ -354,12 +397,18 @@ outstanding(_Config) ->
                is_atom(element(1,T))].
 
 remove_transports(Config) ->
+    #group{client_service = CN,
+           server_service = SN}
+        = group(Config),
     [LRef | Cs] = ?util:read_priv(Config, "transport"),
-    [?util:disconnect(?CLIENT, C, ?SERVER, LRef) || C <- Cs].
+    [?util:disconnect(CN, C, SN, LRef) || C <- Cs].
 
-stop_services(_Config) ->
-    ok = diameter:stop_service(?CLIENT),
-    ok = diameter:stop_service(?SERVER).
+stop_services(Config) ->
+    #group{client_service = CN,
+           server_service = SN}
+        = group(Config),
+    ok = diameter:stop_service(CN),
+    ok = diameter:stop_service(SN).
 
 %% Ensure even transports have been removed from request table.
 empty(_Config) ->
@@ -414,12 +463,13 @@ send_eval(Config) ->
         = call(Config, Req).
 
 %% Send an accounting ACR that the server tries to answer with an
-%% inappropriate header, resulting in no answer being sent and the
-%% request timing out.
+%% inappropriate header. That the error is detected is coded in
+%% handle_answer.
 send_bad_answer(Config) ->
     Req = ['ACR', {'Accounting-Record-Type', ?EVENT_RECORD},
                   {'Accounting-Record-Number', 2}],
-    {timeout, _} = call(Config, Req).
+    ?answer_message(?SUCCESS)
+        = call(Config, Req).
 
 %% Send an ACR that the server callback answers explicitly with a
 %% protocol error.
@@ -438,8 +488,9 @@ send_arbitrary(Config) ->
     ['ASA', _SessionId, {'Result-Code', ?SUCCESS} | Avps]
         = call(Config, Req),
     {'AVP', [#diameter_avp{name = 'Product-Name',
-                           value = "XXX"}]}
-        = lists:last(Avps).
+                           value = V}]}
+        = lists:last(Avps),
+    "XXX" = string(V, Config).
 
 %% Send an unknown AVP (to some client) and check that it comes back.
 send_unknown(Config) ->
@@ -587,15 +638,23 @@ send_long(Config) ->
     ['STA', _SessionId, {'Result-Code', ?SUCCESS} | _]
         = call(Config, Req).
 
+%% Send something longer than the configure incoming_maxlen.
+send_maxlen(Config) ->
+    Req = ['STR', {'Termination-Cause', ?LOGOUT},
+                  {'User-Name', [lists:duplicate(1 bsl 21, $X)]}],
+    {timeout, _} = call(Config, Req).
+
 %% Send something for which pick_peer finds no suitable peer.
 send_nopeer(Config) ->
     Req = ['STR', {'Termination-Cause', ?LOGOUT}],
     {error, no_connection} = call(Config, Req, [{extra, [?EXTRA]}]).
 
 %% Send something on an unconfigured application.
-send_noapp(_Config) ->
+send_noapp(Config) ->
+    #group{client_service = CN}
+        = group(Config),
     Req = ['STR', {'Termination-Cause', ?LOGOUT}],
-    {error, no_connection} = diameter:call(?CLIENT, unknown_alias, Req).
+    {error, no_connection} = diameter:call(CN, unknown_alias, Req).
 
 %% Send something that's discarded by prepare_request.
 send_discard(Config) ->
@@ -607,8 +666,10 @@ send_any_1(Config) ->
     Req = ['STR', {'Termination-Cause', ?LOGOUT}],
     {error, no_connection} = call(Config, Req, [{filter, {any, []}}]).
 send_any_2(Config) ->
+    #group{server_service = SN}
+        = group(Config),
     Req = ['STR', {'Termination-Cause', ?LOGOUT},
-                  {'Destination-Host', [?HOST(?SERVER, "unknown.org")]}],
+                  {'Destination-Host', [?HOST(SN, "unknown.org")]}],
     ?answer_message(?UNABLE_TO_DELIVER)
         = call(Config, Req, [{filter, {any, [host, realm]}}]).
 
@@ -620,8 +681,10 @@ send_all_1(Config) ->
         = call(Config, Req, [{filter, {all, [{host, any},
                                              {realm, Realm}]}}]).
 send_all_2(Config) ->
+    #group{server_service = SN}
+        = group(Config),
     Req = ['STR', {'Termination-Cause', ?LOGOUT},
-                  {'Destination-Host', [?HOST(?SERVER, "unknown.org")]}],
+                  {'Destination-Host', [?HOST(SN, "unknown.org")]}],
     {error, no_connection}
         = call(Config, Req, [{filter, {all, [host, realm]}}]).
 
@@ -654,8 +717,10 @@ send_encode_error(Config) ->
 
 %% Send with filtering and expect success.
 send_destination_1(Config) ->
+    #group{server_service = SN}
+        = group(Config),
     Req = ['STR', {'Termination-Cause', ?LOGOUT},
-                  {'Destination-Host', [?HOST(?SERVER, ?REALM)]}],
+                  {'Destination-Host', [?HOST(SN, ?REALM)]}],
     ['STA', _SessionId, {'Result-Code', ?SUCCESS} | _]
         = call(Config, Req, [{filter, {all, [host, realm]}}]).
 send_destination_2(Config) ->
@@ -671,8 +736,10 @@ send_destination_3(Config) ->
     {error, no_connection}
         = call(Config, Req, [{filter, {all, [host, realm]}}]).
 send_destination_4(Config) ->
+    #group{server_service = SN}
+        = group(Config),
     Req = ['STR', {'Termination-Cause', ?LOGOUT},
-                  {'Destination-Host', [?HOST(?SERVER, "unknown.org")]}],
+                  {'Destination-Host', [?HOST(SN, "unknown.org")]}],
     {error, no_connection}
         = call(Config, Req, [{filter, {all, [host, realm]}}]).
 
@@ -684,8 +751,10 @@ send_destination_5(Config) ->
     ?answer_message(?REALM_NOT_SERVED)
         = call(Config, Req).
 send_destination_6(Config) ->
+    #group{server_service = SN}
+        = group(Config),
     Req = ['STR', {'Termination-Cause', ?LOGOUT},
-                  {'Destination-Host', [?HOST(?SERVER, "unknown.org")]}],
+                  {'Destination-Host', [?HOST(SN, "unknown.org")]}],
     ?answer_message(?UNABLE_TO_DELIVER)
         = call(Config, Req).
 
@@ -747,19 +816,34 @@ send_anything(Config) ->
 
 %% ===========================================================================
 
+group(Config) ->
+    #group{} = proplists:get_value(group, Config).
+
+string(V, Config) ->
+    #group{client_strings = B} = group(Config),
+    decode(V,B).
+
+decode(S, true)
+  when is_list(S) ->
+    S;
+decode(B, false)
+  when is_binary(B) ->
+    binary_to_list(B).
+
 call(Config, Req) ->
     call(Config, Req, []).
 
 call(Config, Req, Opts) ->
     Name = proplists:get_value(testcase, Config),
-    #group{client_encoding = ReqEncoding,
+    #group{client_service = CN,
+           client_encoding = ReqEncoding,
            client_dict0 = Dict0}
         = Group
-        = proplists:get_value(group, Config),
-    diameter:call(?CLIENT,
+        = group(Config),
+    diameter:call(CN,
                   dict(Req, Dict0),
                   msg(Req, ReqEncoding, Dict0),
-                  [{extra, [{Name, Group}, now()]} | Opts]).
+                  [{extra, [{Name, Group}, diameter_lib:now()]} | Opts]).
 
 origin({A,C}) ->
     2*codec(A) + container(C);
@@ -843,35 +927,38 @@ peer_down(_SvcName, _Peer, State) ->
 
 %% pick_peer/6-7
 
-pick_peer(Peers, _, ?CLIENT, _State, {Name, Group}, _)
+pick_peer(Peers, _, [$C|_], _State, {Name, Group}, _)
   when Name /= send_detach ->
     find(Group, Peers).
 
-pick_peer(_Peers, _, ?CLIENT, _State, {send_nopeer, _}, _, ?EXTRA) ->
+pick_peer(_Peers, _, [$C|_], _State, {send_nopeer, _}, _, ?EXTRA) ->
     false;
 
-pick_peer(Peers, _, ?CLIENT, _State, {send_detach, Group}, _, {_,_}) ->
+pick_peer(Peers, _, [$C|_], _State, {send_detach, Group}, _, {_,_}) ->
     find(Group, Peers).
 
-find(#group{server_encoding = A, server_container = C}, Peers) ->
+find(#group{client_service = CN,
+            server_encoding = A,
+            server_container = C},
+     Peers) ->
     Id = {A,C},
-    [P] = [P || P <- Peers, id(Id, P)],
+    [P] = [P || P <- Peers, id(Id, P, CN)],
     {ok, P}.
 
-id(Id, {Pid, _Caps}) ->
+id(Id, {Pid, _Caps}, SvcName) ->
     [{ref, _}, {type, _}, {options, Opts} | _]
-        = diameter:service_info(?CLIENT, Pid),
+        = diameter:service_info(SvcName, Pid),
     lists:member({id, Id}, Opts).
 
 %% prepare_request/5-6
 
-prepare_request(_Pkt, ?CLIENT, {_Ref, _Caps}, {send_discard, _}, _) ->
+prepare_request(_Pkt, [$C|_], {_Ref, _Caps}, {send_discard, _}, _) ->
     {discard, unprepared};
 
-prepare_request(Pkt, ?CLIENT, {_Ref, Caps}, {Name, Group}, _) ->
+prepare_request(Pkt, [$C|_], {_Ref, Caps}, {Name, Group}, _) ->
     {send, prepare(Pkt, Caps, Name, Group)}.
 
-prepare_request(Pkt, ?CLIENT, {_Ref, Caps}, {send_detach, Group}, _, _) ->
+prepare_request(Pkt, [$C|_], {_Ref, Caps}, {send_detach, Group}, _, _) ->
     {eval_packet, {send, prepare(Pkt, Caps, Group)}, [fun log/2, detach]}.
 
 log(#diameter_packet{bin = Bin} = P, T)
@@ -1042,10 +1129,10 @@ prepare_retransmit(_Pkt, false, _Peer, _Name, _Group) ->
 
 %% handle_answer/6-7
 
-handle_answer(Pkt, Req, ?CLIENT, Peer, {Name, Group}, _) ->
+handle_answer(Pkt, Req, [$C|_], Peer, {Name, Group}, _) ->
     answer(Pkt, Req, Peer, Name, Group).
 
-handle_answer(Pkt, Req, ?CLIENT, Peer, {send_detach = Name, Group}, _, X) ->
+handle_answer(Pkt, Req, [$C|_], Peer, {send_detach = Name, Group}, _, X) ->
     {Pid, Ref} = X,
     Pid ! {Ref, answer(Pkt, Req, Peer, Name, Group)}.
 
@@ -1057,15 +1144,12 @@ answer(Pkt, Req, _Peer, Name, #group{client_dict0 = Dict0}) ->
     [R | Vs] = Dict:'#get-'(answer(Ans, Es, Name)),
     [Dict:rec2msg(R) | Vs].
 
-answer(Rec, [_|_], N)
-  when N == send_long_avp_length;
-       N == send_short_avp_length;
-       N == send_zero_avp_length;
-       N == send_invalid_avp_length;
-       N == send_invalid_reject;
-       N == send_unknown_short_mandatory;
-       N == send_unexpected_mandatory_decode ->
+%% An inappropriate E-bit results in a decode error ...
+answer(Rec, Es, send_bad_answer) ->
+    [{5004, #diameter_avp{name = 'Result-Code'}} | _] = Es,
     Rec;
+
+%% ... while other errors are reflected in Failed-AVP.
 answer(Rec, [], _) ->
     Rec.
 
@@ -1077,11 +1161,13 @@ app(Req, _, Dict0) ->
 
 %% handle_error/6
 
-handle_error(timeout = Reason, _Req, ?CLIENT, _Peer, _, Time) ->
-    Now = now(),
-    {Reason, {Time, Now, timer:now_diff(Now, Time)}};
+handle_error(timeout = Reason, _Req, [$C|_], _Peer, _, Time) ->
+    Now = diameter_lib:now(),
+    {Reason, {diameter_lib:timestamp(Time),
+              diameter_lib:timestamp(Now),
+              diameter_lib:micro_diff(Now, Time)}};
 
-handle_error(Reason, _Req, ?CLIENT, _Peer, _, _Time) ->
+handle_error(Reason, _Req, [$C|_], _Peer, _, _Time) ->
     {error, Reason}.
 
 %% handle_request/3
@@ -1089,7 +1175,7 @@ handle_error(Reason, _Req, ?CLIENT, _Peer, _, _Time) ->
 %% Note that diameter will set Result-Code and Failed-AVPs if
 %% #diameter_packet.errors is non-null.
 
-handle_request(#diameter_packet{header = H, msg = M}, ?SERVER, {_Ref, Caps}) ->
+handle_request(#diameter_packet{header = H, msg = M}, _, {_Ref, Caps}) ->
     #diameter_header{end_to_end_id = EI,
                      hop_by_hop_id = HI}
         = H,

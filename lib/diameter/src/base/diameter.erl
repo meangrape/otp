@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2010-2013. All Rights Reserved.
+%% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -45,6 +45,7 @@
 
 -export_type([evaluable/0,
               restriction/0,
+              message_length/0,
               remotes/0,
               sequence/0,
               app_alias/0,
@@ -298,6 +299,9 @@ call(SvcName, App, Message) ->
     | [node()]
     | evaluable().
 
+-type message_length()
+   :: 0..16#FFFFFF.
+
 %% Options passed to start_service/2
 
 -type service_opt()
@@ -306,6 +310,8 @@ call(SvcName, App, Message) ->
     | {restrict_connections, restriction()}
     | {sequence, sequence() | evaluable()}
     | {share_peers, remotes()}
+    | {string_decode, boolean()}
+    | {incoming_maxlen, message_length()}
     | {use_shared_peers, remotes()}
     | {spawn_opt, list()}.
 
@@ -337,11 +343,14 @@ call(SvcName, App, Message) ->
    :: {transport_module, atom()}
     | {transport_config, any()}
     | {transport_config, any(), 'Unsigned32'() | infinity}
+    | {pool_size, pos_integer()}
     | {applications, [app_alias()]}
     | {capabilities, [capability()]}
     | {capabilities_cb, evaluable()}
     | {capx_timeout, 'Unsigned32'()}
     | {disconnect_cb, evaluable()}
+    | {dpr_timeout, 'Unsigned32'()}
+    | {dpa_timeout, 'Unsigned32'()}
     | {length_errors, exit | handle | discard}
     | {connect_timer, 'Unsigned32'()}
     | {watchdog_timer, 'Unsigned32'() | {module(), atom(), list()}}
