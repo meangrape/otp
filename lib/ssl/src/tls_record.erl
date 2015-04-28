@@ -57,7 +57,7 @@
 
 %%--------------------------------------------------------------------
 -spec get_tls_records(binary(), binary()) -> {[binary()], binary()} | #alert{}.
-%%			     
+%%
 %% Description: Given old buffer and new data from TCP, packs up a records
 %% and returns it as a list of tls_compressed binaries also returns leftover
 %% data
@@ -68,25 +68,25 @@ get_tls_records(Data, Buffer) ->
     get_tls_records_aux(list_to_binary([Buffer, Data]), []).
 
 get_tls_records_aux(<<?BYTE(?APPLICATION_DATA),?BYTE(MajVer),?BYTE(MinVer),
-		     ?UINT16(Length), Data:Length/binary, Rest/binary>>, 
+		     ?UINT16(Length), Data:Length/binary, Rest/binary>>,
 		    Acc) ->
     get_tls_records_aux(Rest, [#ssl_tls{type = ?APPLICATION_DATA,
 					version = {MajVer, MinVer},
 					fragment = Data} | Acc]);
 get_tls_records_aux(<<?BYTE(?HANDSHAKE),?BYTE(MajVer),?BYTE(MinVer),
-		     ?UINT16(Length), 
+		     ?UINT16(Length),
 		     Data:Length/binary, Rest/binary>>, Acc) ->
     get_tls_records_aux(Rest, [#ssl_tls{type = ?HANDSHAKE,
 					version = {MajVer, MinVer},
 					fragment = Data} | Acc]);
 get_tls_records_aux(<<?BYTE(?ALERT),?BYTE(MajVer),?BYTE(MinVer),
-		     ?UINT16(Length), Data:Length/binary, 
+		     ?UINT16(Length), Data:Length/binary,
 		     Rest/binary>>, Acc) ->
     get_tls_records_aux(Rest, [#ssl_tls{type = ?ALERT,
 					version = {MajVer, MinVer},
 					fragment = Data} | Acc]);
 get_tls_records_aux(<<?BYTE(?CHANGE_CIPHER_SPEC),?BYTE(MajVer),?BYTE(MinVer),
-		     ?UINT16(Length), Data:Length/binary, Rest/binary>>, 
+		     ?UINT16(Length), Data:Length/binary, Rest/binary>>,
 		    Acc) ->
     get_tls_records_aux(Rest, [#ssl_tls{type = ?CHANGE_CIPHER_SPEC,
 					version = {MajVer, MinVer},
@@ -106,7 +106,7 @@ get_tls_records_aux(<<1:1, Length0:15, Data0:Length0/binary, Rest/binary>>,
 						fragment = Data} | Acc]);
 	_ ->
 	    ?ALERT_REC(?FATAL, ?HANDSHAKE_FAILURE)
-	    
+
     end;
 
 get_tls_records_aux(<<0:1, _CT:7, ?BYTE(_MajVer), ?BYTE(_MinVer),
@@ -114,7 +114,7 @@ get_tls_records_aux(<<0:1, _CT:7, ?BYTE(_MajVer), ?BYTE(_MinVer),
                     _Acc) when Length > ?MAX_CIPHER_TEXT_LENGTH ->
     ?ALERT_REC(?FATAL, ?RECORD_OVERFLOW);
 
-get_tls_records_aux(<<1:1, Length0:15, _/binary>>,_Acc) 
+get_tls_records_aux(<<1:1, Length0:15, _/binary>>,_Acc)
   when Length0 > ?MAX_CIPHER_TEXT_LENGTH ->
     ?ALERT_REC(?FATAL, ?RECORD_OVERFLOW);
 
@@ -173,11 +173,11 @@ decode_cipher_text(#ssl_tls{type = Type, version = Version,
 	    end;
 	    #alert{} = Alert ->
 	    Alert
-    end. 
+    end.
 %%--------------------------------------------------------------------
--spec protocol_version(tls_atom_version() | tls_version()) -> 
-			      tls_version() | tls_atom_version().		      
-%%     
+-spec protocol_version(tls_atom_version() | tls_version()) ->
+			      tls_version() | tls_atom_version().
+%%
 %% Description: Creates a protocol version record from a version atom
 %% or vice versa.
 %%--------------------------------------------------------------------
@@ -201,22 +201,22 @@ protocol_version({3, 0}) ->
     sslv3.
 %%--------------------------------------------------------------------
 -spec lowest_protocol_version(tls_version(), tls_version()) -> tls_version().
-%%     
-%% Description: Lowes protocol version of two given versions 
+%%
+%% Description: Lowes protocol version of two given versions
 %%--------------------------------------------------------------------
 lowest_protocol_version(Version = {M, N}, {M, O})   when N < O ->
     Version;
-lowest_protocol_version({M, _}, 
+lowest_protocol_version({M, _},
 			Version = {M, _}) ->
     Version;
-lowest_protocol_version(Version = {M,_}, 
+lowest_protocol_version(Version = {M,_},
 			{N, _}) when M < N ->
     Version;
 lowest_protocol_version(_,Version) ->
     Version.
 %%--------------------------------------------------------------------
 -spec highest_protocol_version([tls_version()]) -> tls_version().
-%%     
+%%
 %% Description: Highest protocol version present in a list
 %%--------------------------------------------------------------------
 highest_protocol_version([]) ->
@@ -239,18 +239,18 @@ highest_protocol_version(_, [Version | Rest]) ->
 is_higher({M, N}, {M, O}) when N > O ->
     true;
 is_higher({M, _}, {N, _}) when M > N ->
-    true; 
+    true;
 is_higher(_, _) ->
     false.
 
 %%--------------------------------------------------------------------
--spec supported_protocol_versions() -> [tls_version()].					 
+-spec supported_protocol_versions() -> [tls_version()].
 %%
 %% Description: Protocol versions supported
 %%--------------------------------------------------------------------
 supported_protocol_versions() ->
     Fun = fun(Version) ->
-		  protocol_version(Version) 
+		  protocol_version(Version)
 	  end,
     case application:get_env(ssl, protocol_version) of
 	undefined ->
@@ -279,22 +279,24 @@ supported_protocol_versions([_|_] = Vsns) ->
     Vsns.
 
 %%--------------------------------------------------------------------
-%%     
-%% Description: ssl version 2 is not acceptable security risks are too big.
-%% 
+%%
+%% Description:
+%%
+%%  SSL version acceptability is driven by Major/Minor lower limits
+%%  [currently] defined in ssl_record.hrl. Matching version lists are
+%%  defined in ssl_internal.hrl.
+%%
 %%--------------------------------------------------------------------
 -spec is_acceptable_version(tls_version()) -> boolean().
-is_acceptable_version({N,_}) 
-  when N >= ?LOWEST_MAJOR_SUPPORTED_VERSION ->
-    true;
-is_acceptable_version(_) ->
-    false.
+is_acceptable_version({?LOWEST_MAJOR_SUPPORTED_VERSION, N}) ->
+    N >= ?LOWEST_MINOR_SUPPORTED_VERSION;
+is_acceptable_version({N, _}) ->
+    N >= ?LOWEST_MAJOR_SUPPORTED_VERSION.
 
 -spec is_acceptable_version(tls_version(), Supported :: [tls_version()]) -> boolean().
-is_acceptable_version({N,_} = Version, Versions)   
-  when N >= ?LOWEST_MAJOR_SUPPORTED_VERSION ->
-    lists:member(Version, Versions);
-is_acceptable_version(_,_) ->
+is_acceptable_version(Version, Versions) ->
+    is_acceptable_version(Version) andalso lists:member(Version, Versions);
+is_acceptable_version(_, _) ->
     false.
 
 %%--------------------------------------------------------------------
@@ -310,7 +312,7 @@ mac_hash({_,_}, ?NULL, _MacSecret, _SeqNo, _Type,
     <<>>;
 mac_hash({3, 0}, MacAlg, MacSecret, SeqNo, Type, Length, Fragment) ->
     ssl_v3:mac_hash(MacAlg, MacSecret, SeqNo, Type, Length, Fragment);
-mac_hash({3, N} = Version, MacAlg, MacSecret, SeqNo, Type, Length, Fragment)  
+mac_hash({3, N} = Version, MacAlg, MacSecret, SeqNo, Type, Length, Fragment)
   when N =:= 1; N =:= 2; N =:= 3 ->
     tls_v1:mac_hash(MacAlg, MacSecret, SeqNo, Type, Version,
 		      Length, Fragment).

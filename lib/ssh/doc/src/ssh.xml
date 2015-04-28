@@ -180,6 +180,15 @@
 	  <item>
 	    <p>If true, the client will not print out anything on authorization.</p>
 	  </item>
+
+	  <tag><c><![CDATA[{id_string, random | string()}]]></c></tag>
+	  <item>
+	    <p>The string that the client presents to a connected server initially.  The default value is "Erlang/VSN" where VSN is the ssh application version number.
+	    </p>
+	    <p>The value <c>random</c> will cause a random string to be created at each connection attempt.  This is to make it a bit more difficult for a malicious peer to find the ssh software brand and version.
+	    </p>
+	  </item>
+
 	  <tag><c><![CDATA[{fd, file_descriptor()}]]></c></tag>
 	  <item>
 	    <p>Allow an existing file descriptor to be used
@@ -336,6 +345,20 @@
 	    <warning>
 	      <p>Do not enable <c>parallel_logins</c> without protecting the server by other means, for example the <c>max_sessions</c> option or a firewall configuration. If set to <c>true</c>, there is no protection against DOS attacks.</p>
 	    </warning>
+	  </item>
+
+	  <tag><c><![CDATA[{minimal_remote_max_packet_size, non_negative_integer()}]]></c></tag>
+	  <item>
+	    <p>The least maximum packet size that the daemon will accept in channel open requests from the client.  The default value is 0.
+	    </p>
+	  </item>
+
+	  <tag><c><![CDATA[{id_string, random | string()}]]></c></tag>
+	  <item>
+	    <p>The string the daemon will present to a connecting peer initially.  The default value is "Erlang/VSN" where VSN is the ssh application version number.
+	    </p>
+	    <p>The value <c>random</c> will cause a random string to be created at each connection attempt.  This is to make it a bit more difficult for a malicious peer to find the ssh software brand and version.
+	    </p>
 	  </item>
 
 	  <tag><c><![CDATA[{key_cb, atom()}]]></c></tag>

@@ -55,18 +55,18 @@
           bulk_cipher_algorithm,
           cipher_type,
           iv_size,
-          key_size,				% unit 8
-          key_material_length,			% unit 8 
-          expanded_key_material_length,		% unit 8 
-          mac_algorithm,			% unit 8  
-          prf_algorithm,			% unit 8
-          hash_size,				% unit 8
-          compression_algorithm,		% unit 8 
-          master_secret,			% opaque 48
-          client_random,			% opaque 32
-          server_random,			% opaque 32
-          exportable				% boolean
-       }). 
+          key_size,                             % unit 8
+          key_material_length,                  % unit 8
+          expanded_key_material_length,         % unit 8
+          mac_algorithm,                        % unit 8
+          prf_algorithm,                        % unit 8
+          hash_size,                            % unit 8
+          compression_algorithm,                % unit 8
+          master_secret,                        % opaque 48
+          client_random,                        % opaque 32
+          server_random,                        % opaque 32
+          exportable                            % boolean
+       }).
 
 -define(INITIAL_BYTES, 5).
 
@@ -75,8 +75,8 @@
 %% We will renegotiate a little before so that there will be sequence numbers left
 %% for the rehandshake and a little data. Currently we decided to renegotiate a little more
 %% often as we can have a cheaper test to check if it is time to renegotiate. It will still
-%% be fairly seldom. 
--define(DEFAULT_RENEGOTIATE_AT, 268435456). %% math:pow(2, 28) 
+%% be fairly seldom.
+-define(DEFAULT_RENEGOTIATE_AT, 268435456). %% math:pow(2, 28)
 
 %% ConnectionEnd
 -define(SERVER, 0).
@@ -90,7 +90,7 @@
 -define('3DES', 4).
 -define(DES40, 5).
 -define(IDEA, 6).
--define(AES, 7). 
+-define(AES, 7).
 
 %% CipherType
 -define(STREAM, 0).
@@ -130,7 +130,7 @@
 %%      application_data(23), (255)
 %%       } ContentType;
 
--define(CHANGE_CIPHER_SPEC, 20). 
+-define(CHANGE_CIPHER_SPEC, 20).
 -define(ALERT, 21).
 -define(HANDSHAKE, 22).
 -define(APPLICATION_DATA, 23).
@@ -143,12 +143,17 @@
 %% 	  minor   % unit 8
 %% 	 }).
 
+%% Effectively, we're prohibiting anything below TLS v1
+%% LOWEST_MINOR_SUPPORTED_VERSION is only relevany if
+%% LOWEST_MAJOR_SUPPORTED_VERSION is an exact match.
+%% Keep these in sync with the xxx_SUPPORTED_VERSION macros
+%% defined in ssl_internal.hrl.
 -define(LOWEST_MAJOR_SUPPORTED_VERSION, 3).
-	
+-define(LOWEST_MINOR_SUPPORTED_VERSION, 1).
 
 -record(generic_stream_cipher, {
           content,  % opaque content[TLSCompressed.length];
-          mac       % opaque MAC[CipherSpec.hash_size]; 
+          mac       % opaque MAC[CipherSpec.hash_size];
          }).
 
 -record(generic_block_cipher, {
@@ -158,6 +163,6 @@
           padding, % unit 8 padding[GenericBlockCipher.padding_length];
           padding_length, % uint8 padding_length;
           next_iv  % opaque IV[SecurityParameters.record_iv_length];
-         }). 
+         }).
 
 -endif. % -ifdef(ssl_record).

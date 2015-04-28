@@ -345,9 +345,16 @@ handle_option([{parallel_login, _} = Opt|Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
 handle_option([parallel_login|Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, SocketOptions, [handle_ssh_option({parallel_login,true}) | SshOptions]);
+handle_option([{minimal_remote_max_packet_size, _} = Opt|Rest], SocketOptions, SshOptions) ->
+    handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
+handle_option([{id_string, _ID} = Opt|Rest], SocketOptions, SshOptions) ->
+    handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
 handle_option([Opt | Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, [handle_inet_option(Opt) | SocketOptions], SshOptions).
 
+
+handle_ssh_option({minimal_remote_max_packet_size, Value} = Opt) when is_integer(Value), Value >=0 ->
+    Opt;
 handle_ssh_option({system_dir, Value} = Opt) when is_list(Value) ->
     Opt;
 handle_ssh_option({user_dir, Value} = Opt) when is_list(Value) ->
@@ -433,6 +440,10 @@ handle_ssh_option({quiet_mode, Value} = Opt) when is_boolean(Value) ->
 handle_ssh_option({idle_time, Value} = Opt) when is_integer(Value), Value > 0 ->
     Opt;
 handle_ssh_option({rekey_limit, Value} = Opt) when is_integer(Value) -> 
+    Opt;
+handle_ssh_option({id_string, random}) ->
+    {id_string, {random,2,5}}; %% 2 - 5 random characters
+handle_ssh_option({id_string, ID} = Opt) when is_list(ID) ->
     Opt;
 handle_ssh_option(Opt) ->
     throw({error, {eoptions, Opt}}).

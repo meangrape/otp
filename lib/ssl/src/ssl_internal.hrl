@@ -22,7 +22,7 @@
 -ifndef(ssl_internal).
 -define(ssl_internal, true).
 
--include_lib("public_key/include/public_key.hrl"). 
+-include_lib("public_key/include/public_key.hrl").
 
 -define(SECRET_PRINTOUT, "***").
 
@@ -62,13 +62,16 @@
 
 -define(DEFAULT_TIMEOUT, 5000).
 
-%% Common enumerate values in for SSL-protocols 
+%% Common enumerate values in for SSL-protocols
 -define(NULL, 0).
 -define(TRUE, 0).
 -define(FALSE, 1).
 
--define(ALL_SUPPORTED_VERSIONS, ['tlsv1.2', 'tlsv1.1', tlsv1, sslv3]).
--define(MIN_SUPPORTED_VERSIONS, ['tlsv1.1', tlsv1, sslv3]).
+%% TLS only, no more SSL of any version
+%% Keep these in sync with the LOWEST_MxxOR_SUPPORTED_VERSION macros
+%% defined in ssl_record.hrl.
+-define(ALL_SUPPORTED_VERSIONS, ['tlsv1.2', 'tlsv1.1', tlsv1]).
+-define(MIN_SUPPORTED_VERSIONS, ['tlsv1.1', tlsv1]).
 -define(ALL_DATAGRAM_SUPPORTED_VERSIONS, ['dtlsv1.2', dtlsv1]).
 -define(MIN_DATAGRAM_SUPPORTED_VERSIONS, ['dtlsv1.2', dtlsv1]).
 
@@ -81,7 +84,7 @@
 	  fail_if_no_peer_cert ::  boolean(),
 	  verify_client_once   ::  boolean(),
 	  %% fun(Extensions, State, Verify, AccError) ->  {Extensions, State, AccError}
-	  validate_extensions_fun, 
+	  validate_extensions_fun,
 	  depth                :: integer(),
 	  certfile             :: binary(),
 	  cert                 :: public_key:der_encoded() | secret_printout(),
@@ -95,11 +98,11 @@
 	  user_lookup_fun,  % server option, fun to lookup the user
 	  psk_identity         :: binary() | secret_printout() ,
 	  srp_identity,  % client option {User, Password}
-	  ciphers,    % 
+	  ciphers,    %
 	  %% Local policy for the server if it want's to reuse the session
 	  %% or not. Defaluts to allways returning true.
 	  %% fun(SessionId, PeerCert, Compression, CipherSuite) -> boolean()
-	  reuse_session,  
+	  reuse_session,
 	  %% If false sessions will never be reused, if true they
 	  %% will be reused if possible.
 	  reuse_sessions       :: boolean(),
@@ -124,7 +127,7 @@
 
 -record(socket_options,
 	{
-	  mode   = list, 
+	  mode   = list,
 	  packet = 0,
 	  packet_size = 0,
 	  header = 0,
@@ -133,7 +136,7 @@
 
 -record(config, {ssl,               %% SSL parameters
 		 inet_user,         %% User set inet options
-		 emulated,          %% Emulated option list or "inherit_tracker" pid 
+		 emulated,          %% Emulated option list or "inherit_tracker" pid
 		 inet_ssl,          %% inet options for internal ssl socket
 		 transport_info,                 %% Callback info
 		 connection_cb

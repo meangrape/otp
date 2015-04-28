@@ -29,6 +29,49 @@
     <file>notes.xml</file>
   </header>
 
+<section><title>Ssh 3.2.2</title>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+	    New option <c>id_string</c> for <c>ssh:daemon</c> and
+	    <c>ssh:connect</c> for limiting banner grabbing attempts.</p>
+          <p>
+	    The possible values are: <c>{id_string,string()}</c> and
+	    <c>{id_string,random}</c>. The latter will make ssh
+	    generate a random nonsence id-string for each new
+	    connection.</p>
+          <p>
+	    Own Id: OTP-12659</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Ssh 3.2.1</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    Ssh crashed if a message was sent on a channel with
+	    packet_size = 0.</p>
+          <p>
+	    A new option for ssh:daemon is also introduced:
+	    <c>minimal_remote_max_packet_size</c>. This option sets
+	    the least max packet size declaration that the daemon
+	    will accept from a client. The default value is 0 to
+	    maintain compatibility with OpenSSH and the rfc:s.</p>
+          <p>
+	    Own Id: OTP-12645 Aux Id: seq12816 </p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
 <section><title>Ssh 3.2</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
