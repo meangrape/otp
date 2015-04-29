@@ -27,10 +27,10 @@
   <modulesummary>Interface Functions for Secure Socket Layer</modulesummary>
   <description>
     <p>This module contains interface functions to the Secure Socket
-      Layer. 
+      Layer.
     </p>
   </description>
-  
+
   <section>
     <title>SSL</title>
 
@@ -55,9 +55,9 @@
       <item>Support for 'Server Name Indication' extension client side
       (RFC 6066 section 3).</item>
     </list>
- 
+
   </section>
-  
+
   <section>
     <title>COMMON DATA TYPES</title>
     <p>The following data types are used in the functions below:
@@ -75,7 +75,7 @@
       see <seealso marker="kernel:inet">inet(3)</seealso> and
       <seealso marker="kernel:gen_tcp">gen_tcp(3)</seealso>.
     </p>
-    
+
     <p><marker id="type-ssloption"></marker><c>ssloption() = {verify, verify_type()} |
       {verify_fun, {fun(), term()}} |
       {fail_if_no_peer_cert, boolean()}
@@ -99,7 +99,7 @@
 	inet:setopts/2, inet:getopts/2, inet:peername/1, inet:sockname/1 and inet:port/1.
 	The callback gen_tcp is treated specially and will call inet directly.
     </c></p>
-    
+
     <p><c>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CallbackModule =
 	atom()</c>
     </p> <p><c>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; DataTag =
@@ -108,28 +108,30 @@
     socket close message.</c></p>
 
     <p><c>verify_type() = verify_none | verify_peer</c></p>
-    
+
     <p><c>path() = string() - representing a file path.</c></p>
 
     <p><c>der_encoded() = binary() -Asn1 DER encoded entity as an erlang binary.</c></p>
-    
+
     <p><c>host() = hostname() | ipaddress()</c></p>
-        
+
     <p><c>hostname() = string()</c></p>
-    
+
     <p><c>
       ip_address() = {N1,N2,N3,N4}  % IPv4
       | {K1,K2,K3,K4,K5,K6,K7,K8}  % IPv6    </c></p>
 
     <p><c>sslsocket() - opaque to the user. </c></p>
-    
+
     <p><c>protocol() = sslv3 | tlsv1 | 'tlsv1.1' | 'tlsv1.2' </c></p>
-    
+    <p><i><b>Note:</b> Basho SSL supports the <c>sslv3</c> identifier for
+    API compatibility, but SSLv3 connections are not allowed.</i></p>
+
     <p><c>ciphers() = [ciphersuite()] | string() (according to old API)</c></p>
-    
+
     <p><c>ciphersuite() =
       {key_exchange(), cipher(), hash()}</c></p>
-    
+
     <p><c>key_exchange() =  rsa | dhe_dss | dhe_rsa | dh_anon
        | psk | dhe_psk | rsa_psk | srp_anon | srp_dss | srp_rsa
        | ecdh_anon | ecdh_ecdsa | ecdhe_ecdsa | ecdh_rsa | ecdhe_rsa
@@ -155,20 +157,20 @@
     <p>Options described here are options that are have the same
     meaning in the client and the server.
     </p>
-    
+
     <taglist>
 
       <tag>{cert, der_encoded()}</tag>
       <item> The DER encoded users certificate. If this option
       is supplied it will override the certfile option.</item>
-      
+
       <tag>{certfile, path()}</tag>
       <item>Path to a file containing the user's PEM encoded certificate.</item>
-      
+
       <tag>{key, {'RSAPrivateKey'| 'DSAPrivateKey' | 'ECPrivateKey' |'PrivateKeyInfo', der_encoded()}}</tag>
       <item> The DER encoded users private key. If this option
       is supplied it will override the keyfile option.</item>
-      
+
       <tag>{keyfile, path()}</tag>
       <item>Path to file containing user's
       private PEM encoded key. As PEM-files may contain several
@@ -188,10 +190,11 @@
       <item>The cipher suites that should be supported. The function
       <c>cipher_suites/0</c> can be used to find all ciphers that are
       supported by default.  <c>cipher_suites(all)</c> may be called
-      to find all available cipher suites.   
-      Pre-Shared Key (<url href="http://www.ietf.org/rfc/rfc4279.txt">RFC 4279</url> and
-      <url href="http://www.ietf.org/rfc/rfc5487.txt">RFC 5487</url>), 
-      Secure Remote Password (<url href="http://www.ietf.org/rfc/rfc5054.txt">RFC 5054</url>) 
+      to find all available cipher suites. Pre-Shared Key
+      (<url href="http://www.ietf.org/rfc/rfc4279.txt">RFC 4279</url> and
+      <url href="http://www.ietf.org/rfc/rfc5487.txt">RFC 5487</url>),
+      Secure Remote Password
+      (<url href="http://www.ietf.org/rfc/rfc5054.txt">RFC 5054</url>),
       and anonymous cipher suites only work if explicitly enabled by
       this option and they are supported/enabled by the peer also.
       Note that anonymous cipher suites are supported for testing purposes
@@ -204,11 +207,14 @@
       </item>
 
       <tag>{secure_renegotiate, boolean()}</tag>
-      <item>Specifies if to reject renegotiation attempt that does
-      not live up to <url href="http://www.ietf.org/rfc/rfc5746.txt">RFC 5746</url>. By default secure_renegotiate is
-      set to false i.e. secure renegotiation will be used if possible
-      but it will fallback to unsecure renegotiation if the peer
-      does not support <url href="http://www.ietf.org/rfc/rfc5746.txt">RFC 5746</url>.
+      <item><p>Specifies whether to reject renegotiation attempts that do not
+        follow <url href="http://www.ietf.org/rfc/rfc5746.txt">RFC 5746</url>.
+        By default <c>secure_renegotiate</c> is set to <c>true</c> - i.e.
+        insecure renegotiation is not allowed. If set to <c>false</c>
+        (strongly discouraged) secure renegotiation will be used if possible
+        but it will fallback to insecure renegotiation if the peer does not
+        support <url href="http://www.ietf.org/rfc/rfc5746.txt">RFC 5746</url>.
+        </p><p><i><b>Note:</b> Basho SSL alters this default.</i></p>
       </item>
 
       <tag>{depth, integer()}</tag>
@@ -341,7 +347,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
 	</p>
 
 	<p>For Secure Remote Password (SRP), the fun will only be used by the server to obtain
-	parameters that it will use to generate its session keys. <c>DerivedKey</c> should be 
+	parameters that it will use to generate its session keys. <c>DerivedKey</c> should be
 	derived according to <url href="http://tools.ietf.org/html/rfc2945#section-3"> RFC 2945</url> and
 	 <url href="http://tools.ietf.org/html/rfc5054#section-2.4"> RFC 5054</url>:
 	<c>crypto:sha([Salt, crypto:sha([Username, &lt;&lt;$:&gt;&gt;, Password])]) </c>
@@ -351,19 +357,21 @@ fun(srp, Username :: string(), UserState :: term()) ->
       <tag>{padding_check, boolean()}</tag>
       <item>
 	<p> This option only affects TLS-1.0 connections.
-	If set to false it disables the block cipher padding check
+	If set to <c>false</c> it disables the block cipher padding check
 	to be able to interoperate with legacy software.
 	</p>
-	
-	<warning><p> Using this option makes TLS vulnerable to
-	the Poodle attack</p></warning>
-	
+
+	<warning><p> Setting this option to <c>false</c> makes TLS vulnerable
+          to POODLE attacks.</p>
+        <p>Basho recommends against changing this option's default
+          behavior.</p></warning>
+
       </item>
-      
+
     </taglist>
-    
+
   </section>
-  
+
   <section>
     <title>SSL OPTION DESCRIPTIONS - CLIENT SIDE</title>
 
@@ -380,13 +388,13 @@ fun(srp, Username :: string(), UserState :: term()) ->
       <item>Specifies if client should try to reuse sessions
       when possible.
       </item>
-      
+
       <tag>{cacertfile, path()}</tag>
-      <item>The path to a file containing PEM encoded CA certificates. The CA 
+      <item>The path to a file containing PEM encoded CA certificates. The CA
       certificates are used during server authentication and when building the
       client certificate chain.
      </item>
-  
+
       <tag>{client_preferred_next_protocols, {Precedence :: server | client, ClientPrefs :: [binary()]}}</tag>
       <tag>{client_preferred_next_protocols, {Precedence :: server | client, ClientPrefs :: [binary()], Default :: binary()}}</tag>
 	   <item>
@@ -427,21 +435,24 @@ fun(srp, Username :: string(), UserState :: term()) ->
       </item>
       <tag>{fallback, boolean()}</tag>
       <item>
-	<p> Send special cipher suite TLS_FALLBACK_SCSV to avoid undesired TLS version downgrade.
-	Defaults to false</p>
-	<warning><p>Note this option is not needed in normal TLS usage and should not be used
-	to implement new clients. But legacy clients that that retries connections in the following manner</p>
+	<p> Send special cipher suite TLS_FALLBACK_SCSV to avoid undesired
+          TLS version downgrade. Defaults to <c>false</c>.</p>
+	<warning><p>Note this option is not needed in normal TLS usage and
+          should not be used to implement new clients. Legacy clients that
+          retry connections in the following manner</p>
 
-	<p><c> ssl:connect(Host, Port, [...{versions, ['tlsv2', 'tlsv1.1', 'tlsv1', 'sslv3']}])</c></p>
-	<p><c>  ssl:connect(Host, Port, [...{versions, [tlsv1.1', 'tlsv1', 'sslv3']}, {fallback, true}])</c></p>
-	<p><c>  ssl:connect(Host, Port, [...{versions, ['tlsv1', 'sslv3']}, {fallback, true}]) </c></p>
-	<p><c>  ssl:connect(Host, Port, [...{versions, ['sslv3']}, {fallback, true}]) </c></p>
-	 
-	 <p>may use it to avoid undesired TLS version downgrade. Note that TLS_FALLBACK_SCSV must also
-	 be supported by the server for the prevention to work.
-	</p></warning>
+	<p><c> ssl:connect(Host, Port, [...{versions, ['tlsv2', 'tlsv1.1', 'tlsv1']}])</c></p>
+	<p><c> ssl:connect(Host, Port, [...{versions, ['tlsv1.1', 'tlsv1']}, {fallback, true}])</c></p>
+	<p><c> ssl:connect(Host, Port, [...{versions, ['tlsv1']}, {fallback, true}]) </c></p>
+
+	 <p>may use it to avoid undesired TLS version downgrade. Note that
+           TLS_FALLBACK_SCSV must also be supported by the server for the
+           prevention to work.</p>
+        </warning>
+        <p><i><b>Note:</b> Basho SSL alters this behavior by not supporting
+          <c>sslv3</c> in any usage.</i></p>
       </item>
-      
+
     </taglist>
    </section>
 
@@ -452,7 +463,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
     meaning in the server than in the client.</p>
 
     <taglist>
-      
+
       <tag>{cacertfile, path()}</tag>
       <item>The path to a file containing PEM encoded CA
       certificates. The CA certificates are used to build the server
@@ -462,7 +473,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
       is no need to verify the client and if there are not any
       intermediate CAs for the server certificate.
       </item>
-  
+
       <tag>{dh, der_encoded()}</tag>
       <item>The DER encoded Diffie Hellman parameters. If this option
       is supplied it will override the dhfile option.
@@ -520,15 +531,16 @@ fun(srp, Username :: string(), UserState :: term()) ->
       <tag>{log_alert, boolean()}</tag>
       <item>If false, error reports will not be displayed.</item>
       <tag>{honor_cipher_order, boolean()}</tag>
-      <item>If true, use the server's preference for cipher selection. If false
-      (the default), use the client's preference.
+      <item><p>If <c>true</c> (the default), use the server's preference for
+        cipher selection. If false, use the client's preference.
+        </p><p><i><b>Note:</b> Basho SSL alters this default.</i></p>
       </item>
     </taglist>
   </section>
-  
+
   <section>
     <title>General</title>
-      
+
     <p>When an ssl socket is in active mode (the default), data from the
       socket is delivered to the owner of the socket in the form of
       messages:
@@ -542,12 +554,12 @@ fun(srp, Username :: string(), UserState :: term()) ->
         {ssl_error, Socket, Reason}
       </item>
     </list>
-    
-    <p>A <c>Timeout</c> argument specifies a timeout in milliseconds. The 
+
+    <p>A <c>Timeout</c> argument specifies a timeout in milliseconds. The
       default value for a <c>Timeout</c> argument is <c>infinity</c>.
     </p>
   </section>
-  
+
   <funcs>
     <func>
       <name>cipher_suites() -></name>
@@ -579,7 +591,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
       </p>
       </desc>
     </func>
-   
+
     <func>
       <name>connect(Socket, SslOptions) -> </name>
       <name>connect(Socket, SslOptions, Timeout) -> {ok, SslSocket}
@@ -629,10 +641,10 @@ fun(srp, Username :: string(), UserState :: term()) ->
     <func>
       <name>controlling_process(SslSocket, NewOwner) ->
 	ok | {error, Reason}</name>
-      
+
 	<fsummary>Assigns a new controlling process to the
 	ssl-socket.</fsummary>
-      
+
 	<type>
 	  <v>SslSocket = sslsocket()</v>
 	  <v>NewOwner = pid()</v>
@@ -653,7 +665,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
         <v>CipherSuite = ciphersuite()</v>
         <v>ProtocolVersion = protocol()</v>
       </type>
-      <desc><p>Returns the negotiated protocol version and cipher suite.</p> 
+      <desc><p>Returns the negotiated protocol version and cipher suite.</p>
       </desc>
     </func>
 
@@ -667,7 +679,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
         <p>Presents the error returned by an ssl function as a printable string.</p>
       </desc>
     </func>
-   
+
     <func>
       <name>getopts(Socket, OptionNames) ->
 	{ok, [socketoption()]} | {error, Reason}</name>
@@ -722,7 +734,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
         <p>Returns the address and port number of the peer.</p>
       </desc>
     </func>
-    
+
     <func>
       <name>recv(Socket, Length) -> </name>
       <name>recv(Socket, Length, Timeout) -> {ok, Data} | {error,
@@ -749,7 +761,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
           milliseconds. The default value is <c>infinity</c>.</p>
       </desc>
     </func>
-    
+
     <func>
       <name>prf(Socket, Secret, Label, Seed, WantedLength) -> {ok, binary()} | {error, reason()}</name>
       <fsummary>Use a sessions pseudo random function to generate key material.</fsummary>
@@ -782,7 +794,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
       is still active using the previously negotiated session.</p>
       </desc>
     </func>
-    
+
     <func>
       <name>send(Socket, Data) -> ok | {error, Reason}</name>
       <fsummary>Write data to a socket.</fsummary>
@@ -805,7 +817,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
         <v>Options = [socketoption]()</v>
       </type>
       <desc>
-        <p>Sets options according to <c>Options</c> for the socket 
+        <p>Sets options according to <c>Options</c> for the socket
           <c>Socket</c>. </p>
       </desc>
     </func>
@@ -827,7 +839,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
           is useful.</p>
       </desc>
     </func>
-    
+
     <func>
       <name>ssl_accept(Socket) -> </name>
       <name>ssl_accept(Socket, Timeout) -> ok | {error, Reason}</name>
@@ -859,18 +871,18 @@ fun(srp, Username :: string(), UserState :: term()) ->
         <p> If <c>Socket</c> is a socket() - upgrades a gen_tcp, or equivalent, socket to an ssl socket
         i.e. performs the SSL/TLS server-side handshake and returns the ssl socket.
 	</p>
-	
+
 	<warning><p>Note that the listen socket should be in {active, false} mode
 	before telling the client that the server is ready to upgrade
 	by calling this function, otherwise the upgrade may
 	or may not succeed depending on timing.</p></warning>
-	
+
 	<p> If <c>Socket</c> is an sslsocket() - provides additional SSL/TLS options to those specified in <seealso
         marker="#listen-2">ssl:listen/2 </seealso> and then performs the SSL/TLS handshake.
 	</p>
       </desc>
     </func>
-    
+
     <func>
       <name>sockname(Socket) -> {ok, {Address, Port}} |
 	{error, Reason}</name>
@@ -885,7 +897,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
           <c>Socket</c>.</p>
       </desc>
     </func>
-    
+
     <func>
       <name>start() -> </name>
       <name>start(Type) -> ok | {error, Reason}</name>
@@ -943,7 +955,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
 	returned.</p>
       </desc>
     </func>
-    
+
     <func>
       <name>versions() ->
 	[{SslAppVer, SupportedSslVer, AvailableSslVsn}]</name>
@@ -974,11 +986,11 @@ fun(srp, Username :: string(), UserState :: term()) ->
       </desc>
     </func>
 
-  </funcs> 
+  </funcs>
 
   <section>
     <title>SEE ALSO</title>
-    <p><seealso marker="kernel:inet">inet(3) </seealso> and 
+    <p><seealso marker="kernel:inet">inet(3) </seealso> and
       <seealso marker="kernel:gen_tcp">gen_tcp(3) </seealso>
     </p>
   </section>

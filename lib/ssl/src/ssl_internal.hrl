@@ -30,7 +30,7 @@
 -type reply()             :: term().
 -type msg()               :: term().
 -type from()              :: term().
--type host()		  :: inet:ip_address() | inet:hostname().
+-type host()	          :: inet:ip_address() | inet:hostname().
 -type session_id()        :: 0 | binary().
 -type certdb_ref()        :: reference().
 -type db_handle()         :: term().
@@ -75,55 +75,62 @@
 -define(ALL_DATAGRAM_SUPPORTED_VERSIONS, ['dtlsv1.2', dtlsv1]).
 -define(MIN_DATAGRAM_SUPPORTED_VERSIONS, ['dtlsv1.2', dtlsv1]).
 
+%% Default to more secure options, require explicit override to get less
+%% secure behavior. These are used as default values in the ssl_options
+%% record below, and when calling ssl:handle_options/1.
+-define(DEFAULT_HONOR_CIPHER_ORDER, true).
+-define(DEFAULT_SECURE_RENEGOTIATE, true).
+-define(DEFAULT_PADDING_CHECK, true).
+
 -record(ssl_options, {
-	  protocol    :: tls | dtls,
-	  versions    :: [ssl_record:ssl_version()], %% ssl_record:atom_version() in API
-	  verify      :: verify_none | verify_peer,
-	  verify_fun,  %%:: fun(CertVerifyErrors::term()) -> boolean(),
-	  partial_chain       :: fun(),
-	  fail_if_no_peer_cert ::  boolean(),
-	  verify_client_once   ::  boolean(),
-	  %% fun(Extensions, State, Verify, AccError) ->  {Extensions, State, AccError}
-	  validate_extensions_fun,
-	  depth                :: integer(),
-	  certfile             :: binary(),
-	  cert                 :: public_key:der_encoded() | secret_printout(),
-	  keyfile              :: binary(),
-	  key	               :: {'RSAPrivateKey' | 'DSAPrivateKey' | 'ECPrivateKey' | 'PrivateKeyInfo', public_key:der_encoded()} | secret_printout(),
-	  password	       :: string() | secret_printout(),
-	  cacerts              :: [public_key:der_encoded()] | secret_printout(),
-	  cacertfile           :: binary(),
-	  dh                   :: public_key:der_encoded() | secret_printout(),
-	  dhfile               :: binary() | secret_printout(),
-	  user_lookup_fun,  % server option, fun to lookup the user
-	  psk_identity         :: binary() | secret_printout() ,
-	  srp_identity,  % client option {User, Password}
-	  ciphers,    %
-	  %% Local policy for the server if it want's to reuse the session
-	  %% or not. Defaluts to allways returning true.
-	  %% fun(SessionId, PeerCert, Compression, CipherSuite) -> boolean()
-	  reuse_session,
-	  %% If false sessions will never be reused, if true they
-	  %% will be reused if possible.
-	  reuse_sessions       :: boolean(),
-	  renegotiate_at,
-	  secure_renegotiate,
-	  %% undefined if not hibernating, or number of ms of
-	  %% inactivity after which ssl_connection will go into
-	  %% hibernation
-	  hibernate_after      :: boolean(),
-	  %% This option should only be set to true by inet_tls_dist
-	  erl_dist = false     :: boolean(),
-	  next_protocols_advertised = undefined, %% [binary()],
-	  next_protocol_selector = undefined,  %% fun([binary()]) -> binary())
-	  log_alert             :: boolean(),
-	  server_name_indication = undefined,
-	  %% Should the server prefer its own cipher order over the one provided by
-	  %% the client?
-	  honor_cipher_order = false,
-	  padding_check = true,
-	  fallback = false
-	  }).
+    protocol    :: tls | dtls,
+    versions    :: [ssl_record:ssl_version()], %% ssl_record:atom_version() in API
+    verify      :: verify_none | verify_peer,
+    verify_fun,  %%:: fun(CertVerifyErrors::term()) -> boolean(),
+    partial_chain       :: fun(),
+    fail_if_no_peer_cert ::  boolean(),
+    verify_client_once   ::  boolean(),
+    %% fun(Extensions, State, Verify, AccError) ->  {Extensions, State, AccError}
+    validate_extensions_fun,
+    depth                :: integer(),
+    certfile             :: binary(),
+    cert                 :: public_key:der_encoded() | secret_printout(),
+    keyfile              :: binary(),
+    key	               :: {'RSAPrivateKey' | 'DSAPrivateKey' | 'ECPrivateKey' | 'PrivateKeyInfo', public_key:der_encoded()} | secret_printout(),
+    password	       :: string() | secret_printout(),
+    cacerts              :: [public_key:der_encoded()] | secret_printout(),
+    cacertfile           :: binary(),
+    dh                   :: public_key:der_encoded() | secret_printout(),
+    dhfile               :: binary() | secret_printout(),
+    user_lookup_fun,  % server option, fun to lookup the user
+    psk_identity         :: binary() | secret_printout() ,
+    srp_identity,  % client option {User, Password}
+    ciphers,    %
+    %% Local policy for the server if it want's to reuse the session
+    %% or not. Defaluts to allways returning true.
+    %% fun(SessionId, PeerCert, Compression, CipherSuite) -> boolean()
+    reuse_session,
+    %% If false sessions will never be reused, if true they
+    %% will be reused if possible.
+    reuse_sessions       :: boolean(),
+    renegotiate_at,
+    secure_renegotiate = ?DEFAULT_SECURE_RENEGOTIATE,
+    %% undefined if not hibernating, or number of ms of
+    %% inactivity after which ssl_connection will go into
+    %% hibernation
+    hibernate_after      :: boolean(),
+    %% This option should only be set to true by inet_tls_dist
+    erl_dist = false     :: boolean(),
+    next_protocols_advertised = undefined, %% [binary()],
+    next_protocol_selector = undefined,  %% fun([binary()]) -> binary())
+    log_alert             :: boolean(),
+    server_name_indication = undefined,
+    %% Should the server prefer its own cipher order over the one provided by
+    %% the client?
+    honor_cipher_order = ?DEFAULT_HONOR_CIPHER_ORDER,
+    padding_check = ?DEFAULT_PADDING_CHECK,
+    fallback = false
+}).
 
 -record(socket_options,
 	{

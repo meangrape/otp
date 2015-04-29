@@ -25,6 +25,46 @@
     <file>notes.xml</file>
   </header>
   <p>This document describes the changes made to the SSL application.</p>
+
+  <section><title>SSL 6.0-basho1</title>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+
+        <item>
+          <p>
+            SSL v3 is disabled due to its vulnerability to POODLE attacks.
+            By extension, this leaves only TLS v1 and higher as supported
+            secure communication protocols.
+          </p>
+          <p>
+            Own Id: RIAK-1485
+          </p>
+        </item>
+
+        <item>
+          <p>
+            The default values of the secure_renegotiate and
+            honor_cipher_order options have been changed to true and
+            centralized to assure consistency.
+          </p>
+          <p>
+            The default values of the above options, as well as that of the
+            padding_check option added in SSL 6.0, have been centralized to
+            assure consistency. These options are explicitly initialized to
+            their defaults unless directly overridden.
+          </p>
+          <p>
+            *** Basho strongly recommends against overriding these more
+            secure defaults. ***
+          </p>
+        </item>
+
+      </list>
+    </section>
+
+  </section>
+
   <section><title>SSL 6.0</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
@@ -1135,23 +1175,23 @@
 
 <section>
     <title>SSL 4.1.5</title>
-    
+
     <section><title>Improvements and New Features</title>
     <list>
       <item>
-	<p>Calling gen_tcp:connect with option {ip, {127,0,0,1}} results in 
-	an exit with reason badarg. Neither SSL nor INETS This was not 
+	<p>Calling gen_tcp:connect with option {ip, {127,0,0,1}} results in
+	an exit with reason badarg. Neither SSL nor INETS This was not
 	catched, resulting in crashes with incomprehensible reasons.</p>
 	<p>Own Id: OTP-9289 Aux Id: seq11845</p>
       </item>
     </list>
     </section>
-    
+
   </section>
-  
+
   <section>
     <title>SSL 4.1.3</title>
-  
+
     <section><title>Fixed Bugs and Malfunctions</title>
     <list>
       <item>
@@ -1386,7 +1426,7 @@
 </section>
 
 <section><title>SSL 4.0</title>
-    
+
     <section><title>Improvements and New Features</title>
     <list>
       <item>

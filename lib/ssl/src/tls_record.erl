@@ -295,9 +295,7 @@ is_acceptable_version({N, _}) ->
 
 -spec is_acceptable_version(tls_version(), Supported :: [tls_version()]) -> boolean().
 is_acceptable_version(Version, Versions) ->
-    is_acceptable_version(Version) andalso lists:member(Version, Versions);
-is_acceptable_version(_, _) ->
-    false.
+    is_acceptable_version(Version) andalso lists:member(Version, Versions).
 
 %%--------------------------------------------------------------------
 %%% Internal functions

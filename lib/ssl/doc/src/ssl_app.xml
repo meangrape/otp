@@ -57,12 +57,14 @@
 	protocols currently supported by the erlang ssl application.
 	Note that this option may be overridden by the version option
 	to ssl:connect/[2,3] and ssl:listen/2.
-	</p>
+	</p><p><i><b>Note:</b> Basho SSL allows these options for API
+          compatibility only, <c>sslv3</c> connections will not be
+         established in any usage.</i></p>
       </item>
 
       <tag><c><![CDATA[session_lifetime = integer() <optional>]]></c></tag>
       <item>
-	<p>The lifetime of session data in seconds. 
+	<p>The lifetime of session data in seconds.
 	</p>
       </item>
 
@@ -82,7 +84,7 @@
 	  callback module, defaults to [].
 	</p>
       </item>
-      
+
       <tag><c><![CDATA[ssl_pem_cache_clean = integer() <optional>]]></c></tag>
       <item>
 	<p>
@@ -90,7 +92,7 @@
 	</p>
 	<seealso
 	    marker="ssl#clear_pem_cache-0">ssl:clear_pem_cache/0</seealso>
-	
+
       </item>
     </taglist>
   </section>
@@ -99,5 +101,5 @@
     <title>SEE ALSO</title>
 	<p><seealso marker="kernel:application">application(3)</seealso></p>
   </section>
-  
+
 </appref>
