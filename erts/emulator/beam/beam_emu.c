@@ -1070,6 +1070,7 @@ init_emulator(void)
 #define DTRACE_NIF_RETURN(p, m, f, a)  do {} while (0)
 
 #endif /* USE_VM_PROBES */
+#ifdef USE_LTTNG
 #define DTRACE_LOCAL_CALL(p, m, f, a)					\
 { \
         DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);		\
@@ -1135,6 +1136,7 @@ init_emulator(void)
                           process_name, mfa);                   \
         tracepoint(erlang, nif_return, process_name, mfa);                 \
     }
+#endif
 /*
  * process_main() is called twice:
  * The first call performs some initialisation, including exporting
@@ -1361,7 +1363,9 @@ void process_main(void)
                 }
             }
 
+#ifdef USE_LTTNG
             tracepoint(erlang, process_scheduled, process_buf, fun_buf);
+#endif
         }
 	Goto(next);
     }

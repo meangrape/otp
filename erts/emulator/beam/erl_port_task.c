@@ -33,7 +33,6 @@
 #include "erl_port_task.h"
 #include "dist.h"
 #include "dtrace-wrapper.h"
-#include "beam_lttng.h"
 #include <stdarg.h>
 
 /*

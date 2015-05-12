@@ -43,7 +43,6 @@
 #include "erl_async.h"
 #include "dtrace-wrapper.h"
 #include "erl_ptab.h"
-#include "beam_lttng.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
