@@ -421,6 +421,7 @@ $(ERTS_LIB):
 .PHONY: clean
 clean:
 	$(RM) -f $(GENERATE)
+	$(RM) -f $(DTRACE_HEADERS)
 	$(RM) -rf $(TARGET)/*.c $(TARGET)/*.h $(TARGET)/*-GENERATED
 	$(RM) -rf $(TARGET)/*/*
 	$(RM) -rf obj/$(TARGET)
