@@ -3747,7 +3747,11 @@ case $DYNAMIC_TRACE_FRAMEWORK in
      dtrace|systemtap)
         AC_CHECK_TOOL(DTRACE, dtrace, none)
         test "$DTRACE" = "none" && AC_MSG_ERROR([No dtrace utility found.]);
-	enable_dtrace_test=yes;;
+        enable_dtrace_test=yes;;
+     lttng)
+        AC_CHECK_TOOL(LTTNG_GEN_TP, lttng-gen-tp, none)
+        test "$LTTNG_GEN_TP" = "none" && AC_MSG_ERROR([No lttng-gen-tp utility found.]);
+        enable_lttng_test=yes;;
      *) enable_dtrace_test=no;;
 esac        
 		     
@@ -3816,6 +3820,15 @@ _DTEST
         fi
 fi
 
+if test "$enable_lttng_test" = "yes" ; then
+        if test "$LTTNG_GEN_TP" = "lttng-gen-tp" ; then
+                AC_CHECK_HEADERS(lttng/tracepoint.h)
+                DTRACE_ENABLED=yes
+                LIBS="$LIBS -llttng-ust"
+        else
+                AC_MSG_ERROR([LTTng test failed.])
+        fi
+fi
 dnl
 dnl SSL, SSH and CRYPTO need the OpenSSL libraries
 dnl

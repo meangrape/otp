@@ -41,7 +41,6 @@
 #include "hipe_bif1.h"
 #endif
 #include "dtrace-wrapper.h"
-#include "beam_lttng.h"
 
 /* #define HARDDEBUG 1 */
 
