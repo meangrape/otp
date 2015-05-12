@@ -1614,7 +1614,7 @@ erts_port_task_execute(ErtsRunQueue *runq, Port **curr_port_pp)
 	goto done;
     }
 
-    DTRACE_DRIVER(begin_port_tasks, pp);
+//    DTRACE_DRIVER(begin_port_tasks, pp);
 
     erts_smp_runq_unlock(runq);
 
@@ -1833,7 +1833,7 @@ erts_port_task_execute(ErtsRunQueue *runq, Port **curr_port_pp)
     }
 
  done:
-    DTRACE_DRIVER(end_port_tasks, pp);
+   // DTRACE_DRIVER(end_port_tasks, pp);
 
     res = (erts_smp_atomic_read_nob(&erts_port_task_outstanding_io_tasks)
 	   != (erts_aint_t) 0);
