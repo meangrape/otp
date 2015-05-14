@@ -623,7 +623,7 @@ provider erlang {
      * @param port the Port (string form)
      * @param new queue length
      */
-    probe aio_pool__add(char *, int);
+    probe aio_pool__add(char * port, int new_queue_length);
 
     /**
      * Show the post-get length of the async driver thread pool member's queue.
@@ -631,7 +631,7 @@ provider erlang {
      * @param port the Port (string form)
      * @param new queue length
      */
-    probe aio_pool__get(char *, int);
+    probe aio_pool__get(char * port, int new_queue_length);
 
     /* Probes for efile_drv.c */
 
@@ -665,8 +665,10 @@ provider erlang {
      * @param integer argument 4                                          arg9
      * @param port the port ID of the busy port                       args[10]
      */
-    probe efile_drv__entry(int, int, char *, int, char *, char *,
-                           int64_t, int64_t, int64_t, int64_t, char *);
+    probe efile_drv__entry(int thread_id, int tag_number, char * user_tag_str,
+                           int command_number, char * str_arg1, char * str_arg2,
+                           int64_t int_arg1, int64_t int_arg2,
+                           int64_t int_arg3, int64_t int_arg4, char *port_id);
 
     /**
      * Entry into the driver's internal work function.  Computation here
@@ -676,7 +678,7 @@ provider erlang {
      * @param tag number
      * @param command number
      */
-    probe efile_drv__int_entry(int, int, int);
+    probe efile_drv__int_entry(int thread_id, int tag_number, int command_number);
 
     /**
      * Return from the driver's internal work function.
@@ -685,7 +687,7 @@ provider erlang {
      * @param tag number
      * @param command number
      */
-    probe efile_drv__int_return(int, int, int);
+    probe efile_drv__int_return(int thread_id, int tag_number, int command_number);
 
     /**
      * Return from the efile_drv.c file I/O driver
@@ -697,7 +699,8 @@ provider erlang {
      * @param Success? 1 is success, 0 is failure                         arg4
      * @param If failure, the errno of the error.                         arg5
      */
-    probe efile_drv__return(int, int, char *, int, int, int);
+    probe efile_drv__return(int thread_id, int tag_number, char * user_tag_str,
+                            int command_number, int success_flag, int err_number);
 
 /*
  * NOTE:

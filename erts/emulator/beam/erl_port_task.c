@@ -68,16 +68,6 @@ static void chk_task_queues(Port *pp, ErtsPortTask *execq, int processing_busy_q
 #define  DTRACE_DRIVER(PROBE_NAME, PP) do {} while(0)
 #endif
 
-#define DTRACE_DRIVER(PROBE_NAME, PP)                              \
-    if (PP) {                              \
-        DTRACE_CHARBUF(process_str, DTRACE_TERM_BUF_SIZE);         \
-        DTRACE_CHARBUF(port_str, DTRACE_TERM_BUF_SIZE);            \
-                                                                   \
-        dtrace_pid_str(ERTS_PORT_GET_CONNECTED(PP), process_str);  \
-        dtrace_port_str(PP, port_str);                             \
-        tracepoint(erlang, PROBE_NAME, process_str, port_str, PP->name);      \
-    }
-
 erts_smp_atomic_t erts_port_task_outstanding_io_tasks;
 
 #define ERTS_PT_STATE_SCHEDULED		0

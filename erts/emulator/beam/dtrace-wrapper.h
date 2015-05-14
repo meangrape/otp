@@ -50,41 +50,30 @@
 
 #include "beam_lttng.h"
 
-#define DTRACE0(name)                                do {} while (0)
-#define DTRACE1(name, a0)                            do {} while (0)
-#define DTRACE2(name, a0, a1)                        do {} while (0)
-#define DTRACE3(name, a0, a1, a2)                    do {} while (0)
-#define DTRACE4(name, a0, a1, a2, a3)                do {} while (0)
-#define DTRACE5(name, a0, a1, a2, a3, a4)            do {} while (0)
-#define DTRACE6(name, a0, a1, a2, a3, a4, a5)        do {} while (0)
-#define DTRACE7(name, a0, a1, a2, a3, a4, a5, a6)    do {} while (0)
+// LTTng does not expose a way to test if a probe is enabled, but this is 
+// what is used in lttng/tracepoint.h
+// This is, therefore, brittle and a better way might be necessary.
+#define DTRACE_ENABLED(name) caa_unlikely(__tracepoint_erlang___##name.state)
+#define DTRACE0(name)                                \
+    tracepoint(erlang, name)
+#define DTRACE1(name, a0)                            \
+    tracepoint(erlang, name, a0)
+#define DTRACE2(name, a0, a1)                        \
+    tracepoint(erlang, name, (a0), (a1))
+#define DTRACE3(name, a0, a1, a2)                    \
+    tracepoint(erlang, name, (a0), (a1), (a2))
+#define DTRACE4(name, a0, a1, a2, a3)                \
+    tracepoint(erlang, name, (a0), (a1), (a2), (a3))
+#define DTRACE5(name, a0, a1, a2, a3, a4)            \
+    tracepoint(erlang, name, (a0), (a1), (a2), (a3), (a4))
+#define DTRACE6(name, a0, a1, a2, a3, a4, a5)        \
+    tracepoint(erlang, name, (a0), (a1), (a2), (a3), (a4), (a5))
+#define DTRACE7(name, a0, a1, a2, a3, a4, a5, a6)    \
+    tracepoint(erlang, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6))
 #define DTRACE10(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
-                                                     do {} while (0)
+    tracepoint(erlang, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9))
 #define DTRACE11(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
-                                                     do {} while (0)
-
-
-#define DTRACE_ENABLED(name) 1
-#define NDTRACE0(name)                                \
-    tracepoint(erlang_beam, name)
-#define NDTRACE1(name, a0)                            \
-    tracepoint(erlang_beam, name, a0)
-#define NDTRACE2(name, a0, a1)                        \
-    tracepoint(erlang_beam, name, (a0), (a1))
-#define NDTRACE3(name, a0, a1, a2)                    \
-    tracepoint(erlang_beam, name, (a0), (a1), (a2))
-#define NDTRACE4(name, a0, a1, a2, a3)                \
-    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3))
-#define NDTRACE5(name, a0, a1, a2, a3, a4)            \
-    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4))
-#define NDTRACE6(name, a0, a1, a2, a3, a4, a5)        \
-    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5))
-#define NDTRACE7(name, a0, a1, a2, a3, a4, a5, a6)    \
-    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6))
-#define NDTRACE10(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
-    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9))
-#define NDTRACE11(name, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
-    tracepoint(erlang_beam, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9), (a10))
+    tracepoint(erlang, name, (a0), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9))
 
 #else /* USE_LTTNG */
 
