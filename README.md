@@ -1,3 +1,8 @@
+##!!! WARNING !!!
+
+***This is the `basho-otp-17` branch! This is a working branch for a future
+release - its use is NOT supported by Basho. You have been warned!***
+
 ##Basho Erlang/OTP
 
 This is the home of [Basho's](www.basho.com) version of **Erlang/OTP**,
