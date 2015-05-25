@@ -18,7 +18,7 @@
 # 
 
 VSN = 5.9.1
-SYSTEM_VSN = R15B01
+SYSTEM_VSN = R15B01_basho1
 
 # Port number 4365 in 4.2
 # Port number 4366 in 4.3
