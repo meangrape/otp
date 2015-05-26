@@ -6,10 +6,9 @@ version. You have been warned!***
 
 ##Basho Erlang/OTP
 
-This is the home of [Basho's](www.basho.com) version of **Erlang/OTP**,
-forked from Ericsson's repository.  You can (and should) read their
-[README](github.com/erlang/otp/blob/maint/README.md) file for
-information on the language and applications.
+This is the home of [Basho's][1] version of **Erlang/OTP**, forked from
+Ericsson's repository.  You can (and should) read their
+[README][5] file for information on the language and applications.
 
 ###What's Here
 
@@ -69,8 +68,7 @@ components between our releases and the original distributions.
 
 Unless you want to suggest a patch to our specific Erlang/OTP changes,
 if you find something you think needs to be changed you'll want to refer
-to the Erlang
-[instructions for submitting patches](wiki.github.com/erlang/otp/submitting-patches).
+to the Erlang [instructions for submitting patches][6].
 
 If your patch pertains specifically to our version, forking and creating
 a pull request on GitHub is the best way to get us to consider it. Bear in
@@ -82,5 +80,12 @@ of interest to us.
 
 Everything in Erlang/OTP, whether part of the original distribution or a
 contribution of ours, is subject to the terms of the
-[Erlang Public License](http://www.erlang.org/EPLICENSE).
+[Erlang Public License][3].
 
+
+  [1]: http://www.basho.com
+  [2]: http://www.erlang.org
+  [3]: http://www.erlang.org/EPLICENSE
+  [4]: http://github.com/erlang/otp
+  [5]: http://github.com/erlang/otp/blob/maint/README.md
+  [6]: http://wiki.github.com/erlang/otp/submitting-patches
