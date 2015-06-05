@@ -1,11 +1,12 @@
-####Current Version
-
-The current production version is tagged `OTP_R16B02_basho8`.
+####Branch Information
+|Status|Base|Branch|Release Tag|Stable B/T|
+|:-----|:---|:-----|:----------|:---------|
+| Production   | R16    | [`basho-otp-16`](http://github.com/basho/otp/tree/basho-otp-16) | [`OTP_R16B02_basho8`](http://github.com/basho/otp/tree/OTP_R16B02_basho8) | [`OTP_R16B02_basho8`](http://github.com/basho/otp/tree/OTP_R16B02_basho8) |
 
 ##Basho Erlang/OTP
 
 This is the home of [Basho's][1] version of **Erlang/OTP**, forked from
-Ericsson's repository.  You can (and should) read their
+Ericsson's repository.  You can _(and should!)_ read their
 [README][5] file for information on the language and applications.
 
 ###What's Here
