@@ -1,12 +1,16 @@
 ##!!! WARNING !!!
 
-***This is the `basho-otp-17` branch! This is a working branch for a future
-release - its use is NOT supported by Basho. You have been warned!***
+***This is a working branch for a future release - its use is NOT supported by Basho. You have been warned!***
+
+####Branch Information
+|Status|Base|Branch|Release Tag|Stable B/T|
+|:-----|:---|:-----|:----------|:---------|
+| Active       | OTP-17 | [`basho-otp-17`](http://github.com/basho/otp/tree/basho-otp-17) | _n/a_ | [`basho-otp-17`](http://github.com/basho/otp/tree/basho-otp-17) |
 
 ##Basho Erlang/OTP
 
 This is the home of [Basho's][1] version of **Erlang/OTP**, forked from
-Ericsson's repository.  You can (and should) read their
+Ericsson's repository.  You can _(and should!)_ read their
 [README][5] file for information on the language and applications.
 
 ###What's Here
