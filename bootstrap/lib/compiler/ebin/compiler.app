@@ -18,7 +18,7 @@
 
 {application, compiler,
  [{description, "ERTS  CXC 138 10"},
-  {vsn, "5.0.4"},
+  {vsn, "6.0"},
   {modules, [
 	     beam_a,
 	     beam_asm,
@@ -45,6 +45,7 @@
 	     cerl,
 	     cerl_clauses,
 	     cerl_inline,
+             cerl_sets,
 	     cerl_trees,
 	     compile,
 	     core_scan,
