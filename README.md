@@ -84,13 +84,13 @@ of interest to us.
 
 Everything in Erlang/OTP, whether part of the original distribution or a
 contribution of ours, is subject to the terms of the
-[Apache License, Version 2.0][3].
+[Apache License, Version 2.0](LICENSE.txt).
 
 
   [1]: http://www.basho.com
   [2]: http://www.erlang.org
-  [3]: http://github.com/erlang/otp/blob/maint/LICENSE.txt
+  [3]: https://github.com/basho/otp/blob/LICENSE.txt
   [4]: http://github.com/erlang/otp
-  [5]: http://github.com/erlang/otp/blob/maint/README.md
+  [5]: http://github.com/erlang/otp/blob/README.md
   [6]: http://wiki.github.com/erlang/otp/submitting-patches
 
