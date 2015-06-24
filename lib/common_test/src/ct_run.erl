@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2004-2014. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -83,7 +84,7 @@
 	       starter}).
 
 %%%-----------------------------------------------------------------
-%%% @spec script_start() -> void()
+%%% @spec script_start() -> term()
 %%%
 %%% @doc Start tests via the ct_run program or script.
 %%%
@@ -687,8 +688,10 @@ script_start3(Opts, Args) ->
 	    if Opts#opts.vts ; Opts#opts.shell ->
 		    script_start4(Opts#opts{tests = []}, Args);
 	       true ->
-		    script_usage(),
-		    {error,missing_start_options}
+		    %% no start options, use default "-dir ./"
+		    {ok,Dir} = file:get_cwd(),
+		    io:format("ct_run -dir ~ts~n~n", [Dir]),
+		    script_start4(Opts#opts{tests = tests([Dir])}, Args)
 	    end
     end.
 
@@ -767,82 +770,84 @@ script_start4(Opts = #opts{tests = Tests}, Args) ->
 %%% @spec script_usage() -> ok
 %%% @doc Print usage information for <code>ct_run</code>.
 script_usage() ->
-    io:format("\n\nUsage:\n\n"),
+    io:format("\nUsage:\n\n"),
     io:format("Run tests from command line:\n\n"
-	      "\tct_run [-dir TestDir1 TestDir2 .. TestDirN] |"
-	      "\n\t[[-dir TestDir] -suite Suite1 Suite2 .. SuiteN"
-	      "\n\t [[-group Groups1 Groups2 .. GroupsN] [-case Case1 Case2 .. CaseN]]]"
-	      "\n\t[-step [config | keep_inactive]]"
-	      "\n\t[-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
-	      "\n\t[-userconfig CallbackModule ConfigFile1 .. ConfigFileN]"
-	      "\n\t[-decrypt_key Key] | [-decrypt_file KeyFile]"
-	      "\n\t[-logdir LogDir]"
-	      "\n\t[-logopts LogOpt1 LogOpt2 .. LogOptN]"
-	      "\n\t[-verbosity GenVLvl | [CategoryVLvl1 .. CategoryVLvlN]]"
-	      "\n\t[-silent_connections [ConnType1 ConnType2 .. ConnTypeN]]"
-	      "\n\t[-stylesheet CSSFile]"	     
-	      "\n\t[-cover CoverCfgFile]"
-	      "\n\t[-cover_stop Bool]"
-	      "\n\t[-event_handler EvHandler1 EvHandler2 .. EvHandlerN]"
-	      "\n\t[-ct_hooks CTHook1 CTHook2 .. CTHookN]"
-	      "\n\t[-include InclDir1 InclDir2 .. InclDirN]"
-	      "\n\t[-no_auto_compile]"
-	      "\n\t[-abort_if_missing_suites]"
-	      "\n\t[-multiply_timetraps N]"
-	      "\n\t[-scale_timetraps]"
-	      "\n\t[-create_priv_dir auto_per_run | auto_per_tc | manual_per_tc]"
-	      "\n\t[-basic_html]"
-	      "\n\t[-repeat N] |"
-	      "\n\t[-duration HHMMSS [-force_stop [skip_rest]]] |"
-	      "\n\t[-until [YYMoMoDD]HHMMSS [-force_stop [skip_rest]]]\n\n"),
+	      "\tct_run -dir TestDir1 TestDir2 .. TestDirN |"
+	      "\n\t  [-dir TestDir] -suite Suite1 Suite2 .. SuiteN"
+	      "\n\t   [-group Group1 Group2 .. GroupN] [-case Case1 Case2 .. CaseN]"
+	      "\n\t [-step [config | keep_inactive]]"
+	      "\n\t [-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
+	      "\n\t [-userconfig CallbackModule ConfigFile1 .. ConfigFileN]"
+	      "\n\t [-decrypt_key Key] | [-decrypt_file KeyFile]"
+	      "\n\t [-logdir LogDir]"
+	      "\n\t [-logopts LogOpt1 LogOpt2 .. LogOptN]"
+	      "\n\t [-verbosity GenVLvl | [CategoryVLvl1 .. CategoryVLvlN]]"
+	      "\n\t [-silent_connections [ConnType1 ConnType2 .. ConnTypeN]]"
+	      "\n\t [-stylesheet CSSFile]"	     
+	      "\n\t [-cover CoverCfgFile]"
+	      "\n\t [-cover_stop Bool]"
+	      "\n\t [-event_handler EvHandler1 EvHandler2 .. EvHandlerN]"
+	      "\n\t [-ct_hooks CTHook1 CTHook2 .. CTHookN]"
+	      "\n\t [-include InclDir1 InclDir2 .. InclDirN]"
+	      "\n\t [-no_auto_compile]"
+	      "\n\t [-abort_if_missing_suites]"
+	      "\n\t [-multiply_timetraps N]"
+	      "\n\t [-scale_timetraps]"
+	      "\n\t [-create_priv_dir auto_per_run | auto_per_tc | manual_per_tc]"
+	      "\n\t [-basic_html]"
+	      "\n\t [-repeat N] |"
+	      "\n\t [-duration HHMMSS [-force_stop [skip_rest]]] |"
+	      "\n\t [-until [YYMoMoDD]HHMMSS [-force_stop [skip_rest]]]"
+	      "\n\t [-exit_status ignore_config]"
+	      "\n\t [-help]\n\n"),
     io:format("Run tests using test specification:\n\n"
 	      "\tct_run -spec TestSpec1 TestSpec2 .. TestSpecN"
-	      "\n\t[-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
-	      "\n\t[-decrypt_key Key] | [-decrypt_file KeyFile]"
-	      "\n\t[-logdir LogDir]"
-	      "\n\t[-logopts LogOpt1 LogOpt2 .. LogOptN]"
-	      "\n\t[-verbosity GenVLvl | [CategoryVLvl1 .. CategoryVLvlN]]"
-	      "\n\t[-allow_user_terms]"
-	      "\n\t[-join_specs]"
-	      "\n\t[-silent_connections [ConnType1 ConnType2 .. ConnTypeN]]"
-	      "\n\t[-stylesheet CSSFile]"
-	      "\n\t[-cover CoverCfgFile]"
-	      "\n\t[-cover_stop Bool]"
-	      "\n\t[-event_handler EvHandler1 EvHandler2 .. EvHandlerN]"
-	      "\n\t[-ct_hooks CTHook1 CTHook2 .. CTHookN]"
-	      "\n\t[-include InclDir1 InclDir2 .. InclDirN]"
-	      "\n\t[-no_auto_compile]"
-	      "\n\t[-abort_if_missing_suites]"
-	      "\n\t[-multiply_timetraps N]"
-	      "\n\t[-scale_timetraps]"
-	      "\n\t[-create_priv_dir auto_per_run | auto_per_tc | manual_per_tc]"
-	      "\n\t[-basic_html]"
-	      "\n\t[-repeat N] |"
-	      "\n\t[-duration HHMMSS [-force_stop [skip_rest]]] |"
-	      "\n\t[-until [YYMoMoDD]HHMMSS [-force_stop [skip_rest]]]\n\n"),
+	      "\n\t [-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
+	      "\n\t [-decrypt_key Key] | [-decrypt_file KeyFile]"
+	      "\n\t [-logdir LogDir]"
+	      "\n\t [-logopts LogOpt1 LogOpt2 .. LogOptN]"
+	      "\n\t [-verbosity GenVLvl | [CategoryVLvl1 .. CategoryVLvlN]]"
+	      "\n\t [-allow_user_terms]"
+	      "\n\t [-join_specs]"
+	      "\n\t [-silent_connections [ConnType1 ConnType2 .. ConnTypeN]]"
+	      "\n\t [-stylesheet CSSFile]"
+	      "\n\t [-cover CoverCfgFile]"
+	      "\n\t [-cover_stop Bool]"
+	      "\n\t [-event_handler EvHandler1 EvHandler2 .. EvHandlerN]"
+	      "\n\t [-ct_hooks CTHook1 CTHook2 .. CTHookN]"
+	      "\n\t [-include InclDir1 InclDir2 .. InclDirN]"
+	      "\n\t [-no_auto_compile]"
+	      "\n\t [-abort_if_missing_suites]"
+	      "\n\t [-multiply_timetraps N]"
+	      "\n\t [-scale_timetraps]"
+	      "\n\t [-create_priv_dir auto_per_run | auto_per_tc | manual_per_tc]"
+	      "\n\t [-basic_html]"
+	      "\n\t [-repeat N] |"
+	      "\n\t [-duration HHMMSS [-force_stop [skip_rest]]] |"
+	      "\n\t [-until [YYMoMoDD]HHMMSS [-force_stop [skip_rest]]]\n\n"),
     io:format("Refresh the HTML index files:\n\n"
 	      "\tct_run -refresh_logs [LogDir]"
-	      "[-logdir LogDir] "
-	      "[-basic_html]\n\n"),
+	      " [-logdir LogDir] "
+	      " [-basic_html]\n\n"),
     io:format("Run CT in interactive mode:\n\n"
 	      "\tct_run -shell"
-	      "\n\t[-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
-	      "\n\t[-decrypt_key Key] | [-decrypt_file KeyFile]\n\n"),
+	      "\n\t [-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
+	      "\n\t [-decrypt_key Key] | [-decrypt_file KeyFile]\n\n"),
     io:format("Run tests in web based GUI:\n\n"
 	      "\tct_run -vts [-browser Browser]"
-	      "\n\t[-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
-	      "\n\t[-decrypt_key Key] | [-decrypt_file KeyFile]"
-	      "\n\t[-dir TestDir1 TestDir2 .. TestDirN] |"
-	      "\n\t[-suite Suite [-case Case]]"
-	      "\n\t[-logopts LogOpt1 LogOpt2 .. LogOptN]"
-	      "\n\t[-verbosity GenVLvl | [CategoryVLvl1 .. CategoryVLvlN]]"
-	      "\n\t[-include InclDir1 InclDir2 .. InclDirN]"
-	      "\n\t[-no_auto_compile]"
-	      "\n\t[-abort_if_missing_suites]"
-	      "\n\t[-multiply_timetraps N]"
-	      "\n\t[-scale_timetraps]"
-	      "\n\t[-create_priv_dir auto_per_run | auto_per_tc | manual_per_tc]"
-	      "\n\t[-basic_html]\n\n").
+	      "\n\t [-config ConfigFile1 ConfigFile2 .. ConfigFileN]"
+	      "\n\t [-decrypt_key Key] | [-decrypt_file KeyFile]"
+	      "\n\t [-dir TestDir1 TestDir2 .. TestDirN] |"
+	      "\n\t [-suite Suite [-case Case]]"
+	      "\n\t [-logopts LogOpt1 LogOpt2 .. LogOptN]"
+	      "\n\t [-verbosity GenVLvl | [CategoryVLvl1 .. CategoryVLvlN]]"
+	      "\n\t [-include InclDir1 InclDir2 .. InclDirN]"
+	      "\n\t [-no_auto_compile]"
+	      "\n\t [-abort_if_missing_suites]"
+	      "\n\t [-multiply_timetraps N]"
+	      "\n\t [-scale_timetraps]"
+	      "\n\t [-create_priv_dir auto_per_run | auto_per_tc | manual_per_tc]"
+	      "\n\t [-basic_html]\n\n").
 
 %%%-----------------------------------------------------------------
 %%% @hidden
@@ -1347,7 +1352,9 @@ run_dir(Opts = #opts{logdir = LogDir,
 	    end;
 
 	{undefined,undefined,[]} ->
-	    exit({error,no_test_specified});
+	    {ok,Dir} = file:get_cwd(),
+	    %% No start options, use default {dir,CWD}
+	    reformat_result(catch do_run(tests(Dir), [], Opts1, StartOpts));
 
 	{Dir,Suite,GsAndCs} ->
 	    exit({error,{incorrect_start_options,{Dir,Suite,GsAndCs}}})

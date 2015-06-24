@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 1996-2014. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -1914,7 +1915,6 @@ do_send(Process *p, Eterm to, Eterm msg, Eterm *refp, ErtsSendContext* ctx)
     } else if (is_external_pid(to)) {
 	dep = external_pid_dist_entry(to);
 	if(dep == erts_this_dist_entry) {
-#if DEBUG
 	    erts_dsprintf_buf_t *dsbufp = erts_create_logger_dsbuf();
 	    erts_dsprintf(dsbufp,
 			  "Discarding message %T from %T to %T in an old "
@@ -1925,7 +1925,6 @@ do_send(Process *p, Eterm to, Eterm msg, Eterm *refp, ErtsSendContext* ctx)
 			  external_pid_creation(to),
 			  erts_this_node->creation);
 	    erts_send_error_to_logger(p->group_leader, dsbufp);
-#endif
 	    return 0;
 	}
 	return remote_send(p, dep, to, to, msg, ctx);
@@ -1959,7 +1958,6 @@ do_send(Process *p, Eterm to, Eterm msg, Eterm *refp, ErtsSendContext* ctx)
     } else if (is_external_port(to)
 	       && (external_port_dist_entry(to)
 		   == erts_this_dist_entry)) {
-#if DEBUG
 	erts_dsprintf_buf_t *dsbufp = erts_create_logger_dsbuf();
 	erts_dsprintf(dsbufp,
 		      "Discarding message %T from %T to %T in an old "
@@ -1970,7 +1968,6 @@ do_send(Process *p, Eterm to, Eterm msg, Eterm *refp, ErtsSendContext* ctx)
 		      external_port_creation(to),
 		      erts_this_node->creation);
 	erts_send_error_to_logger(p->group_leader, dsbufp);
-#endif
 	return 0;
     } else if (is_internal_port(to)) {
 	int ret_val;

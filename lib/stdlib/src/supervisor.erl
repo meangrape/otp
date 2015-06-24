@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 1996-2014. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -393,6 +394,15 @@ handle_call({start_child, EArgs}, _From, State) when ?is_simple(State) ->
 	    {reply, What, State}
     end;
 
+handle_call({start_child, ChildSpec}, _From, State) ->
+    case check_childspec(ChildSpec) of
+	{ok, Child} ->
+	    {Resp, NState} = handle_start_child(Child, State),
+	    {reply, Resp, NState};
+	What ->
+	    {reply, {error, What}, State}
+    end;
+
 %% terminate_child for simple_one_for_one can only be done with pid
 handle_call({terminate_child, Name}, _From, State) when not is_pid(Name),
 							?is_simple(State) ->
@@ -411,19 +421,9 @@ handle_call({terminate_child, Name}, _From, State) ->
 	    {reply, {error, not_found}, State}
     end;
 
-%%% The requests delete_child and restart_child are invalid for
-%%% simple_one_for_one supervisors.
-handle_call({_Req, _Data}, _From, State) when ?is_simple(State) ->
+%% restart_child request is invalid for simple_one_for_one supervisors
+handle_call({restart_child, _Name}, _From, State) when ?is_simple(State) ->
     {reply, {error, simple_one_for_one}, State};
-
-handle_call({start_child, ChildSpec}, _From, State) ->
-    case check_childspec(ChildSpec) of
-	{ok, Child} ->
-	    {Resp, NState} = handle_start_child(Child, State),
-	    {reply, Resp, NState};
-	What ->
-	    {reply, {error, What}, State}
-    end;
 
 handle_call({restart_child, Name}, _From, State) ->
     case get_child(Name, State) of
@@ -445,6 +445,10 @@ handle_call({restart_child, Name}, _From, State) ->
 	_ ->
 	    {reply, {error, not_found}, State}
     end;
+
+%% delete_child request is invalid for simple_one_for_one supervisors
+handle_call({delete_child, _Name}, _From, State) when ?is_simple(State) ->
+    {reply, {error, simple_one_for_one}, State};
 
 handle_call({delete_child, Name}, _From, State) ->
     case get_child(Name, State) of

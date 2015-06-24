@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 1996-2014. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -279,6 +280,8 @@ static ERTS_INLINE void db_init_lock(DbTable* tb, int use_frequent_read_lock,
     erts_smp_rwmtx_opt_t rwmtx_opt = ERTS_SMP_RWMTX_OPT_DEFAULT_INITER;
     if (use_frequent_read_lock)
 	rwmtx_opt.type = ERTS_SMP_RWMTX_TYPE_FREQUENT_READ;
+    if (erts_ets_rwmtx_spin_count >= 0)
+	rwmtx_opt.main_spincount = erts_ets_rwmtx_spin_count;
 #endif
 #ifdef ERTS_SMP
     erts_smp_rwmtx_init_opt_x(&tb->common.rwlock, &rwmtx_opt,
@@ -2856,10 +2859,11 @@ BIF_RETTYPE ets_match_spec_run_r_3(BIF_ALIST_3)
 ** External interface (NOT BIF's)
 */
 
+int erts_ets_rwmtx_spin_count = -1;
 
 /* Init the db */
 
-void init_db(void)
+void init_db(ErtsDbSpinCount db_spin_count)
 {
     DbTable init_tb;
     int i;
@@ -2868,9 +2872,47 @@ void init_db(void)
     size_t size;
 
 #ifdef ERTS_SMP
+    int max_spin_count = (1 << 15) - 1; /* internal limit */
     erts_smp_rwmtx_opt_t rwmtx_opt = ERTS_SMP_RWMTX_OPT_DEFAULT_INITER;
     rwmtx_opt.type = ERTS_SMP_RWMTX_TYPE_FREQUENT_READ;
     rwmtx_opt.lived = ERTS_SMP_RWMTX_LONG_LIVED;
+
+    switch (db_spin_count) {
+    case ERTS_DB_SPNCNT_NONE:
+	erts_ets_rwmtx_spin_count = 0;
+	break;
+    case ERTS_DB_SPNCNT_VERY_LOW:
+	erts_ets_rwmtx_spin_count = 100;
+	break;
+    case ERTS_DB_SPNCNT_LOW:
+	erts_ets_rwmtx_spin_count = 200;
+	erts_ets_rwmtx_spin_count += erts_no_schedulers * 50;
+	if (erts_ets_rwmtx_spin_count > 1000)
+	    erts_ets_rwmtx_spin_count = 1000;
+	break;
+    case ERTS_DB_SPNCNT_HIGH:
+	erts_ets_rwmtx_spin_count = 2000;
+	erts_ets_rwmtx_spin_count += erts_no_schedulers * 100;
+	if (erts_ets_rwmtx_spin_count > 15000)
+	    erts_ets_rwmtx_spin_count = 15000;
+	break;
+    case ERTS_DB_SPNCNT_VERY_HIGH:
+	erts_ets_rwmtx_spin_count = 15000;
+	erts_ets_rwmtx_spin_count += erts_no_schedulers * 500;
+	if (erts_ets_rwmtx_spin_count > max_spin_count)
+	    erts_ets_rwmtx_spin_count = max_spin_count;
+	break;
+    case ERTS_DB_SPNCNT_EXTREMELY_HIGH:
+	erts_ets_rwmtx_spin_count = max_spin_count;
+	break;
+    case ERTS_DB_SPNCNT_NORMAL:
+    default:
+	erts_ets_rwmtx_spin_count = -1;
+	break;
+    }
+
+    if (erts_ets_rwmtx_spin_count >= 0)
+	rwmtx_opt.main_spincount = erts_ets_rwmtx_spin_count;
 
     meta_main_tab_locks =
 	erts_alloc_permanent_cache_aligned(ERTS_ALC_T_DB_TABLES,

@@ -9,16 +9,17 @@
 ;;
 ;; Copyright Ericsson AB 1996-2014. All Rights Reserved.
 ;;
-;; The contents of this file are subject to the Erlang Public License,
-;; Version 1.1, (the "License"); you may not use this file except in
-;; compliance with the License. You should have received a copy of the
-;; Erlang Public License along with this software. If not, it can be
-;; retrieved online at http://www.erlang.org/.
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
 ;;
-;; Software distributed under the License is distributed on an "AS IS"
-;; basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-;; the License for the specific language governing rights and limitations
-;; under the License.
+;;     http://www.apache.org/licenses/LICENSE-2.0
+;;
+;; Unless required by applicable law or agreed to in writing, software
+;; distributed under the License is distributed on an "AS IS" BASIS,
+;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;; See the License for the specific language governing permissions and
+;; limitations under the License.
 ;;
 ;; %CopyrightEnd%
 ;;
@@ -880,10 +881,10 @@ resulting regexp is surrounded by \\_< and \\_>."
       "dt_restore_tag"
       "dt_spread_tag"
       "dunlink"
+      "convert_time_unit"
       "external_size"
       "finish_after_on_load"
       "finish_loading"
-      "flush_monitor_message"
       "format_cpu_topology"
       "fun_info"
       "fun_info_mfa"
@@ -913,6 +914,7 @@ resulting regexp is surrounded by \\_< and \\_>."
       "memory"
       "module_info"
       "monitor_node"
+      "monotonic_time"
       "nif_error"
       "phash"
       "phash2"
@@ -946,13 +948,17 @@ resulting regexp is surrounded by \\_< and \\_>."
       "system_info"
       "system_monitor"
       "system_profile"
+      "system_time"
       "trace"
       "trace_delivered"
       "trace_info"
       "trace_pattern"
+      "time_offset"
+      "timestamp"
       "universaltime"
       "universaltime_to_localtime"
       "universaltime_to_posixtime"
+      "unique_integer"
       "yield")
     "Erlang built-in functions (BIFs) that needs erlang: prefix"))
 

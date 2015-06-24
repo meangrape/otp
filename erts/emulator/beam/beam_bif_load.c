@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 1999-2013. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -33,6 +34,7 @@
 #include "beam_catches.h"
 #include "erl_binary.h"
 #include "erl_nif.h"
+#include "erl_bits.h"
 #include "erl_thr_progress.h"
 
 static void set_default_trace_pattern(Eterm module);
@@ -937,7 +939,15 @@ any_heap_refs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
 	    break;
 	case TAG_PRIMARY_HEADER:
 	    if (!header_is_transparent(val)) {
-		Eterm* new_p = p + thing_arityval(val);
+		Eterm* new_p;
+                if (header_is_bin_matchstate(val)) {
+                    ErlBinMatchState *ms = (ErlBinMatchState*) p;
+                    ErlBinMatchBuffer *mb = &(ms->mb);
+                    if (in_area(EXPAND_POINTER(mb->orig), mod_start, mod_size)) {
+                        return 1;
+                    }
+                }
+		new_p = p + thing_arityval(val);
 		ASSERT(start <= new_p && new_p < end);
 		p = new_p;
 	    }

@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2008-2014. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -207,7 +208,7 @@ gen_funcs(Defs) ->
       " }~n"),
     w(" case WXE_BIN_INCR:~n   driver_binary_inc_refc(Ecmd.bin[0]->bin);~n   break;~n",[]),
     w(" case WXE_BIN_DECR:~n   driver_binary_dec_refc(Ecmd.bin[0]->bin);~n   break;~n",[]),
-    w(" case WXE_INIT_OPENGL:~n  wxe_initOpenGL(rt, bp);~n   break;~n",[]),
+    w(" case WXE_INIT_OPENGL:~n  wxe_initOpenGL(&rt, bp);~n   break;~n",[]),
 
     Res = [gen_class(Class) || Class <- Defs],
 
@@ -910,11 +911,24 @@ is_dc(Class) ->
     Parents = wx_gen_erl:parents(Class),
     lists:member("wxDC", Parents) orelse lists:member("wxGraphicsContext", Parents).
 
-build_return_vals(Type,Ps) ->
+build_return_vals(Type,Ps0) ->
+    Ps = [P || P = #param{in=In} <- Ps0, In =/= true],
     HaveType = case Type of  void -> 0; _ -> 1 end,
-    NoOut = lists:sum([1 || #param{in=In} <- Ps, In =/= true]) + HaveType,
+    NoOut = length(Ps) + HaveType,
     OutTupSz = if NoOut > 1 -> NoOut; true -> 0 end,
 
+    CountFloats = fun(#param{type=#type{base=Float, single=true}}, Acc)
+			when Float =:= float; Float =:= double ->
+			  Acc + 1;
+		     (_, Acc) ->
+			  Acc
+		  end,
+    NofFloats = lists:foldl(CountFloats, 1, Ps),
+    case NofFloats > 1 of
+	true -> %%io:format("Floats ~p:~p ~p ~n",[get(current_class),get(current_func), NofFloats]);
+	    w(" rt.ensureFloatCount(~p);~n",[NofFloats]);
+	false -> ignore
+    end,
     build_ret_types(Type,Ps),
     if
 	OutTupSz > 1 -> w(" rt.addTupleCount(~p);~n",[OutTupSz]);
@@ -923,12 +937,11 @@ build_return_vals(Type,Ps) ->
     Ps.
 
 build_ret_types(void,Ps) ->
-    Calc = fun(#param{name=N,in=False,type=T}, Free) when False =/= true ->
-		   case build_ret(N, {arg, False}, T) of
+    Calc = fun(#param{name=N,in=In,type=T}, Free) ->
+		   case build_ret(N, {arg, In}, T) of
 		       ok -> Free;
 		       Other -> [Other|Free]
-		   end;
-	      (_, Free) -> Free
+		   end
 	   end,
     lists:foldl(Calc, [], Ps);
 build_ret_types(Type,Ps) ->
@@ -936,12 +949,11 @@ build_ret_types(Type,Ps) ->
 	       ok -> [];
 	       FreeStr -> [FreeStr]
 	   end,
-    Calc = fun(#param{name=N,in=False,type=T}, FreeAcc) when False =/= true ->
-		   case build_ret(N, {arg, False}, T) of
+    Calc = fun(#param{name=N,in=In,type=T}, FreeAcc) ->
+		   case build_ret(N, {arg, In}, T) of
 		       ok -> FreeAcc;
 		       FreeMe -> [FreeMe|FreeAcc]
-		   end;
-	      (_, FreeAcc) -> FreeAcc
+		   end
 	   end,
     lists:foldl(Calc, Free, Ps).
 
@@ -1016,7 +1028,6 @@ build_ret(Name,_,#type{name="wxArrayTreeItemIds"}) ->
     w(" rt.endList(~s.GetCount());~n",[Name]);
 
 build_ret(Name,_,#type{base=float,single=true}) ->
-%%    w(" double Temp~s = ~s;~n", [Name,Name]),
     w(" rt.addFloat(~s);~n",[Name]);
 build_ret(Name,_,#type{base=double,single=true}) ->
     w(" rt.addFloat(~s);~n",[Name]);

@@ -3,16 +3,17 @@
 %% 
 %% Copyright Ericsson AB 2002-2015. All Rights Reserved.
 %% 
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
-%% 
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %% 
 %% %CopyrightEnd%
 %%
@@ -1302,7 +1303,8 @@ handle_pipeline(#state{status       = pipeline,
 handle_keep_alive_queue(#state{status       = keep_alive,
 			       session      = Session,
 			       profile_name = ProfileName,
-			       options      = #options{keep_alive_timeout = TimeOut}} = State,
+			       options      = #options{keep_alive_timeout = TimeOut,
+						       proxy              = Proxy}} = State,
 			Data) ->
 
     ?hcrd("handle keep_alive", [{profile, ProfileName}, 
@@ -1323,14 +1325,15 @@ handle_keep_alive_queue(#state{status       = keep_alive,
 		      State#state{keep_alive = KeepAlive}, Data);
 		false ->
 		    ?hcrv("next request", [{request, NextRequest}]),
-		    #request{address = Address} = NextRequest,
+		    #request{address = Addr} = NextRequest,
+		    Address = handle_proxy(Addr, Proxy),
 		    case httpc_request:send(Address, Session, NextRequest) of
 			ok ->
 			    receive_response(NextRequest,
 					     Session, <<>>,
 					     State#state{keep_alive = KeepAlive});
 			{error, Reason} ->
-			    {stop, shutdown, {keepalive_failed, Reason}, State}
+			    {stop, {shutdown, {keepalive_failed, Reason}}, State}
 		    end
 	    end
     end.
@@ -1388,6 +1391,8 @@ case_insensitive_header(Str) ->
 activate_once(#session{socket = Socket, socket_type = SocketType}) ->
     http_transport:setopts(SocketType, Socket, [{active, once}]).
 
+close_socket(#session{socket = {remote_close,_}}) ->
+    ok;
 close_socket(#session{socket = Socket, socket_type = SocketType}) ->
     http_transport:close(SocketType, Socket).
 

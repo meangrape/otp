@@ -5,7 +5,7 @@
 ####Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Experimental | OTP-18 | [`basho-otp-18`](http://github.com/basho/otp/tree/basho-otp-18) | _n/a_ | [`OTP-18.0-rc2`](http://github.com/basho/otp/tree/OTP-18.0-rc2) |
+| Experimental | OTP-18 | [`basho-otp-18`](http://github.com/basho/otp/tree/basho-otp-18) | _n/a_ | [`OTP-18.0`](http://github.com/basho/otp/tree/OTP-18.0) |
 
 ##Basho Erlang/OTP
 
@@ -63,9 +63,10 @@ in the [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) document.
 
 Our version identifiers correlate to the Erlang/OTP release without the
 _bashoN_ suffix, but our changes to individual ERTS components and OTP
-applications may not carry distinct versions. Our releases are intended to
-be used as a single cohesive installation, we do _NOT_ support mixing
-components between our releases and the original distributions.
+applications _may not_ always carry distinct versions yet.
+Our releases are intended to be used as a single cohesive installation,
+we do _NOT_ support mixing components between our releases and the original
+distributions.
 
 ###Contributing to Erlang/OTP
 
@@ -83,12 +84,13 @@ of interest to us.
 
 Everything in Erlang/OTP, whether part of the original distribution or a
 contribution of ours, is subject to the terms of the
-[Erlang Public License][3].
+[Apache License, Version 2.0][3].
 
 
   [1]: http://www.basho.com
   [2]: http://www.erlang.org
-  [3]: http://www.erlang.org/EPLICENSE
+  [3]: http://github.com/erlang/otp/blob/maint/LICENSE.txt
   [4]: http://github.com/erlang/otp
   [5]: http://github.com/erlang/otp/blob/maint/README.md
   [6]: http://wiki.github.com/erlang/otp/submitting-patches
+

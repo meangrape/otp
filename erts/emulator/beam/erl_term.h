@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 2000-2014. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -198,7 +199,7 @@ struct erl_node_; /* Declared in erl_node_tables.h */
 #endif
 #define _is_aligned(x)		(((Uint)(x) & 0x3) == 0)
 #define _unchecked_make_boxed(x) ((Uint) COMPRESS_POINTER(x) + TAG_PRIMARY_BOXED)
-_ET_DECLARE_CHECKED(Eterm,make_boxed,Eterm*)
+_ET_DECLARE_CHECKED(Eterm,make_boxed,const Eterm*)
 #define make_boxed(x)		_ET_APPLY(make_boxed,(x))
 #if 1
 #define _is_not_boxed(x)	((x) & (_TAG_PRIMARY_MASK-TAG_PRIMARY_BOXED))
@@ -214,7 +215,7 @@ _ET_DECLARE_CHECKED(Eterm*,boxed_val,Wterm)
 
 /* cons cell ("list") access methods */
 #define _unchecked_make_list(x)	((Uint) COMPRESS_POINTER(x) + TAG_PRIMARY_LIST)
-_ET_DECLARE_CHECKED(Eterm,make_list,Eterm*)
+_ET_DECLARE_CHECKED(Eterm,make_list,const Eterm*)
 #define make_list(x)		_ET_APPLY(make_list,(x))
 #if 1
 #define _unchecked_is_not_list(x) ((x) & (_TAG_PRIMARY_MASK-TAG_PRIMARY_LIST))

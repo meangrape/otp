@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2006-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -1149,7 +1150,7 @@ otp_11100(Config) when is_list(Config) ->
         {a,{type,A1,range,[{integer,A1,1},{foo,bar}]},[]}}),
     "-type foo(INVALID-FORM:{foo,bar}:) :: A.\n" =
         pf({attribute,A1,type,{foo,{var,A1,'A'},[{foo,bar}]}}),
-    "-type foo() :: (INVALID-FORM:{foo,bar}: :: []).\n" =
+    "-type foo() :: INVALID-FORM:{foo,bar}: :: [].\n" =
         pf({attribute,A1,type,
             {foo,{paren_type,A1,
                   [{ann_type,A1,[{foo,bar},{type,A1,nil,[]}]}]},

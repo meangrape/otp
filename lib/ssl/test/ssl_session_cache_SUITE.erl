@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.2
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -41,8 +42,6 @@
 %% Common Test interface functions -----------------------------------
 %%--------------------------------------------------------------------
 
-suite() -> [{ct_hooks,[ts_install_cth]}].
-
 all() ->
     [session_cleanup,
      session_cache_process_list,
@@ -52,20 +51,15 @@ groups() ->
     [].
 
 init_per_suite(Config0) ->
-    Dog = ct:timetrap(?LONG_TIMEOUT *2),
     catch crypto:stop(),
     try crypto:start() of
 	ok ->
 	    ssl:start(),
-	    %% make rsa certs using oppenssl
-	    Result =
-		(catch make_certs:all(?config(data_dir, Config0),
-				      ?config(priv_dir, Config0))),
-	    ct:log("Make certs  ~p~n", [Result]),
-
-	    Config1 = ssl_test_lib:make_dsa_cert(Config0),
-	    Config = ssl_test_lib:cert_options(Config1),
-	    [{watchdog, Dog} | Config]
+	    %% make rsa certs using 
+	    {ok, _} = make_certs:all(?config(data_dir, Config0),
+				     ?config(priv_dir, Config0)),
+	    Config = ssl_test_lib:make_dsa_cert(Config0),
+	    ssl_test_lib:cert_options(Config)
     catch _:_ ->
 	    {skip, "Crypto did not start"}
     end.
@@ -87,24 +81,20 @@ init_per_testcase(session_cache_process_mnesia, Config) ->
     mnesia:start(),
     init_customized_session_cache(mnesia, Config);
 
-init_per_testcase(session_cleanup, Config0) ->
-    Config = lists:keydelete(watchdog, 1, Config0),
-    Dog = ct:timetrap(?TIMEOUT),
+init_per_testcase(session_cleanup, Config) ->
     ssl:stop(),
     application:load(ssl),
     application:set_env(ssl, session_lifetime, 5),
     application:set_env(ssl, session_delay_cleanup_time, ?DELAY),
     ssl:start(),
-    [{watchdog, Dog} | Config];
+    ct:timetrap({seconds, 20}),
+    Config;
 
-init_per_testcase(_TestCase, Config0) ->
-    Config = lists:keydelete(watchdog, 1, Config0),
-    Dog = ct:timetrap(?TIMEOUT),
-   [{watchdog, Dog} | Config].
+init_per_testcase(_TestCase, Config) ->
+    ct:timetrap({seconds, 5}),
+    Config.
 
-init_customized_session_cache(Type, Config0) ->
-    Config = lists:keydelete(watchdog, 1, Config0),
-    Dog = ct:timetrap(?TIMEOUT),
+init_customized_session_cache(Type, Config) ->
     ssl:stop(),
     application:load(ssl),
     application:set_env(ssl, session_cb, ?MODULE),
@@ -114,7 +104,8 @@ init_customized_session_cache(Type, Config0) ->
 	   Config)),
     ets:new(ssl_test, [named_table, public, set]),
     ets:insert(ssl_test, {type, Type}),
-    [{watchdog, Dog} | Config].
+    ct:timetrap({seconds, 5}),
+    Config.
 
 end_per_testcase(session_cache_process_list, Config) ->
     application:unset_env(ssl, session_cb),

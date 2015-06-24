@@ -3,16 +3,17 @@
 %% 
 %% Copyright Ericsson AB 1998-2013. All Rights Reserved.
 %% 
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
-%% 
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %% 
 %% %CopyrightEnd%
 %%
@@ -29,7 +30,8 @@
 	 read_timer_trivial/1, read_timer/1, read_timer_async/1,
 	 cleanup/1, evil_timers/1, registered_process/1, same_time_yielding/1,
 	 same_time_yielding_with_cancel/1, same_time_yielding_with_cancel_other/1,
-	 same_time_yielding_with_cancel_other_accessor/1, auto_cancel_yielding/1]).
+%	 same_time_yielding_with_cancel_other_accessor/1,
+	 auto_cancel_yielding/1]).
 
 -include_lib("test_server/include/test_server.hrl").
 
@@ -67,7 +69,7 @@ all() ->
      cleanup, evil_timers, registered_process,
      same_time_yielding, same_time_yielding_with_cancel,
      same_time_yielding_with_cancel_other,
-     same_time_yielding_with_cancel_other_accessor,
+%     same_time_yielding_with_cancel_other_accessor,
      auto_cancel_yielding].
 
 groups() -> 
@@ -532,8 +534,8 @@ same_time_yielding_with_cancel(Config) when is_list(Config) ->
 same_time_yielding_with_cancel_other(Config) when is_list(Config) ->
     same_time_yielding_with_cancel_test(true, false).
 
-same_time_yielding_with_cancel_other_accessor(Config) when is_list(Config) ->
-    same_time_yielding_with_cancel_test(true, true).
+%same_time_yielding_with_cancel_other_accessor(Config) when is_list(Config) ->
+%    same_time_yielding_with_cancel_test(true, true).
 
 do_cancel_tmrs(Tmo, Tmrs, Tester) ->
     BeginCancel = erlang:convert_time_unit(Tmo,
@@ -631,7 +633,6 @@ auto_cancel_yielding(Config) when is_list(Config) ->
     true = mem_larger_than(Mem),
     exit(P, bang),
     wait_until(fun () -> process_is_cleaned_up(P) end),
-    receive after 1000 -> ok end,
     Mem = mem(),
     ok.
 
@@ -747,7 +748,7 @@ mem_larger_than(Mem) ->
     mem() > Mem.
 
 mem() ->
-    erts_debug:set_internal_state(wait, deallocations),
+    erts_debug:set_internal_state(wait, timer_cancellations),
     erts_debug:set_internal_state(wait, deallocations),
     case mem_get() of
 	{-1, -1} -> no_fix_alloc;

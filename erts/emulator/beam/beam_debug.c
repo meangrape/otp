@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 1998-2013. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -616,24 +617,28 @@ print_op(int to, void *to_arg, int op, int size, BeamInstr* addr)
     case op_i_select_tuple_arity_rfI:
     case op_i_select_tuple_arity_xfI:
     case op_i_select_tuple_arity_yfI:
-	{
-	    int n = ap[-1];
-	    int ix = n;
+        {
+            int n = ap[-1];
+            int ix = n - 1; /* without sentinel */
 
-	    while (ix--) {
-		Uint arity = arityval(ap[0]);
-		erts_print(to, to_arg, "{%d} ", arity, ap[1]);
-		ap++;
-		size++;
-	    }
-	    ix = n;
-	    while (ix--) {
-		erts_print(to, to_arg, "f(" HEXF ") ", ap[0]);
-		ap++;
-		size++;
-	    }
-	}
-	break;
+            while (ix--) {
+                Uint arity = arityval(ap[0]);
+                erts_print(to, to_arg, "{%d} ", arity, ap[1]);
+                ap++;
+                size++;
+            }
+            /* print sentinel */
+            erts_print(to, to_arg, "{%T} ", ap[0], ap[1]);
+            ap++;
+            size++;
+            ix = n;
+            while (ix--) {
+                erts_print(to, to_arg, "f(" HEXF ") ", ap[0]);
+                ap++;
+                size++;
+            }
+        }
+        break;
     case op_i_jump_on_val_rfII:
     case op_i_jump_on_val_xfII:
     case op_i_jump_on_val_yfII:

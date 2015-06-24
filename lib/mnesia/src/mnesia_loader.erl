@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 1998-2014. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -209,8 +210,7 @@ do_get_network_copy(Tab, Reason, Ns, Storage, Cs) ->
 		    set({Tab, load_node}, Node),
 		    set({Tab, load_reason}, Reason),
 		    mnesia_controller:i_have_tab(Tab),
-		    dbg_out("Table ~p copied from ~p to ~p (~b entries)~n",
-                            [Tab, Node, node(), mnesia:table_info(Tab, size)]),
+		    dbg_out("Table ~p copied from ~p to ~p~n", [Tab, Node, node()]),
 		    {loaded, ok};
 		Err = {error, _} when element(1, Reason) == dumper ->
 		    {not_loaded,Err};

@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 2006-2013. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -152,9 +153,6 @@ int ERTS_SELECT(int nfds, ERTS_fd_set *readfds, ERTS_fd_set *writefds,
    (defined(ERTS_SMP) && ERTS_POLL_USE_EPOLL)
 
 #define ERTS_POLL_COALESCE_KP_RES (ERTS_POLL_USE_KQUEUE || ERTS_POLL_USE_EPOLL)
-
-#define ERTS_EV_TABLE_MIN_LENGTH		1024
-#define ERTS_EV_TABLE_EXP_THRESHOLD		(2048*1024)
 
 #ifdef ERTS_POLL_NEED_ASYNC_INTERRUPT_SUPPORT
 #  define ERTS_POLL_ASYNC_INTERRUPT_SUPPORT 1
@@ -703,27 +701,33 @@ free_update_requests_block(ErtsPollSet ps,
  * --- Growing poll set structures -------------------------------------------
  */
 
-int
-ERTS_POLL_EXPORT(erts_poll_get_table_len) (int new_len)
+#ifndef ERTS_KERNEL_POLL_VERSION   /* only one shared implementation */
+
+#define ERTS_FD_TABLE_MIN_LENGTH	1024
+#define ERTS_FD_TABLE_EXP_THRESHOLD	(2048*1024)
+
+int erts_poll_new_table_len (int old_len, int need_len)
 {
-    if (new_len < ERTS_EV_TABLE_MIN_LENGTH) {
-	new_len = ERTS_EV_TABLE_MIN_LENGTH;
-    } else if (new_len < ERTS_EV_TABLE_EXP_THRESHOLD) {
-	/* find next power of 2 */
-	--new_len;
-	new_len |= new_len >> 1;
-	new_len |= new_len >> 2;
-	new_len |= new_len >> 4;
-	new_len |= new_len >> 8;
-	new_len |= new_len >> 16;
-	++new_len;
-    } else {
-	/* grow incrementally */
-	new_len += ERTS_EV_TABLE_EXP_THRESHOLD;
+    int new_len;
+
+    ASSERT(need_len > old_len);
+    if (need_len < ERTS_FD_TABLE_MIN_LENGTH) {
+	new_len = ERTS_FD_TABLE_MIN_LENGTH;
     }
+    else {
+        new_len = old_len;
+        do {            
+            if (new_len < ERTS_FD_TABLE_EXP_THRESHOLD)
+                new_len *= 2;
+            else
+                new_len += ERTS_FD_TABLE_EXP_THRESHOLD;
+
+        } while (new_len < need_len);
+    }
+    ASSERT(new_len >= need_len);
     return new_len;
 }
-
+#endif
 
 #if ERTS_POLL_USE_KERNEL_POLL
 static void
@@ -737,7 +741,7 @@ grow_res_events(ErtsPollSet ps, int new_len)
 #elif ERTS_POLL_USE_KQUEUE
 	struct kevent
 #endif
-	) * ERTS_POLL_EXPORT(erts_poll_get_table_len)(new_len);
+	) * erts_poll_new_table_len(ps->res_events_len, new_len);
     /* We do not need to save previously stored data */
     if (ps->res_events)
 	erts_free(ERTS_ALC_T_POLL_RES_EVS, ps->res_events);
@@ -751,7 +755,7 @@ static void
 grow_poll_fds(ErtsPollSet ps, int min_ix)
 {
     int i;
-    int new_len = ERTS_POLL_EXPORT(erts_poll_get_table_len)(min_ix + 1);
+    int new_len = erts_poll_new_table_len(ps->poll_fds_len, min_ix + 1);
     if (new_len > max_fds)
 	new_len = max_fds;
     ps->poll_fds = (ps->poll_fds_len
@@ -773,7 +777,7 @@ grow_poll_fds(ErtsPollSet ps, int min_ix)
 static void
 grow_select_fds(int fd, ERTS_fd_set* fds)
 {
-    int new_len = ERTS_POLL_EXPORT(erts_poll_get_table_len)(fd + 1);
+    int new_len = erts_poll_new_table_len(fds->sz, fd + 1);
     if (new_len > max_fds)
 	new_len = max_fds;
     new_len = ERTS_FD_SIZE(new_len);
@@ -800,7 +804,7 @@ static void
 grow_fds_status(ErtsPollSet ps, int min_fd)
 {
     int i;
-    int new_len = ERTS_POLL_EXPORT(erts_poll_get_table_len)(min_fd + 1);
+    int new_len = erts_poll_new_table_len(ps->fds_status_len, min_fd + 1);
     ASSERT(min_fd < max_fds);
     if (new_len > max_fds)
 	new_len = max_fds;

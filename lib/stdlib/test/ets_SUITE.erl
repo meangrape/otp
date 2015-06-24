@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 1996-2014. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -117,6 +118,7 @@ init_per_testcase(Case, Config) ->
     start_spawn_logger(),
     wait_for_test_procs(), %% Ensure previous case cleaned up
     Dog=test_server:timetrap(test_server:minutes(20)),
+    put('__ETS_TEST_CASE__', Case),
     [{watchdog, Dog}, {test_case, Case} | Config].
 
 end_per_testcase(_Func, Config) ->
@@ -216,8 +218,9 @@ memory_check_summary(_Config) ->
 	    ets_test_spawn_logger ! {self(), get_failed_memchecks},
 	    receive {get_failed_memchecks, FailedMemchecks} -> ok end,
 	    io:format("Failed memchecks: ~p\n",[FailedMemchecks]),
-	    if FailedMemchecks > 3 ->
-		    ct:fail("Too many failed (~p) memchecks", [FailedMemchecks]);
+	    NoFailedMemchecks = length(FailedMemchecks),
+	    if NoFailedMemchecks > 3 ->
+		    ct:fail("Too many failed (~p) memchecks", [NoFailedMemchecks]);
 	       true ->
 		    ok
 	    end
@@ -4088,8 +4091,11 @@ tab2file(Config) when is_list(Config) ->
 
 tab2file_do(FName, Opts) ->
     %% Write an empty ets table to a file, read back and check properties.
-    ?line Tab = ets_new(ets_SUITE_foo_tab, [named_table, set, private,
-					    {keypos, 2}]),
+    ?line Tab = ets_new(ets_SUITE_foo_tab, [named_table, set, public,
+					    {keypos, 2},
+					    compressed,
+					    {write_concurrency,true},
+					    {read_concurrency,true}]),
     catch file:delete(FName),
     Res = ets:tab2file(Tab, FName, Opts),
     true = ets:delete(Tab),
@@ -4097,10 +4103,14 @@ tab2file_do(FName, Opts) ->
     %
     ?line EtsMem = etsmem(),
     ?line {ok, Tab2} = ets:file2tab(FName),
-    ?line private = ets:info(Tab2, protection),
+    public = ets:info(Tab2, protection),
     ?line true = ets:info(Tab2, named_table),
     ?line 2 = ets:info(Tab2, keypos),
     ?line set = ets:info(Tab2, type),
+    true = ets:info(Tab2, compressed),
+    Smp = erlang:system_info(smp_support),
+    Smp = ets:info(Tab2, read_concurrency),
+    Smp = ets:info(Tab2, write_concurrency),
     ?line true = ets:delete(Tab2),
     ?line verify_etsmem(EtsMem).
 
@@ -4319,7 +4329,7 @@ tabfile_ext4(Config) when is_list(Config) ->
 	       {error,Y} = ets:file2tab(FName,[{verify,true}]),
 	       ets:tab2file(TL,FName,[{extended_info,[md5sum]}]),
 	       {X,Y}
-	   end || N <- lists:seq(400,500) ],
+	   end || N <- lists:seq(500,600) ],
     io:format("~p~n",[Res]),
     file:delete(FName),
     ok.
@@ -5921,7 +5931,7 @@ verify_etsmem({MemInfo,AllTabs}) ->
 	    io:format("Actual:   ~p", [MemInfo2]),
 	    io:format("Changed tables before: ~p\n",[AllTabs -- AllTabs2]),
 	    io:format("Changed tables after: ~p\n", [AllTabs2 -- AllTabs]),
-	    ets_test_spawn_logger ! failed_memcheck,
+	    ets_test_spawn_logger ! {failed_memcheck, get('__ETS_TEST_CASE__')},
 	    {comment, "Failed memory check"}
     end.
 
@@ -5972,8 +5982,8 @@ spawn_logger(Procs, FailedMemchecks) ->
 	    From ! test_procs_synced,
 	    spawn_logger([From], FailedMemchecks);
 
-	failed_memcheck ->
-	    spawn_logger(Procs, FailedMemchecks+1);
+	{failed_memcheck, TestCase} ->
+	    spawn_logger(Procs, [TestCase|FailedMemchecks]);
 
 	{Pid, get_failed_memchecks} ->
 	    Pid ! {get_failed_memchecks, FailedMemchecks},
@@ -5993,7 +6003,7 @@ start_spawn_logger() ->
     case whereis(ets_test_spawn_logger) of
 	Pid when is_pid(Pid) -> true;
 	_ -> register(ets_test_spawn_logger,
-		      spawn_opt(fun () -> spawn_logger([], 0) end,
+		      spawn_opt(fun () -> spawn_logger([], []) end,
 				[{priority, max}]))
     end.
 

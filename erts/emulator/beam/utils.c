@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 1996-2014. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -1140,7 +1141,7 @@ make_hash2(Eterm term)
 
     ERTS_UNDEF(hash_xor_pairs, 0);
 
-/* (HCONST * {2, ..., 16}) mod 2^32 */
+/* (HCONST * {2, ..., 22}) mod 2^32 */
 #define HCONST_2 0x3c6ef372UL
 #define HCONST_3 0xdaa66d2bUL
 #define HCONST_4 0x78dde6e4UL
@@ -1161,6 +1162,7 @@ make_hash2(Eterm term)
 #define HCONST_19 0xbe1e08bbUL
 #define HCONST_20 0x5c558274UL
 #define HCONST_21 0xfa8cfc2dUL
+#define HCONST_22 0x98c475e6UL
 
 #define HASH_MAP_TAIL (_make_header(1,_TAG_HEADER_REF))
 #define HASH_MAP_PAIR (_make_header(2,_TAG_HEADER_REF))
@@ -1645,8 +1647,9 @@ make_internal_hash(Eterm term)
 		    break;
 		ptr = list_val(term);
 	    }
-	    if (c > 0)
-		UINT32_HASH(sh, HCONST_4);
+            if (c > 0)
+                UINT32_HASH_2(sh, (Uint32)c, HCONST_22);
+
 	    if (is_list(term)) {
 		tmp = CDR(ptr);
                 CONST_HASH(HCONST_17);  /* Hash CAR in cons cell */

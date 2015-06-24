@@ -3,16 +3,17 @@
 %% 
 %% Copyright Ericsson AB 2000-2013. All Rights Reserved.
 %% 
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
-%% 
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %% 
 %% %CopyrightEnd%
 %%
@@ -146,11 +147,16 @@ shutdown_1(S, How) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 close(S) when is_port(S) ->
-    case subscribe(S, [subs_empty_out_q]) of
-	{ok, [{subs_empty_out_q,N}]} when N > 0 ->
-	    close_pend_loop(S, N);   %% wait for pending output to be sent
+    case getopt(S, linger) of
+    	{ok,{true,0}} -> 
+	    close_port(S);
 	_ ->
-	    close_port(S)
+	    case subscribe(S, [subs_empty_out_q]) of
+		{ok, [{subs_empty_out_q,N}]} when N > 0 ->
+		    close_pend_loop(S, N);   %% wait for pending output to be sent
+		_ ->
+		    close_port(S)
+	    end
     end.
 
 close_pend_loop(S, N) ->
@@ -1140,6 +1146,7 @@ enc_opt(delay_send)      -> ?INET_LOPT_TCP_DELAY_SEND;
 enc_opt(packet_size)     -> ?INET_LOPT_PACKET_SIZE;
 enc_opt(read_packets)    -> ?INET_LOPT_READ_PACKETS;
 enc_opt(netns)           -> ?INET_LOPT_NETNS;
+enc_opt(show_econnreset) -> ?INET_LOPT_TCP_SHOW_ECONNRESET;
 enc_opt(raw)             -> ?INET_OPT_RAW;
 % Names of SCTP opts:
 enc_opt(sctp_rtoinfo)	 	   -> ?SCTP_OPT_RTOINFO;
@@ -1197,6 +1204,7 @@ dec_opt(?INET_LOPT_TCP_DELAY_SEND)   -> delay_send;
 dec_opt(?INET_LOPT_PACKET_SIZE)      -> packet_size;
 dec_opt(?INET_LOPT_READ_PACKETS)     -> read_packets;
 dec_opt(?INET_LOPT_NETNS)           -> netns;
+dec_opt(?INET_LOPT_TCP_SHOW_ECONNRESET) -> show_econnreset;
 dec_opt(?INET_OPT_RAW)              -> raw;
 dec_opt(I) when is_integer(I)     -> undefined.
 
@@ -1296,6 +1304,7 @@ type_opt_1(delay_send)      -> bool;
 type_opt_1(packet_size)     -> uint;
 type_opt_1(read_packets)    -> uint;
 type_opt_1(netns)           -> binary;
+type_opt_1(show_econnreset) -> bool;
 %% 
 %% SCTP options (to be set). If the type is a record type, the corresponding
 %% record signature is returned, otherwise, an "elementary" type tag 

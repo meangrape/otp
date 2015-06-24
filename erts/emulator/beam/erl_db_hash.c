@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 1998-2012. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -670,6 +671,8 @@ int db_create_hash(Process *p, DbTable *tbl)
 	int i;
 	if (tb->common.type & DB_FREQ_READ)
 	    rwmtx_opt.type = ERTS_SMP_RWMTX_TYPE_FREQUENT_READ;
+	if (erts_ets_rwmtx_spin_count >= 0)
+	    rwmtx_opt.main_spincount = erts_ets_rwmtx_spin_count;
 	tb->locks = (DbTableHashFineLocks*) erts_db_alloc_fnf(ERTS_ALC_T_DB_SEG, /* Other type maybe? */ 
 							      (DbTable *) tb,
 							      sizeof(DbTableHashFineLocks));	    	    
@@ -1049,7 +1052,6 @@ static int db_get_element_hash(Process *p, DbTable *tbl,
 			Eterm copy = db_copy_element_from_ets(&tb->common, p,
 							      &b->dbterm, ndex, &hp, 2);
 			elem_list = CONS(hp, copy, elem_list);
-			hp += 2;
 		    }
 		    b = b->next;
 		}

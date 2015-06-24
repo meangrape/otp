@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2014-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.2
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -44,10 +45,8 @@ init_per_suite(Config0) ->
 		{skip, Reason} ->
 		    {skip, Reason};
 		Config ->
-		    Result =
-			(catch make_certs:all(?config(data_dir, Config),
-					      ?config(priv_dir, Config))),
-		    ct:log("Make certs  ~p~n", [Result]),
+		    {ok, _} = make_certs:all(?config(data_dir, Config),
+					      ?config(priv_dir, Config)),
 		    ssl_test_lib:cert_options(Config)
 	    end;
 	{ok, false} ->
@@ -61,8 +60,11 @@ end_per_suite(Config) ->
     crypto:stop().
 
 init_per_testcase(_TestCase, Config) ->
+    ct:log("TLS/SSL version ~p~n ", [tls_record:supported_protocol_versions()]),
+    ct:timetrap({minutes, 1}),
     Config.
-end_per_testcase(_TestCase, Config) ->
+
+end_per_testcase(_TestCase, Config) ->     
     Config.
 
 major_upgrade(Config) when is_list(Config) ->
@@ -161,4 +163,3 @@ is_soft([{restart_application, ssl}]) ->
     false;
 is_soft(_) ->	
     true.
-

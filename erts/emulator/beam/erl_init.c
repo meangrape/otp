@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 1997-2013. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -141,7 +142,9 @@ static void erl_init(int ncpu,
 		     int port_tab_sz_ignore_files,
 		     int legacy_port_tab,
 		     int time_correction,
-		     ErtsTimeWarpMode time_warp_mode);
+		     ErtsTimeWarpMode time_warp_mode,
+		     int node_tab_delete_delay,
+		     ErtsDbSpinCount db_spin_count);
 
 static erts_atomic_t exiting;
 
@@ -314,7 +317,9 @@ erts_short_init(void)
 	     0,
 	     0,
 	     time_correction,
-	     time_warp_mode);
+	     time_warp_mode,
+	     ERTS_NODE_TAB_DELAY_GC_DEFAULT,
+	     ERTS_DB_SPNCNT_NORMAL);
     erts_initialized = 1;
 }
 
@@ -326,7 +331,9 @@ erl_init(int ncpu,
 	 int port_tab_sz_ignore_files,
 	 int legacy_port_tab,
 	 int time_correction,
-	 ErtsTimeWarpMode time_warp_mode)
+	 ErtsTimeWarpMode time_warp_mode,
+	 int node_tab_delete_delay,
+	 ErtsDbSpinCount db_spin_count)
 {
     init_benchmarking();
 
@@ -366,8 +373,8 @@ erl_init(int ncpu,
     erts_ptab_init(); /* Must be after init_emulator() */
     erts_init_binary(); /* Must be after init_emulator() */
     erts_bp_init();
-    init_db(); /* Must be after init_emulator */
-    erts_init_node_tables();
+    init_db(db_spin_count); /* Must be after init_emulator */
+    erts_init_node_tables(node_tab_delete_delay);
     init_dist();
     erl_drv_thr_init();
     erts_init_async();
@@ -379,6 +386,7 @@ erl_init(int ncpu,
     erts_init_bif_re();
     erts_init_unicode(); /* after RE to get access to PCRE unicode */
     erts_init_external();
+    erts_init_map();
     erts_delay_trap = erts_export_put(am_erlang, am_delay_trap, 2);
     erts_late_init_process();
 #if HAVE_ERTS_MSEG
@@ -629,6 +637,13 @@ void erts_usage(void)
     erts_fprintf(stderr, "               see error_logger documentation for details\n");
     erts_fprintf(stderr, "-zdbbl size    set the distribution buffer busy limit in kilobytes\n");
     erts_fprintf(stderr, "               valid range is [1-%d]\n", INT_MAX/1024);
+    erts_fprintf(stderr, "-zdntgc time   set delayed node table gc in seconds\n");
+    erts_fprintf(stderr, "               valid values are infinity or intergers in the range [0-%d]\n",
+		 ERTS_NODE_TAB_DELAY_GC_MAX);
+#if 0
+    erts_fprintf(stderr, "-zebwt  val    set ets busy wait threshold, valid values are:\n");
+    erts_fprintf(stderr, "               none|very_short|short|medium|long|very_long|extremely_long\n");
+#endif
     erts_fprintf(stderr, "\n");
     erts_fprintf(stderr, "Note that if the emulator is started with erlexec (typically\n");
     erts_fprintf(stderr, "from the erl script), these flags should be specified with +.\n");
@@ -1219,6 +1234,8 @@ erl_start(int argc, char **argv)
     int legacy_port_tab = 0;
     int time_correction;
     ErtsTimeWarpMode time_warp_mode;
+    int node_tab_delete_delay = ERTS_NODE_TAB_DELAY_GC_DEFAULT;
+    ErtsDbSpinCount db_spin_count = ERTS_DB_SPNCNT_NORMAL;
 
     set_default_time_adj(&time_correction,
 			 &time_warp_mode);
@@ -2005,9 +2022,9 @@ erl_start(int argc, char **argv)
 
 	case 'z': {
 	    char *sub_param = argv[i]+2;
-	    int new_limit;
 
 	    if (has_prefix("dbbl", sub_param)) {
+		int new_limit;
 		arg = get_arg(sub_param+4, argv[i+1], &i);
 		new_limit = atoi(arg);
 		if (new_limit < 1 || INT_MAX/1024 < new_limit) {
@@ -2015,6 +2032,46 @@ erl_start(int argc, char **argv)
 		    erts_usage();
 		} else {
 		    erts_dist_buf_busy_limit = new_limit*1024;
+		}
+	    }
+	    else if (has_prefix("dntgc", sub_param)) {
+		long secs;
+
+		arg = get_arg(sub_param+5, argv[i+1], &i);
+		if (sys_strcmp(arg, "infinity") == 0)
+		    secs = ERTS_NODE_TAB_DELAY_GC_INFINITY;
+		else {
+		    char *endptr;
+		    errno = 0;
+		    secs = strtol(arg, &endptr, 10);
+		    if (errno != 0 || *arg == '\0' || *endptr != '\0'
+			|| secs < 0 || ERTS_NODE_TAB_DELAY_GC_MAX < secs) {
+			erts_fprintf(stderr, "Invalid delayed node table gc: %s\n", arg);
+			erts_usage();
+		    }
+		}
+		node_tab_delete_delay = (int) secs;
+	    }
+	    else if (has_prefix("ebwt", sub_param)) {
+		arg = get_arg(sub_param+4, argv[i+1], &i);
+		if (sys_strcmp(arg, "none") == 0)
+		    db_spin_count = ERTS_DB_SPNCNT_NONE;
+		else if (sys_strcmp(arg, "very_short") == 0)
+		    db_spin_count = ERTS_DB_SPNCNT_VERY_LOW;
+		else if (sys_strcmp(arg, "short") == 0)
+		    db_spin_count = ERTS_DB_SPNCNT_LOW;
+		else if (sys_strcmp(arg, "medium") == 0)
+		    db_spin_count = ERTS_DB_SPNCNT_NORMAL;
+		else if (sys_strcmp(arg, "long") == 0)
+		    db_spin_count = ERTS_DB_SPNCNT_HIGH;
+		else if (sys_strcmp(arg, "very_long") == 0)
+		    db_spin_count = ERTS_DB_SPNCNT_VERY_HIGH;
+		else if (sys_strcmp(arg, "extremely_long") == 0)
+		    db_spin_count = ERTS_DB_SPNCNT_EXTREMELY_HIGH;
+		else {
+		    erts_fprintf(stderr,
+				 "Invalid ets busy wait threshold: %s\n", arg);
+		    erts_usage();
 		}
 	    } else {
 		erts_fprintf(stderr, "bad -z option %s\n", argv[i]);
@@ -2089,7 +2146,9 @@ erl_start(int argc, char **argv)
 	     port_tab_sz_ignore_files,
 	     legacy_port_tab,
 	     time_correction,
-	     time_warp_mode);
+	     time_warp_mode,
+	     node_tab_delete_delay,
+	     db_spin_count);
 
     load_preloaded();
     erts_end_staging_code_ix();

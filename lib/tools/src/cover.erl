@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2001-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -782,7 +783,7 @@ main_process_loop(State) ->
 	{From, {{analyse_to_file, Opts},Module}} ->
 	    S = try 
 		    Loaded = is_loaded(Module, State),
-		    spawn(fun() ->
+		    spawn_link(fun() ->
 				  ?SPAWN_DBG(analyse_to_file,{Module,Opts}),
 				  do_parallel_analysis_to_file(
 				    Module, Opts, Loaded, From, State)
@@ -1017,14 +1018,24 @@ load_compiled([{Module,File,Binary,InitialTable}|Compiled],Acc) ->
     %% Make sure the #bump{} records are available *before* the
     %% module is loaded.
     insert_initial_data(InitialTable),
-    NewAcc = 
-	case code:load_binary(Module, ?TAG, Binary) of
-	    {module,Module} ->
-		add_compiled(Module, File, Acc);
-	    _  ->
-                do_clear(Module),
-		Acc
-	end,
+    Sticky = case code:is_sticky(Module) of
+                 true ->
+                     code:unstick_mod(Module),
+                     true;
+                 false ->
+                     false
+             end,
+    NewAcc = case code:load_binary(Module, ?TAG, Binary) of
+                 {module,Module} ->
+                     add_compiled(Module, File, Acc);
+                 _  ->
+                     do_clear(Module),
+                     Acc
+             end,
+    case Sticky of
+        true -> code:stick_mod(Module);
+        false -> ok
+    end,
     load_compiled(Compiled,NewAcc);
 load_compiled([],Acc) ->
     Acc.
@@ -2143,7 +2154,13 @@ find_source(Module, File0) ->
         throw_file(filename:join([BeamDir, "..", "src", Base])),
         %% Not in ../src: look for source path in compile info, but
         %% first look relative the beam directory.
-        Info = lists:keyfind(source, 1, Module:module_info(compile)),
+        Info =
+            try lists:keyfind(source, 1, Module:module_info(compile))
+            catch error:undef ->
+                    %% The module might have been imported
+                    %% and the beam not available
+                    throw({beam, File0})
+            end,
         false == Info andalso throw({beam, File0}),  %% stripped
         {source, SrcFile} = Info,
         throw_file(splice(BeamDir, SrcFile)),  %% below ../src

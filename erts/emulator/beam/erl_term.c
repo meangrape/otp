@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 2000-2013. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -128,10 +129,10 @@ FUNTY checked_##FUN(ARGTY x, const char *file, unsigned line) \
     return _unchecked_##FUN(x); \
 }
 
-ET_DEFINE_CHECKED(Eterm,make_boxed,Eterm*,_is_taggable_pointer);
+ET_DEFINE_CHECKED(Eterm,make_boxed,const Eterm*,_is_taggable_pointer);
 ET_DEFINE_CHECKED(int,is_boxed,Eterm,!is_header);
 ET_DEFINE_CHECKED(Eterm*,boxed_val,Wterm,_boxed_precond);
-ET_DEFINE_CHECKED(Eterm,make_list,Eterm*,_is_taggable_pointer);
+ET_DEFINE_CHECKED(Eterm,make_list,const Eterm*,_is_taggable_pointer);
 ET_DEFINE_CHECKED(int,is_not_list,Eterm,!is_header);
 ET_DEFINE_CHECKED(Eterm*,list_val,Wterm,_list_precond);
 ET_DEFINE_CHECKED(Uint,unsigned_val,Eterm,is_small);

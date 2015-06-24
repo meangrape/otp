@@ -8,16 +8,17 @@
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
-      The contents of this file are subject to the Erlang Public License,
-      Version 1.1, (the "License"); you may not use this file except in
-      compliance with the License. You should have received a copy of the
-      Erlang Public License along with this software. If not, it can be
-      retrieved online at http://www.erlang.org/.
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+      You may obtain a copy of the License at
+ 
+          http://www.apache.org/licenses/LICENSE-2.0
 
-      Software distributed under the License is distributed on an "AS IS"
-      basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-      the License for the specific language governing rights and limitations
-      under the License.
+      Unless required by applicable law or agreed to in writing, software
+      distributed under the License is distributed on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+      See the License for the specific language governing permissions and
+      limitations under the License.
 
     </legalnotice>
     
@@ -173,6 +174,19 @@
 	    suppressed by other options, such as <c>silently_accept_hosts</c>
 	    and <c>password</c>. However, those optins are not always desirable
 	    to use from a security point of view.</p>
+	  </item>
+
+	  <tag><c><![CDATA[{disconnectfun, fun(Reason:term()) -> _}]]></c></tag>
+	  <item>
+	    <p>Provides a fun to implement your own logging when a server disconnects the client.</p>
+	  </item>
+
+	  <tag><c><![CDATA[{unexpectedfun, fun(Message:term(), Peer) -> report | skip }]]></c></tag>
+	  <item>
+	    <p>Provides a fun to implement your own logging or other action when an unexpected message arrives.
+	    If the fun returns <c>report</c> the usual info report is issued but if <c>skip</c> is returned no
+	    report is generated.</p>
+	    <p><c>Peer</c> is in the format of <c>{Host,Port}</c>.</p>
 	  </item>
 
 	  <tag><c><![CDATA[{public_key_alg, 'ssh-rsa' | 'ssh-dss'}]]></c></tag>
@@ -355,7 +369,7 @@ kex is implicit but public_key is set explicitly.</p>
 	    an own CLI channel. If set to <c>no_cli</c>, the CLI channels
 	    are disabled and only subsystem channels are allowed.</p>
 	  </item>
-	  <tag><c><![CDATA[{user_dir, String}]]></c></tag>
+	  <tag><c><![CDATA[{user_dir, string()}]]></c></tag>
 	  <item>
 	    <p>Sets the user directory. That is, the directory containing
 	    <c>ssh</c> configuration files for the user, such as
@@ -372,6 +386,7 @@ kex is implicit but public_key is set explicitly.</p>
             <c><![CDATA[/etc/ssh]]></c>. For security reasons,
             this directory is normally accessible only to the root user.</p>
 	  </item>
+
 	  <tag><c><![CDATA[{auth_methods, string()}]]></c></tag>
 	  <item>
 	    <p>Comma-separated string that determines which
@@ -379,6 +394,19 @@ kex is implicit but public_key is set explicitly.</p>
 	    in what order they are tried. Defaults to
 	    <c><![CDATA["publickey,keyboard-interactive,password"]]></c></p>
           </item>
+
+	  <tag><c><![CDATA[{auth_method_kb_interactive_data, PromptTexts}]]>
+	  <br/>where:
+	  <br/>PromptTexts = kb_int_tuple()  | fun(Peer::{IP::tuple(),Port::integer()}, User::string(), Service::string()) ->  kb_int_tuple()
+	  <br/>kb_int_tuple() = {Name::string(), Instruction::string(), Prompt::string(), Echo::boolean()}</c>
+	  </tag>
+	  <item>
+	    <p>Sets the text strings that the daemon sends to the client for presentation to the user when using <c>keyboar-interactive</c> authentication. If the fun/3 is used, it is called when the actual authentication occurs and may therefore return dynamic data like time, remote ip etc.</p>
+	    <p>The parameter <c>Echo</c> guides the client about need to hide the password.</p>
+	    <p>The default value is:
+	    <c>{auth_method_kb_interactive_data, {"SSH server", "Enter password for \""++User++"\"", "password: ", false}></c></p>
+          </item>
+
 	  <tag><c><![CDATA[{user_passwords, [{string() = User,
 	  string() = Password}]}]]></c></tag>
 	  <item>
@@ -495,6 +523,19 @@ kex is implicit but public_key is set explicitly.</p>
 	    Can be used to customize the handling of public keys.
 	    </p>
 	  </item>
+	  
+	  <tag><c>{profile, atom()}</c></tag>
+	  <item>
+	    <p>Used together with <c>ip-address</c> and <c>port</c> to
+	    uniquely identify a ssh daemon. This can be useful in a
+	    virtualized environment, where there can be more that one
+	    server that has the same <c>ip-address</c> and
+	    <c>port</c>. If this property is not explicitly set, it is
+	    assumed that the the <c>ip-address</c> and <c>port</c>
+	    uniquely identifies the SSH daemon.
+	    </p>
+	  </item>
+	  
 	  <tag><c><![CDATA[{fd, file_descriptor()}]]></c></tag>
 	  <item>
 	    <p>Allows an existing file-descriptor to be used
@@ -512,6 +553,14 @@ kex is implicit but public_key is set explicitly.</p>
 	  <tag><c><![CDATA[{disconnectfun, fun(Reason:term()) -> _}]]></c></tag>
 	  <item>
 	    <p>Provides a fun to implement your own logging when a user disconnects from the server.</p>
+	  </item>
+
+	  <tag><c><![CDATA[{unexpectedfun, fun(Message:term(), Peer) -> report | skip }]]></c></tag>
+	  <item>
+	    <p>Provides a fun to implement your own logging or other action when an unexpected message arrives.
+	    If the fun returns <c>report</c> the usual info report is issued but if <c>skip</c> is returned no
+	    report is generated.</p>
+	    <p><c>Peer</c> is in the format of <c>{Host,Port}</c>.</p>
 	  </item>
 
 	  <tag><c><![CDATA[{ssh_msg_debug_fun, fun(ConnectionRef::ssh_connection_ref(), AlwaysDisplay::boolean(), Msg::binary(), LanguageTag::binary()) -> _}]]></c></tag>

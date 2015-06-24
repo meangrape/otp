@@ -3,16 +3,17 @@
  *
  * Copyright Ericsson AB 2009-2014. All Rights Reserved.
  *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * %CopyrightEnd%
  */
@@ -1208,7 +1209,11 @@ typedef struct enif_resource_t
     struct enif_resource_type_t* type;
 #ifdef DEBUG
     erts_refc_t nif_refc;
+# ifdef ARCH_32
+    byte align__[4];
+# endif
 #endif
+
     char data[1];
 }ErlNifResource;
 
@@ -1384,7 +1389,7 @@ static void rollback_opened_resource_types(void)
 
 static void nif_resource_dtor(Binary* bin)
 {
-    ErlNifResource* resource = (ErlNifResource*) ERTS_MAGIC_BIN_DATA(bin);
+    ErlNifResource* resource = (ErlNifResource*) ERTS_MAGIC_BIN_UNALIGNED_DATA(bin);
     ErlNifResourceType* type = resource->type;
     ASSERT(ERTS_MAGIC_BIN_DESTRUCTOR(bin) == &nif_resource_dtor);
 
@@ -1405,8 +1410,10 @@ static void nif_resource_dtor(Binary* bin)
 
 void* enif_alloc_resource(ErlNifResourceType* type, size_t size)
 {
-    Binary* bin = erts_create_magic_binary(SIZEOF_ErlNifResource(size), &nif_resource_dtor);
-    ErlNifResource* resource = ERTS_MAGIC_BIN_DATA(bin);
+    Binary* bin = erts_create_magic_binary_x(SIZEOF_ErlNifResource(size),
+                                             &nif_resource_dtor,
+                                             1); /* unaligned */
+    ErlNifResource* resource = ERTS_MAGIC_BIN_UNALIGNED_DATA(bin);
 
     ASSERT(type->owner && type->next && type->prev); /* not allowed in load/upgrade */
     resource->type = type;
@@ -1421,7 +1428,7 @@ void* enif_alloc_resource(ErlNifResourceType* type, size_t size)
 void enif_release_resource(void* obj)
 {
     ErlNifResource* resource = DATA_TO_RESOURCE(obj);
-    ErtsBinary* bin = ERTS_MAGIC_BIN_FROM_DATA(resource);
+    ErtsBinary* bin = ERTS_MAGIC_BIN_FROM_UNALIGNED_DATA(resource);
 
     ASSERT(ERTS_MAGIC_BIN_DESTRUCTOR(bin) == &nif_resource_dtor);
 #ifdef DEBUG
@@ -1435,7 +1442,7 @@ void enif_release_resource(void* obj)
 void enif_keep_resource(void* obj)
 {
     ErlNifResource* resource = DATA_TO_RESOURCE(obj);
-    ErtsBinary* bin = ERTS_MAGIC_BIN_FROM_DATA(resource);
+    ErtsBinary* bin = ERTS_MAGIC_BIN_FROM_UNALIGNED_DATA(resource);
 
     ASSERT(ERTS_MAGIC_BIN_DESTRUCTOR(bin) == &nif_resource_dtor);
 #ifdef DEBUG
@@ -1447,7 +1454,7 @@ void enif_keep_resource(void* obj)
 ERL_NIF_TERM enif_make_resource(ErlNifEnv* env, void* obj)
 {
     ErlNifResource* resource = DATA_TO_RESOURCE(obj);
-    ErtsBinary* bin = ERTS_MAGIC_BIN_FROM_DATA(resource);
+    ErtsBinary* bin = ERTS_MAGIC_BIN_FROM_UNALIGNED_DATA(resource);
     Eterm* hp = alloc_heap(env,PROC_BIN_SIZE);
     return erts_mk_magic_binary_term(&hp, &MSO(env->proc), &bin->binary);
 }
@@ -1476,7 +1483,7 @@ int enif_get_resource(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifResourceType* typ
 	return 0; / * Or should we allow "resource binaries" as handles? * /
     }*/
     mbin = pb->val;
-    resource = (ErlNifResource*) ERTS_MAGIC_BIN_DATA(mbin);
+    resource = (ErlNifResource*) ERTS_MAGIC_BIN_UNALIGNED_DATA(mbin);
     if (ERTS_MAGIC_BIN_DESTRUCTOR(mbin) != &nif_resource_dtor
 	|| resource->type != type) {	
 	return 0;
@@ -1488,8 +1495,8 @@ int enif_get_resource(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifResourceType* typ
 size_t enif_sizeof_resource(void* obj)
 {
     ErlNifResource* resource = DATA_TO_RESOURCE(obj);
-    Binary* bin = &ERTS_MAGIC_BIN_FROM_DATA(resource)->binary;
-    return ERTS_MAGIC_BIN_DATA_SIZE(bin) - offsetof(ErlNifResource,data);
+    Binary* bin = &ERTS_MAGIC_BIN_FROM_UNALIGNED_DATA(resource)->binary;
+    return ERTS_MAGIC_BIN_UNALIGNED_DATA_SIZE(bin) - offsetof(ErlNifResource,data);
 }
 
 
@@ -2712,6 +2719,8 @@ erts_unload_nif(struct erl_module_nif* lib)
 
 void erl_nif_init()
 {
+    ERTS_CT_ASSERT((offsetof(ErlNifResource,data) % 8) == ERTS_MAGIC_BIN_BYTES_TO_ALIGN);
+
     resource_type_list.next = &resource_type_list;
     resource_type_list.prev = &resource_type_list;
     resource_type_list.dtor = NULL;

@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 1996-2014. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -39,7 +40,8 @@
 	  sup_start_ignore_temporary_child_start_child_simple/1,
           sup_start_ignore_permanent_child_start_child_simple/1,
 	  sup_start_error_return/1, sup_start_fail/1,
-	  sup_start_map/1, sup_start_map_faulty_specs/1,
+	  sup_start_map/1, sup_start_map_simple/1,
+	  sup_start_map_faulty_specs/1,
 	  sup_stop_infinity/1, sup_stop_timeout/1, sup_stop_brutal_kill/1,
 	  child_adm/1, child_adm_simple/1, child_specs/1, extra_return/1,
 	  sup_flags/1]).
@@ -103,7 +105,7 @@ groups() ->
        sup_start_ignore_permanent_child_start_child_simple,
        sup_start_error_return, sup_start_fail]},
      {sup_start_map, [],
-      [sup_start_map, sup_start_map_faulty_specs]},
+      [sup_start_map, sup_start_map_simple, sup_start_map_faulty_specs]},
      {sup_stop, [],
       [sup_stop_infinity, sup_stop_timeout,
        sup_stop_brutal_kill]},
@@ -320,6 +322,30 @@ sup_start_map(Config) when is_list(Config) ->
 	  type:=supervisor,
 	  modules:=[supervisor_1]}} = supervisor:get_childspec(Pid, child3),
     {error,not_found} = supervisor:get_childspec(Pid, child4),
+    terminate(Pid, shutdown).
+
+%%-------------------------------------------------------------------------
+%% Tests that the supervisor process starts correctly with map
+%% startspec, and that the full childspec can be read when using
+%% simple_one_for_one strategy.
+sup_start_map_simple(Config) when is_list(Config) ->
+    process_flag(trap_exit, true),
+    SupFlags = #{strategy=>simple_one_for_one},
+    ChildSpec = #{id=>undefined,
+		  start=>{supervisor_1, start_child, []},
+		  restart=>temporary},
+    {ok, Pid} = start_link({ok, {SupFlags, [ChildSpec]}}),
+
+    {ok, Child1} = supervisor:start_child(Pid, []),
+    {ok, Child2} = supervisor:start_child(Pid, []),
+    {ok, Child3} = supervisor:start_child(Pid, []),
+
+    Spec = ChildSpec#{type=>worker, shutdown=>5000, modules=>[supervisor_1]},
+
+    {ok, Spec} = supervisor:get_childspec(Pid, Child1),
+    {ok, Spec} = supervisor:get_childspec(Pid, Child2),
+    {ok, Spec} = supervisor:get_childspec(Pid, Child3),
+    {error,not_found} = supervisor:get_childspec(Pid, self()),
     terminate(Pid, shutdown).
 
 %%-------------------------------------------------------------------------

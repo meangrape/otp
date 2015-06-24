@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -810,9 +811,6 @@ restart(S) ->  %% reconnect has won race with timeout
 %% state down rather then initial when receiving notification of an
 %% open connection.
 
-restart({T, Opts, Svc}, S) ->  %% put in old code
-    restart({T, Opts, Svc, []}, S);
-
 restart({{connect, _} = T, Opts, Svc, SvcOpts},
         #watchdog{parent = Pid,
                   restrict = {R,_},
@@ -827,7 +825,7 @@ restart({{connect, _} = T, Opts, Svc, SvcOpts},
 %% die. Note that a state machine never enters state REOPEN in this
 %% case.
 restart({{accept, _}, _, _, _}, #watchdog{restrict = {_, false}}) ->
-    stop;  %% 'DOWN' was in old code: 'close' was not sent
+    stop;
 
 %% Otherwise hang around until told to die, either by the service or
 %% by another watchdog.

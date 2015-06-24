@@ -4,16 +4,17 @@
 %%
 %% Copyright Ericsson AB 2007-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -409,7 +410,7 @@ contract_from_form([{type, _, 'fun', [_, _]} = Form | Left], Module, RecDict,
     fun(ExpTypes, AllRecords) ->
 	NewType =
 	  try
-            erl_types:t_from_form(Form, ExpTypes, Module, AllRecords)
+            from_form_with_check(Form, ExpTypes, Module, AllRecords)
 	  catch
 	    throw:{error, Msg} ->
 	      {File, Line} = FileLine,
@@ -430,8 +431,8 @@ contract_from_form([{type, _L1, bounded_fun,
     fun(ExpTypes, AllRecords) ->
 	{Constr1, VarDict} =
 	  process_constraints(Constr, Module, RecDict, ExpTypes, AllRecords),
-        NewType = erl_types:t_from_form(Form, ExpTypes, Module, AllRecords,
-                                        VarDict),
+        NewType = from_form_with_check(Form, ExpTypes, Module, AllRecords,
+                                       VarDict),
         NewTypeNoVars = erl_types:subst_all_vars_to_any(NewType),
 	{NewTypeNoVars, Constr1}
     end,
@@ -454,7 +455,7 @@ initialize_constraints([], _Module, _RecDict, _ExpTypes, _AllRecords, Acc) ->
 initialize_constraints([Constr|Rest], Module, RecDict, ExpTypes, AllRecords, Acc) ->
   case Constr of
     {type, _, constraint, [{atom, _, is_subtype}, [Type1, Type2]]} ->
-      T1 = final_form(Type1, Module, ExpTypes, AllRecords, dict:new()),
+      T1 = final_form(Type1, ExpTypes, Module, AllRecords, dict:new()),
       Entry = {T1, Type2},
       initialize_constraints(Rest, Module, RecDict, ExpTypes, AllRecords, [Entry|Acc]);
     {type, _, constraint, [{atom,_,Name}, List]} ->
@@ -483,7 +484,16 @@ constraints_fixpoint(OldVarDict, Module, Constrs, RecDict, ExpTypes, AllRecords)
       constraints_fixpoint(NewVarDict, Module, Constrs, RecDict, ExpTypes, AllRecords)
   end.
 
-final_form(Form, Module, ExpTypes, AllRecords, VarDict) ->
+final_form(Form, ExpTypes, Module, AllRecords, VarDict) ->
+  from_form_with_check(Form, ExpTypes, Module, AllRecords, VarDict).
+
+from_form_with_check(Form, ExpTypes, Module, AllRecords) ->
+  erl_types:t_check_record_fields(Form, ExpTypes, Module, AllRecords),
+  erl_types:t_from_form(Form, ExpTypes, Module, AllRecords).
+
+from_form_with_check(Form, ExpTypes, Module, AllRecords, VarDict) ->
+  erl_types:t_check_record_fields(Form, ExpTypes, Module, AllRecords,
+                                  VarDict),
   erl_types:t_from_form(Form, ExpTypes, Module, AllRecords, VarDict).
 
 constraints_to_dict(Constrs, Module, RecDict, ExpTypes, AllRecords, VarDict) ->
@@ -495,7 +505,7 @@ constraints_to_subs([], _Module, _RecDict, _ExpTypes, _AllRecords, _VarDict, Acc
   Acc;
 constraints_to_subs([C|Rest], Module, RecDict, ExpTypes, AllRecords, VarDict, Acc) ->
   {T1, Form2} = C,
-  T2 = final_form(Form2, Module, ExpTypes, AllRecords, VarDict),
+  T2 = final_form(Form2, ExpTypes, Module, AllRecords, VarDict),
   NewAcc = [{subtype, T1, T2}|Acc],
   constraints_to_subs(Rest, Module, RecDict, ExpTypes, AllRecords, VarDict, NewAcc).
 

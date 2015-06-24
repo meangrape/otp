@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 2010-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -380,12 +381,38 @@ tmod(any) ->
     [diameter_sctp, diameter_tcp].
 
 opts(Prot, T) ->
-    [{transport_module, M} || M <- tmod(Prot)]
-        ++ [{transport_config, [{ip, ?ADDR}, {port, 0} | opts(T)]}].
+    tmo(T, lists:append([[{transport_module, M}, {transport_config, C}]
+                         || M <- tmod(Prot),
+                            C <- [cfg(M,T) ++ cfg(M) ++ cfg(T)]])).
 
-opts(listen) ->
+tmo(listen, Opts) ->
+    Opts;
+tmo(_, Opts) ->
+    tmo(Opts).
+
+%% Timeout on all but the last alternative.
+tmo([_,_] = Opts) ->
+    Opts;
+tmo([M, C | Opts]) ->
+    {transport_config = K, Cfg} = C,
+    [M, {K, Cfg, 5000} | tmo(Opts)].
+
+%% Listening SCTP socket need larger-than-default buffers to avoid
+%% resends on some platforms (eg. SLES 11).
+cfg(diameter_sctp, listen) ->
+    [{recbuf, 1 bsl 16}, {sndbuf, 1 bsl 16}];
+
+cfg(_, _) ->
+    [].
+
+cfg(M)
+  when M == diameter_tcp;
+       M == diameter_sctp ->
+    [{ip, ?ADDR}, {port, 0}];
+
+cfg(listen) ->
     [{accept, M} || M <- [{256,0,0,1}, ["256.0.0.1", ["^.+$"]]]];
-opts(PortNr) ->
+cfg(PortNr) ->
     [{raddr, ?ADDR}, {rport, PortNr}].
 
 %% ---------------------------------------------------------------------------

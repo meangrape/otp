@@ -3,16 +3,17 @@
  * 
  * Copyright Ericsson AB 2014. All Rights Reserved.
  * 
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * 
  * %CopyrightEnd%
  */
@@ -91,7 +92,6 @@ Eterm  erts_hashmap_insert_up(Eterm *hp, Eterm key, Eterm value,
 			      Uint *upsz, struct ErtsEStack_ *sp);
 
 int    erts_validate_and_sort_flatmap(flatmap_t* map);
-Uint   hashmap_over_estimated_heap_size(Uint n);
 void   hashmap_iterator_init(struct ErtsWStack_* s, Eterm node, int reverse);
 Eterm* hashmap_iterator_next(struct ErtsWStack_* s);
 Eterm* hashmap_iterator_prev(struct ErtsWStack_* s);
@@ -191,5 +191,18 @@ typedef struct hashmap_head_s {
 
 #define hashmap_index(hash)      (((Uint32)hash) & 0xf)
 
+/* hashmap heap size:
+   [one cons cell + one list term in parent node] per key
+   [one header + one boxed term in parent node] per inner node
+   [one header + one size word] for root node
+*/
+#define HASHMAP_HEAP_SIZE(KEYS,NODES) ((KEYS)*3 + (NODES)*2)
+#ifdef DEBUG
+#  define HASHMAP_ESTIMATED_NODE_COUNT(KEYS) (KEYS)
+#else
+#  define HASHMAP_ESTIMATED_NODE_COUNT(KEYS) (2*(KEYS)/5)
+#endif
+#define HASHMAP_ESTIMATED_HEAP_SIZE(KEYS) \
+        HASHMAP_HEAP_SIZE(KEYS,HASHMAP_ESTIMATED_NODE_COUNT(KEYS))
 
 #endif

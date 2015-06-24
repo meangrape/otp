@@ -3,16 +3,17 @@
 %%
 %% Copyright Ericsson AB 1998-2014. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -31,6 +32,11 @@
 	 init_per_testcase/2, end_per_testcase/2,
 	 otp_3924/1, otp_3924_sender/4, closed_socket/1,
 	 shutdown_active/1, shutdown_passive/1, shutdown_pending/1,
+	 show_econnreset_active/1, show_econnreset_active_once/1,
+	 show_econnreset_passive/1, econnreset_after_sync_send/1,
+	 econnreset_after_async_send_active/1,
+	 econnreset_after_async_send_active_once/1,
+	 econnreset_after_async_send_passive/1, linger_zero/1,
 	 default_options/1, http_bad_packet/1, 
 	 busy_send/1, busy_disconnect_passive/1, busy_disconnect_active/1,
 	 fill_sendq/1, partial_recv_and_close/1, 
@@ -38,7 +44,9 @@
 	 % Accept tests
 	 primitive_accept/1,multi_accept_close_listen/1,accept_timeout/1,
 	 accept_timeouts_in_order/1,accept_timeouts_in_order2/1,
-	 accept_timeouts_in_order3/1,accept_timeouts_mixed/1, 
+	 accept_timeouts_in_order3/1,accept_timeouts_in_order4/1,
+	 accept_timeouts_in_order5/1,accept_timeouts_in_order6/1,
+	 accept_timeouts_in_order7/1,accept_timeouts_mixed/1,
 	 killing_acceptor/1,killing_multi_acceptors/1,killing_multi_acceptors2/1,
 	 several_accepts_in_one_go/1, accept_system_limit/1,
 	 active_once_closed/1, send_timeout/1, send_timeout_active/1,
@@ -92,6 +100,11 @@ all() ->
      iter_max_socks, passive_sockets, active_n,
      accept_closed_by_other_process, otp_3924, closed_socket,
      shutdown_active, shutdown_passive, shutdown_pending,
+     show_econnreset_active, show_econnreset_active_once,
+     show_econnreset_passive, econnreset_after_sync_send,
+     econnreset_after_async_send_active,
+     econnreset_after_async_send_active_once,
+     econnreset_after_async_send_passive, linger_zero,
      default_options, http_bad_packet, busy_send,
      busy_disconnect_passive, busy_disconnect_active,
      fill_sendq, partial_recv_and_close,
@@ -99,7 +112,9 @@ all() ->
      so_priority, primitive_accept,
      multi_accept_close_listen, accept_timeout,
      accept_timeouts_in_order, accept_timeouts_in_order2,
-     accept_timeouts_in_order3, accept_timeouts_mixed,
+     accept_timeouts_in_order3, accept_timeouts_in_order4,
+     accept_timeouts_in_order5, accept_timeouts_in_order6,
+     accept_timeouts_in_order7, accept_timeouts_mixed,
      killing_acceptor, killing_multi_acceptors,
      killing_multi_acceptors2, several_accepts_in_one_go, accept_system_limit,
      active_once_closed, send_timeout, send_timeout_active, otp_7731,
@@ -1075,6 +1090,311 @@ shutdown_pending(Config) when is_list(Config) ->
 	     gen_tcp:close(S)
      end.
 
+%%
+%% Test 'show_econnreset' option
+%%
+
+show_econnreset_active(Config) when is_list(Config) ->
+    %% First confirm everything works with option turned off.
+    {ok, L} = gen_tcp:listen(0, []),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port, [{active, false}]),
+    {ok, S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    ok = inet:setopts(Client, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(Client),
+    receive
+       {tcp_closed, S} ->
+	   ok;
+       Other ->
+	   ?t:fail({unexpected1, Other})
+    after 1000 ->
+	?t:fail({timeout, {server, no_tcp_closed}})
+    end,
+
+    %% Now test with option switched on.
+    %% Note: We are also testing that the show_econnreset option is
+    %% inherited from the listening socket by the accepting socket.
+    {ok, L1} = gen_tcp:listen(0, [{show_econnreset, true}]),
+    {ok, Port1} = inet:port(L1),
+    {ok, Client1} = gen_tcp:connect(localhost, Port1, [{active, false}]),
+    {ok, S1} = gen_tcp:accept(L1),
+    ok = gen_tcp:close(L1),
+    ok = inet:setopts(Client1, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(Client1),
+    receive
+	{tcp_error, S1, econnreset} ->
+	    receive
+		{tcp_closed, S1} ->
+		    ok;
+		Other1 ->
+		    ?t:fail({unexpected2, Other1})
+	    after 1 ->
+		?t:fail({timeout, {server, no_tcp_closed}})
+	    end;
+	Other2 ->
+	    ?t:fail({unexpected3, Other2})
+    after 1000 ->
+	?t:fail({timeout, {server, no_tcp_error}})
+    end.
+
+show_econnreset_active_once(Config) when is_list(Config) ->
+    %% Now test using {active, once}
+    {ok, L} = gen_tcp:listen(0,
+			   [{active, false},
+			    {show_econnreset, true}]),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port, [{active, false}]),
+    {ok, S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    ok = inet:setopts(Client, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(Client),
+    ok = ?t:sleep(20),
+    ok = receive Msg -> {unexpected_msg, Msg} after 0 -> ok end,
+    ok = inet:setopts(S, [{active, once}]),
+    receive
+	{tcp_error, S, econnreset} ->
+	    receive
+		{tcp_closed, S} ->
+		    ok;
+		Other1 ->
+		    ?t:fail({unexpected1, Other1})
+	    after 1 ->
+		?t:fail({timeout, {server, no_tcp_closed}})
+	    end;
+	Other2 ->
+	    ?t:fail({unexpected2, Other2})
+    after 1000 ->
+	?t:fail({timeout, {server, no_tcp_error}})
+    end.
+
+show_econnreset_passive(Config) when is_list(Config) ->
+    %% First confirm everything works with option turned off.
+    {ok, L} = gen_tcp:listen(0, [{active, false}]),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port, [{active, false}]),
+    {ok, S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    ok = inet:setopts(S, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(S),
+    ok = ?t:sleep(1),
+    {error, closed} = gen_tcp:recv(Client, 0),
+
+    %% Now test with option switched on.
+    {ok, L1} = gen_tcp:listen(0, [{active, false}]),
+    {ok, Port1} = inet:port(L1),
+    {ok, Client1} = gen_tcp:connect(localhost, Port1,
+				 [{active, false},
+				  {show_econnreset, true}]),
+    {ok, S1} = gen_tcp:accept(L1),
+    ok = gen_tcp:close(L1),
+    ok = inet:setopts(S1, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(S1),
+    ok = ?t:sleep(1),
+    {error, econnreset} = gen_tcp:recv(Client1, 0).
+
+econnreset_after_sync_send(Config) when is_list(Config) ->
+    %% First confirm everything works with option turned off.
+    {ok, L} = gen_tcp:listen(0, [{active, false}]),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port, [{active, false}]),
+    {ok, S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    ok = inet:setopts(S, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(S),
+    ok = ?t:sleep(20),
+    {error, closed} = gen_tcp:send(Client, "Whatever"),
+
+    %% Now test with option switched on.
+    {ok, L1} = gen_tcp:listen(0, [{active, false}]),
+    {ok, Port1} = inet:port(L1),
+    {ok, Client1} = gen_tcp:connect(localhost, Port1,
+          			  [{active, false},
+          			   {show_econnreset, true}]),
+    {ok, S1} = gen_tcp:accept(L1),
+    ok = gen_tcp:close(L1),
+    ok = inet:setopts(S1, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(S1),
+    ok = ?t:sleep(20),
+    {error, econnreset} = gen_tcp:send(Client1, "Whatever").
+
+econnreset_after_async_send_active(Config) when is_list(Config) ->
+    {OS, _} = os:type(),
+    Payload = lists:duplicate(1024 * 1024, $.),
+
+    %% First confirm everything works with option turned off.
+    {ok, L} = gen_tcp:listen(0, [{active, false}, {recbuf, 4096}]),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port, [{sndbuf, 4096}]),
+    {ok, S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    ok = gen_tcp:send(Client, Payload),
+    case erlang:port_info(Client, queue_size) of
+	{queue_size, N} when N > 0 -> ok;
+	{queue_size, 0} when OS =:= win32 -> ok;
+	{queue_size, 0} = T -> ?t:fail(T)
+    end,
+    ok = gen_tcp:send(S, "Whatever"),
+    ok = ?t:sleep(20),
+    ok = inet:setopts(S, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(S),
+    ok = ?t:sleep(20),
+    receive
+	{tcp, Client, "Whatever"} ->
+	    receive
+		{tcp_closed, Client} ->
+		    ok;
+		Other1 ->
+		    ?t:fail({unexpected1, Other1})
+	    end;
+	Other2 ->
+	    ?t:fail({unexpected2, Other2})
+    end,
+
+    %% Now test with option switched on.
+    {ok, L1} = gen_tcp:listen(0, [{active, false}, {recbuf, 4096}]),
+    {ok, Port1} = inet:port(L1),
+    {ok, Client1} = gen_tcp:connect(localhost, Port1,
+				  [{sndbuf, 4096},
+				   {show_econnreset, true}]),
+    {ok, S1} = gen_tcp:accept(L1),
+    ok = gen_tcp:close(L1),
+    ok = gen_tcp:send(Client1, Payload),
+    case erlang:port_info(Client1, queue_size) of
+	{queue_size, N1} when N1 > 0 -> ok;
+	{queue_size, 0} when OS =:= win32 -> ok;
+	{queue_size, 0} = T1 -> ?t:fail(T1)
+    end,
+    ok = gen_tcp:send(S1, "Whatever"),
+    ok = ?t:sleep(20),
+    ok = inet:setopts(S1, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(S1),
+    ok = ?t:sleep(20),
+    receive
+	{tcp, Client1, "Whatever"} ->
+	    receive
+		{tcp_error, Client1, econnreset} ->
+		    receive
+			{tcp_closed, Client1} ->
+			    ok;
+			Other3 ->
+			    ?t:fail({unexpected3, Other3})
+		    end;
+		Other4 ->
+		    ?t:fail({unexpected4, Other4})
+	    end;
+	Other5 ->
+	    ?t:fail({unexpected5, Other5})
+    end.
+
+econnreset_after_async_send_active_once(Config) when is_list(Config) ->
+    {OS, _} = os:type(),
+    {ok, L} = gen_tcp:listen(0, [{active, false}, {recbuf, 4096}]),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port,
+				   [{active, false},
+				    {sndbuf, 4096},
+				    {show_econnreset, true}]),
+    {ok,S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    Payload = lists:duplicate(1024 * 1024, $.),
+    ok = gen_tcp:send(Client, Payload),
+    case erlang:port_info(Client, queue_size) of
+	{queue_size, N} when N > 0 -> ok;
+	{queue_size, 0} when OS =:= win32 -> ok;
+	{queue_size, 0} = T -> ?t:fail(T)
+    end,
+    ok = gen_tcp:send(S, "Whatever"),
+    ok = ?t:sleep(20),
+    ok = inet:setopts(S, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(S),
+    ok = ?t:sleep(20),
+    ok = receive Msg -> {unexpected_msg, Msg} after 0 -> ok end,
+    ok = inet:setopts(Client, [{active, once}]),
+    receive
+	{tcp_error, Client, econnreset} ->
+	    receive
+		{tcp_closed, Client} ->
+		    ok;
+		Other ->
+		    ?t:fail({unexpected1, Other})
+	    end;
+	Other ->
+	    ?t:fail({unexpected2, Other})
+    end.
+
+econnreset_after_async_send_passive(Config) when is_list(Config) ->
+    {OS, _} = os:type(),
+    Payload = lists:duplicate(1024 * 1024, $.),
+
+    %% First confirm everything works with option turned off.
+    {ok, L} = gen_tcp:listen(0, [{active, false}, {recbuf, 4096}]),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port,
+					 [{active, false},
+					  {sndbuf, 4096}]),
+    {ok, S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    ok = inet:setopts(S, [{linger, {true, 0}}]),
+    ok = gen_tcp:send(S, "Whatever"),
+    ok = gen_tcp:send(Client, Payload),
+    case erlang:port_info(Client, queue_size) of
+	{queue_size, N} when N > 0 -> ok;
+	{queue_size, 0} when OS =:= win32 -> ok;
+	{queue_size, 0} = T -> ?t:fail(T)
+    end,
+    ok = gen_tcp:close(S),
+    ok = ?t:sleep(20),
+    {error, closed} = gen_tcp:recv(Client, 0),
+
+    %% Now test with option switched on.
+    {ok, L1} = gen_tcp:listen(0, [{active, false}, {recbuf, 4096}]),
+    {ok, Port1} = inet:port(L1),
+    {ok, Client1} = gen_tcp:connect(localhost, Port1,
+				   [{active, false},
+				    {sndbuf, 4096},
+				    {show_econnreset, true}]),
+    {ok, S1} = gen_tcp:accept(L1),
+    ok = gen_tcp:close(L1),
+    ok = inet:setopts(S1, [{linger, {true, 0}}]),
+    ok = gen_tcp:send(S1, "Whatever"),
+    ok = gen_tcp:send(Client1, Payload),
+    ok = gen_tcp:close(S1),
+    ok = ?t:sleep(20),
+    {error, econnreset} = gen_tcp:recv(Client1, 0).
+
+%%
+%% Test {linger {true, 0}} aborts a connection
+%%
+
+linger_zero(Config) when is_list(Config) ->
+    %% All the econnreset tests will prove that {linger, {true, 0}} aborts
+    %% a connection when the driver queue is empty. We will test here
+    %% that it also works when the driver queue is not empty.
+    {OS, _} = os:type(),
+    {ok, L} = gen_tcp:listen(0, [{active, false},
+				 {recbuf, 4096},
+				 {show_econnreset, true}]),
+    {ok, Port} = inet:port(L),
+    {ok, Client} = gen_tcp:connect(localhost, Port,
+				   [{active, false},
+				    {sndbuf, 4096}]),
+    {ok, S} = gen_tcp:accept(L),
+    ok = gen_tcp:close(L),
+    PayloadSize = 1024 * 1024,
+    Payload = lists:duplicate(PayloadSize, $.),
+    ok = gen_tcp:send(Client, Payload),
+    case erlang:port_info(Client, queue_size) of
+	{queue_size, N} when N > 0 -> ok;
+	{queue_size, 0} when OS =:= win32 -> ok;
+	{queue_size, 0} = T -> ?t:fail(T)
+    end,
+    ok = inet:setopts(Client, [{linger, {true, 0}}]),
+    ok = gen_tcp:close(Client),
+    ok = ?t:sleep(1),
+    undefined = erlang:port_info(Client, connected),
+    {error, econnreset} = gen_tcp:recv(S, PayloadSize).
+
 
 %% Thanks to Luke Gorrie. Tests for a very specific problem with 
 %% corrupt data. The testcase will be killed by the timetrap timeout
@@ -1641,8 +1961,7 @@ so_priority(Config) when is_list(Config) ->
 %% Accept test utilities (suites are below)
 
 millis() ->
-    {A,B,C}=erlang:now(),
-    (A*1000000*1000)+(B*1000)+(C div 1000).
+    erlang:monotonic_time(milli_seconds).
 	
 collect_accepts(0,_) -> [];
 collect_accepts(N,Tmo) ->
@@ -1721,8 +2040,8 @@ multi_accept_close_listen(Config) when is_list(Config) ->
     spawn(F),
     spawn(F),
     gen_tcp:close(LS),
-    ?EXPECT_ACCEPTS([{_,{error,closed}},{_,{error,closed}},
-                     {_,{error,closed}},{_,{error,closed}}],4,500).
+    ok = ?EXPECT_ACCEPTS([{_,{error,closed}},{_,{error,closed}},
+                          {_,{error,closed}},{_,{error,closed}}],4,500).
 	
 accept_timeout(suite) ->
     [];
@@ -1733,7 +2052,7 @@ accept_timeout(Config) when is_list(Config) ->
     Parent = self(),
     F = fun() -> Parent ! {accepted,self(),gen_tcp:accept(LS,1000)} end,
     P = spawn(F),
-    ?EXPECT_ACCEPTS([{P,{error,timeout}}],1,2000).
+    ok = ?EXPECT_ACCEPTS([{P,{error,timeout}}],1,2000).
 
 accept_timeouts_in_order(suite) ->
     [];
@@ -1746,8 +2065,8 @@ accept_timeouts_in_order(Config) when is_list(Config) ->
     P2 = spawn(mktmofun(1200,Parent,LS)),
     P3 = spawn(mktmofun(1300,Parent,LS)),
     P4 = spawn(mktmofun(1400,Parent,LS)),
-    ?EXPECT_ACCEPTS([{P1,{error,timeout}},{P2,{error,timeout}},
-                     {P3,{error,timeout}},{P4,{error,timeout}}],infinity,2000).
+    ok = ?EXPECT_ACCEPTS([{P1,{error,timeout}},{P2,{error,timeout}},
+                          {P3,{error,timeout}},{P4,{error,timeout}}],infinity,2000).
 
 accept_timeouts_in_order2(suite) ->
     [];
@@ -1760,8 +2079,8 @@ accept_timeouts_in_order2(Config) when is_list(Config) ->
     P2 = spawn(mktmofun(1300,Parent,LS)),
     P3 = spawn(mktmofun(1200,Parent,LS)),
     P4 = spawn(mktmofun(1000,Parent,LS)),
-    ?EXPECT_ACCEPTS([{P4,{error,timeout}},{P3,{error,timeout}},
-                     {P2,{error,timeout}},{P1,{error,timeout}}],infinity,2000).
+    ok = ?EXPECT_ACCEPTS([{P4,{error,timeout}},{P3,{error,timeout}},
+                          {P2,{error,timeout}},{P1,{error,timeout}}],infinity,2000).
 
 accept_timeouts_in_order3(suite) ->
     [];
@@ -1774,8 +2093,74 @@ accept_timeouts_in_order3(Config) when is_list(Config) ->
     P2 = spawn(mktmofun(1400,Parent,LS)),
     P3 = spawn(mktmofun(1300,Parent,LS)),
     P4 = spawn(mktmofun(1000,Parent,LS)),
-    ?EXPECT_ACCEPTS([{P4,{error,timeout}},{P1,{error,timeout}},
-                     {P3,{error,timeout}},{P2,{error,timeout}}],infinity,2000).
+    ok = ?EXPECT_ACCEPTS([{P4,{error,timeout}},{P1,{error,timeout}},
+                          {P3,{error,timeout}},{P2,{error,timeout}}],infinity,2000).
+
+accept_timeouts_in_order4(suite) ->
+    [];
+accept_timeouts_in_order4(doc) ->
+    ["Check that multi-accept timeouts happen in the correct order after "
+     "mixing millsec and sec timeouts"];
+accept_timeouts_in_order4(Config) when is_list(Config) ->
+    {ok,LS}=gen_tcp:listen(0,[]),
+    Parent = self(),
+    P1 = spawn(mktmofun(200,Parent,LS)),
+    P2 = spawn(mktmofun(400,Parent,LS)),
+    P3 = spawn(mktmofun(1000,Parent,LS)),
+    P4 = spawn(mktmofun(600,Parent,LS)),
+    ok = ?EXPECT_ACCEPTS([{P1,{error,timeout}},{P2,{error,timeout}},
+			  {P4,{error,timeout}},{P3,{error,timeout}}],infinity,2000).
+
+accept_timeouts_in_order5(suite) ->
+    [];
+accept_timeouts_in_order5(doc) ->
+    ["Check that multi-accept timeouts happen in the correct order after "
+     "mixing millsec and sec timeouts (more)"];
+accept_timeouts_in_order5(Config) when is_list(Config) ->
+    {ok,LS}=gen_tcp:listen(0,[]),
+    Parent = self(),
+    P1 = spawn(mktmofun(400,Parent,LS)),
+    P2 = spawn(mktmofun(1000,Parent,LS)),
+    P3 = spawn(mktmofun(600,Parent,LS)),
+    P4 = spawn(mktmofun(200,Parent,LS)),
+    ok = ?EXPECT_ACCEPTS([{P4,{error,timeout}},{P1,{error,timeout}},
+			  {P3,{error,timeout}},{P2,{error,timeout}}],infinity,2000).
+
+accept_timeouts_in_order6(suite) ->
+    [];
+accept_timeouts_in_order6(doc) ->
+    ["Check that multi-accept timeouts happen in the correct order after "
+     "mixing millsec and sec timeouts (even more)"];
+accept_timeouts_in_order6(Config) when is_list(Config) ->
+    {ok,LS}=gen_tcp:listen(0,[]),
+    Parent = self(),
+    P1 = spawn(mktmofun(1000,Parent,LS)),
+    P2 = spawn(mktmofun(400,Parent,LS)),
+    P3 = spawn(mktmofun(600,Parent,LS)),
+    P4 = spawn(mktmofun(200,Parent,LS)),
+    ok = ?EXPECT_ACCEPTS([{P4,{error,timeout}},{P2,{error,timeout}},
+			  {P3,{error,timeout}},{P1,{error,timeout}}],infinity,2000).
+
+accept_timeouts_in_order7(suite) ->
+    [];
+accept_timeouts_in_order7(doc) ->
+    ["Check that multi-accept timeouts happen in the correct order after "
+     "mixing millsec and sec timeouts (even more++)"];
+accept_timeouts_in_order7(Config) when is_list(Config) ->
+    {ok,LS}=gen_tcp:listen(0,[]),
+    Parent = self(),
+    P1 = spawn(mktmofun(1000,Parent,LS)),
+    P2 = spawn(mktmofun(200,Parent,LS)),
+    P3 = spawn(mktmofun(1200,Parent,LS)),
+    P4 = spawn(mktmofun(600,Parent,LS)),
+    P5 = spawn(mktmofun(400,Parent,LS)),
+    P6 = spawn(mktmofun(800,Parent,LS)),
+    P7 = spawn(mktmofun(1600,Parent,LS)),
+    P8 = spawn(mktmofun(1400,Parent,LS)),
+    ok = ?EXPECT_ACCEPTS([{P2,{error,timeout}},{P5,{error,timeout}},
+			  {P4,{error,timeout}},{P6,{error,timeout}},
+			  {P1,{error,timeout}},{P3,{error,timeout}},
+			  {P8,{error,timeout}},{P7,{error,timeout}}],infinity,2000).
 
 accept_timeouts_mixed(suite) ->
     [];
@@ -1798,7 +2183,7 @@ accept_timeouts_mixed(Config) when is_list(Config) ->
     ok = ?EXPECT_ACCEPTS([{P2,{ok,Port0}}] when is_port(Port0),infinity,100),
     ok = ?EXPECT_ACCEPTS([{P3,{error,timeout}}],infinity,2000),
     gen_tcp:connect("localhost",PortNo,[]),
-    ?EXPECT_ACCEPTS([{P4,{ok,Port1}}] when is_port(Port1),infinity,100).
+    ok = ?EXPECT_ACCEPTS([{P4,{ok,Port1}}] when is_port(Port1),infinity,100).
 
 killing_acceptor(suite) ->
     [];
@@ -2103,8 +2488,8 @@ send_timeout(Config) when is_list(Config) ->
     ok.
 
 mad_sender(S) ->
-    {_, _, USec} = now(),
-    case gen_tcp:send(S, integer_to_list(USec)) of
+    U = rand:uniform(1000000),
+    case gen_tcp:send(S, integer_to_list(U)) of
         ok ->
             mad_sender(S);
         Err ->
@@ -2172,10 +2557,10 @@ get_max_diff() ->
     end.
 
 get_max_diff(Max) ->
-    T1 = millistamp(),
+    T1 = millis(),
     receive
 	ok ->
-	    Diff = millistamp() - T1,
+	    Diff = millis() - T1,
 	    if
 		Diff > Max ->
 		    get_max_diff(Diff);
@@ -2183,7 +2568,7 @@ get_max_diff(Max) ->
 		    get_max_diff(Max)
 	    end;
 	{error,timeout} ->
-	    Diff = millistamp() - T1,
+	    Diff = millis() - T1,
 	    if
 		Diff > Max ->
 		    Diff;
@@ -2324,10 +2709,6 @@ setup_active_timeout_sink(Timeout, AutoClose) ->
     {Loop,A,R,C}.
 
      
-millistamp() ->
-    {Mega, Secs, Micros} = erlang:now(),
-    (Micros div 1000) + Secs * 1000 + Mega * 1000000000.
-
 has_superfluous_schedulers() ->
     case {erlang:system_info(schedulers),
 	  erlang:system_info(logical_processors)} of
