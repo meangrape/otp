@@ -30,6 +30,55 @@
   </header>
   <p>This document describes the changes made to the ERTS application.</p>
 
+<section><title>Erts 6.4.1.2</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    A process could end up in an inconsistent half exited
+	    state in the runtime system without SMP support. This
+	    could occur if the processes was traced by a port that it
+	    also was linked to, and the port terminated abnormally
+	    while handling a trace message for the process.</p>
+          <p>
+	    This bug has always existed in the runtime system without
+	    SMP support, but never in the runtime system with SMP
+	    support.</p>
+          <p>
+	    Own Id: OTP-12889 Aux Id: seq12885 </p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Erts 6.4.1.1</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+	    <p>Fix garbage collection of literals in code purge</p>
+	    <p>During code purging and check_process_code, the
+	    checking of the binary reference embedded in the match
+	    binary state was omitted for the tracing tests. This
+	    would cause the binary match state to reference
+	    deallocated memory.</p>
+          <p>
+	    Own Id: OTP-12821</p>
+        </item>
+        <item>
+          <p>
+	    Fix a rare hanging of the VM seen to happen just after
+	    emulator start. Bug exists since R14.</p>
+          <p>
+	    Own Id: OTP-12859 Aux Id: seq12882 </p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
 <section><title>Erts 6.4.1</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
