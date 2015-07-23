@@ -1,4 +1,4 @@
-# 
+#
 # %CopyrightBegin%
 #
 # Copyright Ericsson AB 1997-2013. All Rights Reserved.
@@ -15,9 +15,9 @@
 # under the License.
 #
 # %CopyrightEnd%
-# 
+#
 
-VSN = 6.4.1.2
+VSN = 6.4.1.2-basho1
 
 # Port number 4365 in 4.2
 # Port number 4366 in 4.3
