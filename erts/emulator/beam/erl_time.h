@@ -25,7 +25,7 @@
 typedef erts_aint32_t erts_short_time_t;
 
 extern erts_smp_atomic32_t do_time;	/* set at clock interrupt */
-extern SysTimeval erts_first_emu_time;
+extern erts_smp_atomic_t* last_delivered_ms_p;
 
 /*
 ** Timer entry:
@@ -33,6 +33,7 @@ extern SysTimeval erts_first_emu_time;
 typedef struct erl_timer {
     struct erl_timer* next;	/* next entry tiw slot or chain */
     struct erl_timer* prev;	/* prev entry tiw slot or chain */
+    Uint instance;		/* timer wheel instance */
     Uint slot;			/* slot in timer wheel */
     Uint count;			/* number of loops remaining */
     int    active;		/* 1=activated, 0=deactivated */
@@ -124,9 +125,16 @@ erts_approx_time_t erts_get_approx_time(void);
 void erts_get_timeval(SysTimeval *tv);
 erts_time_t erts_get_time(void);
 
+ERTS_GLB_INLINE Uint64 erts_get_timer_time(void);
 ERTS_GLB_INLINE int erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p);
 
 #if ERTS_GLB_INLINE_INCL_FUNC_DEF
+
+ERTS_GLB_INLINE Uint64
+erts_get_timer_time (void)
+{
+    return erts_smp_atomic_read_nob(last_delivered_ms_p);
+}
 
 ERTS_GLB_INLINE int
 erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p)
