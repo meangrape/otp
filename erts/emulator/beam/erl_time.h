@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
+ *
  * Copyright Ericsson AB 2006-2011. All Rights Reserved.
- * 
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -54,20 +54,20 @@ typedef void (*ErlCancelProc)(void*);
 typedef union ErtsSmpPTimer_ ErtsSmpPTimer;
 union ErtsSmpPTimer_ {
     struct {
-	ErlTimer tm;
-	Eterm id;
-	void (*timeout_func)(void*);
-	ErtsSmpPTimer **timer_ref;
-	Uint32 flags;
+        ErlTimer tm;
+        Eterm id;
+        void (*timeout_func)(void*);
+        ErtsSmpPTimer **timer_ref;
+        Uint32 flags;
     } timer;
     ErtsSmpPTimer *next;
 };
 
 
 void erts_create_smp_ptimer(ErtsSmpPTimer **timer_ref,
-			    Eterm id,
-			    ErlTimeoutProc timeout_func,
-			    Uint timeout);
+                            Eterm id,
+                            ErlTimeoutProc timeout_func,
+                            Uint timeout);
 void erts_cancel_smp_ptimer(ErtsSmpPTimer *ptimer);
 #endif
 
@@ -94,7 +94,7 @@ ERTS_GLB_INLINE erts_short_time_t erts_do_time_read_and_reset(void)
 {
     erts_short_time_t time = erts_smp_atomic32_xchg_acqb(&do_time, 0);
     if (time < 0)
-	erl_exit(ERTS_ABORT_EXIT, "Internal time management error\n");
+        erl_exit(ERTS_ABORT_EXIT, "Internal time management error\n");
     return time;
 }
 
@@ -140,11 +140,11 @@ ERTS_GLB_INLINE int
 erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p)
 {
     if (t1p->tv_sec == t2p->tv_sec) {
-	if (t1p->tv_usec < t2p->tv_usec)
-	    return -1;
-	else if (t1p->tv_usec > t2p->tv_usec)
-	    return 1;
-	return 0;
+        if (t1p->tv_usec < t2p->tv_usec)
+            return -1;
+        else if (t1p->tv_usec > t2p->tv_usec)
+            return 1;
+        return 0;
     }
     return t1p->tv_sec < t2p->tv_sec ? -1 : 1;
 }

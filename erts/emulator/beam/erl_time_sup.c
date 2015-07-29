@@ -20,52 +20,52 @@
 /*
 ** Support routines for the timer wheel
 **
-** This code contains two strategies for dealing with 
-** date/time changes in the system. 
+** This code contains two strategies for dealing with
+** date/time changes in the system.
 ** If the system has some kind of high resolution timer (HAVE_GETHRTIME),
 ** the high resolution timer is used to correct the time-of-day and the
-** timeouts, the base source is the hrtimer, but at certain intervals the 
-** OS time-of-day is checked and if it is not within certain bounds, the 
+** timeouts, the base source is the hrtimer, but at certain intervals the
+** OS time-of-day is checked and if it is not within certain bounds, the
 ** delivered time gets slowly adjusted for each call until
-** it corresponds to the system time (built-in adjtime...). 
-** The call gethrtime() is detected by autoconf on Unix, but other 
-** platforms may define it in erl_*_sys.h and implement 
+** it corresponds to the system time (built-in adjtime...).
+** The call gethrtime() is detected by autoconf on Unix, but other
+** platforms may define it in erl_*_sys.h and implement
 ** their own high resolution timer. The high resolution timer
-** strategy is (probably) best on all systems where the timer have 
+** strategy is (probably) best on all systems where the timer have
 ** a resolution higher or equal to gettimeofday (or what's implemented
 ** is sys_gettimeofday()). The actual resolution is the interesting thing,
 ** not the unit's thats used (i.e. on VxWorks, nanoseconds can be
-** retrieved in terms of units, but the actual resolution is the same as 
+** retrieved in terms of units, but the actual resolution is the same as
 ** for the clock ticks).
-** If the systems best timer routine is kernel ticks returned from 
+** If the systems best timer routine is kernel ticks returned from
 ** sys_times(), and the actual resolution of sys_gettimeofday() is
-** better (like most unixes that does not have any realtime extensions), 
-** another strategy is used. The tolerant gettimeofday() corrects 
-** the value with respect to uptime (sys_times() return value) and checks 
+** better (like most unixes that does not have any realtime extensions),
+** another strategy is used. The tolerant gettimeofday() corrects
+** the value with respect to uptime (sys_times() return value) and checks
 ** for correction both when delivering timeticks and delivering nowtime.
-** this strategy is slower, but accurate on systems without better timer 
+** this strategy is slower, but accurate on systems without better timer
 ** routines. The kernel tick resolution is not enough to implement
-** a gethrtime routine. On Linux and other non solaris unix-boxes the second 
+** a gethrtime routine. On Linux and other non solaris unix-boxes the second
 ** strategy is used, on all other platforms we use the first.
-** 
+**
 ** The following is expected (from sys.[ch] and erl_*_sys.h):
 **
 ** 64 bit integers. So it is, and so it will be.
 **
 ** sys_init_time(), will return the clock resolution in MS and
 ** that's about it. More could be added of course
-** If the clock-rate is constant (i.e. 1 ms) one can define 
+** If the clock-rate is constant (i.e. 1 ms) one can define
 ** SYS_CLOCK_RESOLUTION (to 1),
 ** which makes erts_deliver_time/erts_time_remaining a bit faster.
 **
 ** if HAVE_GETHRTIME is defined:
-**    sys_gethrtime() will return a SysHrTime (long long) representing 
+**    sys_gethrtime() will return a SysHrTime (long long) representing
 **    nanoseconds, sys_init_hrtime() will do any initialization.
 ** else
 **    a long (64bit) integer type called Sint64 should be defined.
 **
-** sys_times() will return clock_ticks since start and 
-**    fill in a SysTimes structure (struct tms). Instead of CLK_TCK, 
+** sys_times() will return clock_ticks since start and
+**    fill in a SysTimes structure (struct tms). Instead of CLK_TCK,
 **    SYS_CLK_TCK is used to determine the resolution of kernel ticks.
 **
 ** sys_gettimeofday() will take a SysTimeval (a struct timeval) as parameter
@@ -120,7 +120,7 @@ update_approx_time_sec(erts_approx_time_t new_secs)
 {
     erts_approx_time_t old_secs = get_approx_time();
     if (old_secs != new_secs)
-	erts_smp_atomic_set_nob(&approx.time, new_secs);
+        erts_smp_atomic_set_nob(&approx.time, new_secs);
 }
 
 /*
@@ -139,7 +139,7 @@ erts_get_approx_time(void)
 
 int erts_disable_tolerant_timeofday;
 
-static SysHrTime hr_init_time, hr_last_correction_check, 
+static SysHrTime hr_init_time, hr_last_correction_check,
     hr_correction, hr_last_time;
 
 static void init_tolerant_timeofday(void)
@@ -147,13 +147,13 @@ static void init_tolerant_timeofday(void)
     /* Should be in sys.c */
 #if defined(HAVE_SYSCONF) && defined(_SC_NPROCESSORS_CONF)
     if (sysconf(_SC_NPROCESSORS_CONF) > 1) {
-	char b[1024];
-	int maj,min,build;
-	os_flavor(b,1024);
-	os_version(&maj,&min,&build);
-	if (!strcmp(b,"sunos") && maj <= 5 && min <= 7) {
-	    erts_disable_tolerant_timeofday = 1;
-	}
+        char b[1024];
+        int maj,min,build;
+        os_flavor(b,1024);
+        os_version(&maj,&min,&build);
+        if (!strcmp(b,"sunos") && maj <= 5 && min <= 7) {
+            erts_disable_tolerant_timeofday = 1;
+        }
     }
 #endif
     hr_init_time = sys_gethrtime();
@@ -166,57 +166,57 @@ static void get_tolerant_timeofday(SysTimeval *tv)
     SysHrTime diff_time, curr;
 
     if (erts_disable_tolerant_timeofday) {
-	sys_gettimeofday(tv);
-	return;
+        sys_gettimeofday(tv);
+        return;
     }
     *tv = inittv;
-    diff_time = ((curr = sys_gethrtime()) + hr_correction - hr_init_time) / 1000; 
+    diff_time = ((curr = sys_gethrtime()) + hr_correction - hr_init_time) / 1000;
 
     if (curr < hr_init_time) {
-	erl_exit(1,"Unexpected behaviour from operating system high "
-		 "resolution timer");
+        erl_exit(1,"Unexpected behaviour from operating system high "
+                 "resolution timer");
     }
 
     if ((curr - hr_last_correction_check) / 1000 > 1000000) {
-	/* Check the correction need */
-	SysHrTime tv_diff, diffdiff;
-	SysTimeval tmp;
-	int done = 0;
+        /* Check the correction need */
+        SysHrTime tv_diff, diffdiff;
+        SysTimeval tmp;
+        int done = 0;
 
-	sys_gettimeofday(&tmp);
-	tv_diff = ((SysHrTime) tmp.tv_sec) * 1000000 + tmp.tv_usec;
-	tv_diff -= ((SysHrTime) inittv.tv_sec) * 1000000 + inittv.tv_usec;
-	diffdiff = diff_time - tv_diff;
-	if (diffdiff > 10000) {
-	    SysHrTime corr = (curr - hr_last_time) / 100;
-	    if (corr / 1000 >= diffdiff) {
-		++done;
-		hr_correction -= ((SysHrTime)diffdiff) * 1000;
-	    } else {
-		hr_correction -= corr;
-	    }
-	    diff_time = (curr + hr_correction - hr_init_time) / 1000; 
-	} else if (diffdiff < -10000) {
-	    SysHrTime corr = (curr - hr_last_time) / 100;
-	    if (corr / 1000 >= -diffdiff) {
-		++done;
-		hr_correction -= ((SysHrTime)diffdiff) * 1000;
-	    } else {
-		hr_correction += corr;
-	    }
-	    diff_time = (curr + hr_correction - hr_init_time) / 1000; 
-	} else {
-	    ++done;
-	}
-	if (done) {
-	    hr_last_correction_check = curr;
-	}
+        sys_gettimeofday(&tmp);
+        tv_diff = ((SysHrTime) tmp.tv_sec) * 1000000 + tmp.tv_usec;
+        tv_diff -= ((SysHrTime) inittv.tv_sec) * 1000000 + inittv.tv_usec;
+        diffdiff = diff_time - tv_diff;
+        if (diffdiff > 10000) {
+            SysHrTime corr = (curr - hr_last_time) / 100;
+            if (corr / 1000 >= diffdiff) {
+                ++done;
+                hr_correction -= ((SysHrTime)diffdiff) * 1000;
+            } else {
+                hr_correction -= corr;
+            }
+            diff_time = (curr + hr_correction - hr_init_time) / 1000;
+        } else if (diffdiff < -10000) {
+            SysHrTime corr = (curr - hr_last_time) / 100;
+            if (corr / 1000 >= -diffdiff) {
+                ++done;
+                hr_correction -= ((SysHrTime)diffdiff) * 1000;
+            } else {
+                hr_correction += corr;
+            }
+            diff_time = (curr + hr_correction - hr_init_time) / 1000;
+        } else {
+            ++done;
+        }
+        if (done) {
+            hr_last_correction_check = curr;
+        }
     }
     tv->tv_sec += (int) (diff_time / ((SysHrTime) 1000000));
     tv->tv_usec += (int) (diff_time % ((SysHrTime) 1000000));
     if (tv->tv_usec >= 1000000) {
-	tv->tv_usec -= 1000000;
-	tv->tv_sec += 1;
+        tv->tv_usec -= 1000000;
+        tv->tv_sec += 1;
     }
     hr_last_time = curr;
 }
@@ -224,8 +224,8 @@ static void get_tolerant_timeofday(SysTimeval *tv)
 #define correction (hr_correction/1000000)
 
 #else /* !HAVE_GETHRTIME */
-#if !defined(CORRECT_USING_TIMES) 
-#define init_tolerant_timeofday() 
+#if !defined(CORRECT_USING_TIMES)
+#define init_tolerant_timeofday()
 #define get_tolerant_timeofday(tvp) sys_gettimeofday(tvp)
 #else
 
@@ -236,25 +236,25 @@ typedef Sint64 Milli;
 static clock_t init_ct;
 static Sint64 ct_wrap;
 static Milli init_tv_m;
-static Milli correction_supress; 
+static Milli correction_supress;
 static Milli last_ct_diff;
-static Milli last_cc; 
+static Milli last_cc;
 static clock_t last_ct;
 
 /* sys_times() might need to be wrapped and the values shifted (right)
-   a bit to cope with newer linux (2.5.*) kernels, this has to be taken care 
+   a bit to cope with newer linux (2.5.*) kernels, this has to be taken care
    of dynamically to start with, a special version that uses
    the times() return value as a high resolution timer can be made
    to fully utilize the faster ticks, like on windows, but for now, we'll
    settle with this silly workaround */
-#ifdef ERTS_WRAP_SYS_TIMES 
+#ifdef ERTS_WRAP_SYS_TIMES
 #define KERNEL_TICKS() (sys_times_wrap() &  \
-			((1UL << ((sizeof(clock_t) * 8) - 1)) - 1)) 
+                        ((1UL << ((sizeof(clock_t) * 8) - 1)) - 1))
 #else
 SysTimes dummy_tms;
 
 #define KERNEL_TICKS() (sys_times(&dummy_tms) &  \
-			((1UL << ((sizeof(clock_t) * 8) - 1)) - 1)) 
+                        ((1UL << ((sizeof(clock_t) * 8) - 1)) - 1))
 
 #endif
 
@@ -262,8 +262,8 @@ static void init_tolerant_timeofday(void)
 {
     last_ct = init_ct = KERNEL_TICKS();
     last_cc = 0;
-    init_tv_m = (((Milli) inittv.tv_sec) * 1000) + 
-	(inittv.tv_usec / 1000);
+    init_tv_m = (((Milli) inittv.tv_sec) * 1000) +
+        (inittv.tv_usec / 1000);
     ct_wrap = 0;
     correction_supress = 0;
 }
@@ -280,11 +280,11 @@ static void get_tolerant_timeofday(SysTimeval *tvp)
     Milli max_adjust;
 
     if (erts_disable_tolerant_timeofday) {
-	sys_gettimeofday(tvp);
-	return;
+        sys_gettimeofday(tvp);
+        return;
     }
 
-#ifdef ERTS_WRAP_SYS_TIMES 
+#ifdef ERTS_WRAP_SYS_TIMES
 #define TICK_MS (1000 / SYS_CLK_TCK_WRAP)
 #else
 #define TICK_MS (1000 / SYS_CLK_TCK)
@@ -293,43 +293,43 @@ static void get_tolerant_timeofday(SysTimeval *tvp)
     sys_gettimeofday(&current_tv);
 
     /* I dont know if uptime can move some units backwards
-       on some systems, but I allow for small backward 
+       on some systems, but I allow for small backward
        jumps to avoid such problems if they exist...*/
     if (last_ct > 100 && current_ct < (last_ct - 100)) {
-	ct_wrap += ((Sint64) 1) << ((sizeof(clock_t) * 8) - 1);
+        ct_wrap += ((Sint64) 1) << ((sizeof(clock_t) * 8) - 1);
     }
     last_ct = current_ct;
     ct_diff = ((ct_wrap + current_ct) - init_ct) * TICK_MS;
 
     /*
-     * We will adjust the time in milliseconds and we allow for 1% 
-     * adjustments, but if this function is called more often then every 100 
-     * millisecond (which is obviously possible), we will never adjust, so 
+     * We will adjust the time in milliseconds and we allow for 1%
+     * adjustments, but if this function is called more often then every 100
+     * millisecond (which is obviously possible), we will never adjust, so
      * we accumulate small times by setting last_ct_diff iff max_adjust > 0
      */
     if ((max_adjust = (ct_diff - last_ct_diff)/100) > 0)
-	last_ct_diff = ct_diff;
+        last_ct_diff = ct_diff;
 
-    tv_diff = ((((Milli) current_tv.tv_sec) * 1000) + 
-	       (current_tv.tv_usec / 1000)) - init_tv_m;
+    tv_diff = ((((Milli) current_tv.tv_sec) * 1000) +
+               (current_tv.tv_usec / 1000)) - init_tv_m;
 
     current_correction = ((ct_diff - tv_diff) / TICK_MS) * TICK_MS; /* trunc */
 
-    /* 
+    /*
      * We allow the current_correction value to wobble a little, as it
-     * suffers from the low resolution of the kernel ticks. 
-     * if it hasn't changed more than one tick in either direction, 
+     * suffers from the low resolution of the kernel ticks.
+     * if it hasn't changed more than one tick in either direction,
      * we will keep the old value.
      */
     if ((last_cc > current_correction + TICK_MS) ||
-	(last_cc < current_correction - TICK_MS)) {
-	last_cc = current_correction;
+        (last_cc < current_correction - TICK_MS)) {
+        last_cc = current_correction;
     } else {
-	current_correction = last_cc;
+        current_correction = last_cc;
     }
-    
+
     /*
-     * As time goes, we try to get the actual correction to 0, 
+     * As time goes, we try to get the actual correction to 0,
      * that is, make erlangs time correspond to the systems dito.
      * The act correction is what we seem to need (current_correction)
      * minus the correction suppression. The correction supression
@@ -337,40 +337,40 @@ static void get_tolerant_timeofday(SysTimeval *tvp)
      */
     act_correction = current_correction - correction_supress;
     if (max_adjust > 0) {
-	/*
-	 * Here we slowly adjust erlangs time to correspond with the 
-	 * system time by changing the correction_supress variable.
-	 * It can change max_adjust milliseconds which is 1% of elapsed time
-	 */
-	if (act_correction > 0) {
-	    if (current_correction - correction_supress > max_adjust) {
-		correction_supress += max_adjust;
-	    } else {
-		correction_supress = current_correction;
-	    }
-	    act_correction = current_correction - correction_supress;
-	} else if (act_correction < 0) {
-	    if (correction_supress - current_correction > max_adjust) {
-		correction_supress -= max_adjust;
-	    } else {
-		correction_supress = current_correction;
-	    }
-	    act_correction = current_correction - correction_supress;
-	}
+        /*
+         * Here we slowly adjust erlangs time to correspond with the
+         * system time by changing the correction_supress variable.
+         * It can change max_adjust milliseconds which is 1% of elapsed time
+         */
+        if (act_correction > 0) {
+            if (current_correction - correction_supress > max_adjust) {
+                correction_supress += max_adjust;
+            } else {
+                correction_supress = current_correction;
+            }
+            act_correction = current_correction - correction_supress;
+        } else if (act_correction < 0) {
+            if (correction_supress - current_correction > max_adjust) {
+                correction_supress -= max_adjust;
+            } else {
+                correction_supress = current_correction;
+            }
+            act_correction = current_correction - correction_supress;
+        }
     }
     /*
-     * The actual correction will correct the timeval so that system 
+     * The actual correction will correct the timeval so that system
      * time warps gets smothed down.
      */
     current_tv.tv_sec += act_correction / 1000;
     current_tv.tv_usec += (act_correction % 1000) * 1000;
 
     if (current_tv.tv_usec >= 1000000) {
-	++current_tv.tv_sec ;
-	current_tv.tv_usec -= 1000000;
+        ++current_tv.tv_sec ;
+        current_tv.tv_usec -= 1000000;
     } else if (current_tv.tv_usec < 0) {
-	--current_tv.tv_sec;
-	current_tv.tv_usec += 1000000;
+        --current_tv.tv_sec;
+        current_tv.tv_usec += 1000000;
     }
     *tvp = current_tv;
 #undef TICK_MS
@@ -397,11 +397,11 @@ get_tolerant_timeofday_us (void)
 
 /*
 ** Why this? Well, most platforms have a constant clock resolution of 1,
-** we dont want the deliver_time/time_remaining routines to waste 
+** we dont want the deliver_time/time_remaining routines to waste
 ** time dividing and multiplying by/with a variable that's always one.
 ** so the return value of sys_init_time is ignored on those platforms.
 */
- 
+
 #ifndef SYS_CLOCK_RESOLUTION
 static int clock_resolution;
 #define CLOCK_RESOLUTION clock_resolution
@@ -410,8 +410,8 @@ static int clock_resolution;
 #endif
 
 /*
-** The clock resolution should really be the resolution of the 
-** time function in use, which on most platforms 
+** The clock resolution should really be the resolution of the
+** time function in use, which on most platforms
 ** is 1. On VxWorks the resolution should be
 ** the number of ticks per second (or 1, which would work nicely to).
 **
@@ -436,32 +436,32 @@ static void do_erts_deliver_time(Sint64 current_ms)
 {
     /* Check whether we need to take lock and actually deliver ticks */
     if (((current_ms - erts_smp_atomic_read_nob(&last_delivered_ms.i)) / CLOCK_RESOLUTION) > 0) {
-	long elapsed;
+        long elapsed;
 
 #if !defined(USE_LOCKED_GTOD)
-	erts_smp_mtx_lock(&erts_timeofday_mtx);
+        erts_smp_mtx_lock(&erts_timeofday_mtx);
 #endif
 
-	/* calculate and deliver appropriate number of ticks */
-	elapsed = (current_ms - erts_smp_atomic_read_nob(&last_delivered_ms.i)) /
-		CLOCK_RESOLUTION;
+        /* calculate and deliver appropriate number of ticks */
+        elapsed = (current_ms - erts_smp_atomic_read_nob(&last_delivered_ms.i)) /
+                CLOCK_RESOLUTION;
 
-	/* Sometimes the time jump backwards,
-	   resulting in a negative elapsed time. We compensate for
-	   this by simply pretend as if the time stood still. :) */
-    
-	if (elapsed > 0) {
-	    erts_do_time_add(elapsed);
-	    erts_smp_atomic_set_nob(&last_delivered_ms.i,current_ms);
-	}
+        /* Sometimes the time jump backwards,
+           resulting in a negative elapsed time. We compensate for
+           this by simply pretend as if the time stood still. :) */
+
+        if (elapsed > 0) {
+            erts_do_time_add(elapsed);
+            erts_smp_atomic_set_nob(&last_delivered_ms.i,current_ms);
+        }
 
 #if !defined(USE_LOCKED_GTOD)
-	erts_smp_mtx_unlock(&erts_timeofday_mtx);
+        erts_smp_mtx_unlock(&erts_timeofday_mtx);
 #endif
     }
 }
 
-int 
+int
 erts_init_time_sup(void)
 {
     erts_smp_mtx_init(&erts_timeofday_mtx, "timeofday");
@@ -475,7 +475,7 @@ erts_init_time_sup(void)
 #endif
     sys_gettimeofday(&inittv);
     init_ms = (Sint64)inittv.tv_sec*1000 + inittv.tv_usec/1000;
-    
+
 #ifdef HAVE_GETHRTIME
     sys_init_hrtime();
 #endif
@@ -488,12 +488,12 @@ erts_init_time_sup(void)
     erts_deliver_time();
 
     return CLOCK_RESOLUTION;
-}    
+}
 /* info functions */
 
-void 
-elapsed_time_both(UWord *ms_user, UWord *ms_sys, 
-		  UWord *ms_user_diff, UWord *ms_sys_diff)
+void
+elapsed_time_both(UWord *ms_user, UWord *ms_sys,
+                  UWord *ms_user_diff, UWord *ms_sys_diff)
 {
     UWord prev_total_user, prev_total_sys;
     UWord total_user, total_sys;
@@ -504,29 +504,29 @@ elapsed_time_both(UWord *ms_user, UWord *ms_sys,
     total_sys = (now.tms_stime * 1000) / SYS_CLK_TCK;
 
     if (ms_user != NULL)
-	*ms_user = total_user;
+        *ms_user = total_user;
     if (ms_sys != NULL)
-	*ms_sys = total_sys;
+        *ms_sys = total_sys;
 
     erts_smp_mtx_lock(&erts_timeofday_mtx);
-    
+
     prev_total_user = (t_start.tms_utime * 1000) / SYS_CLK_TCK;
     prev_total_sys = (t_start.tms_stime * 1000) / SYS_CLK_TCK;
     t_start = now;
-    
+
     erts_smp_mtx_unlock(&erts_timeofday_mtx);
 
     if (ms_user_diff != NULL)
-	*ms_user_diff = total_user - prev_total_user;
-	  
+        *ms_user_diff = total_user - prev_total_user;
+
     if (ms_sys_diff != NULL)
-	*ms_sys_diff = total_sys - prev_total_sys;
+        *ms_sys_diff = total_sys - prev_total_sys;
 }
 
 
 /* wall clock routines */
 
-void 
+void
 wall_clock_elapsed_time_both(UWord *ms_total, UWord *ms_diff)
 {
     UWord prev_total;
@@ -551,7 +551,7 @@ wall_clock_elapsed_time_both(UWord *ms_total, UWord *ms_diff)
 }
 
 /* get current time */
-void 
+void
 get_time(int *hour, int *minute, int *second)
 {
     time_t the_clock;
@@ -559,7 +559,7 @@ get_time(int *hour, int *minute, int *second)
 #ifdef HAVE_LOCALTIME_R
     struct tm tmbuf;
 #endif
-    
+
     the_clock = time((time_t *)0);
 #ifdef HAVE_LOCALTIME_R
     tm = localtime_r(&the_clock, &tmbuf);
@@ -572,7 +572,7 @@ get_time(int *hour, int *minute, int *second)
 }
 
 /* get current date */
-void 
+void
 get_date(int *year, int *month, int *day)
 {
     time_t the_clock;
@@ -594,9 +594,9 @@ get_date(int *year, int *month, int *day)
 }
 
 /* get localtime */
-void 
-get_localtime(int *year, int *month, int *day, 
-	      int *hour, int *minute, int *second)
+void
+get_localtime(int *year, int *month, int *day,
+              int *hour, int *minute, int *second)
 {
     time_t the_clock;
     struct tm *tm;
@@ -620,9 +620,9 @@ get_localtime(int *year, int *month, int *day,
 
 
 /* get universaltime */
-void 
-get_universaltime(int *year, int *month, int *day, 
-		  int *hour, int *minute, int *second)
+void
+get_universaltime(int *year, int *month, int *day,
+                  int *hour, int *minute, int *second)
 {
     time_t the_clock;
     struct tm *tm;
@@ -656,7 +656,7 @@ static const int mdays[14] = {0, 31, 28, 31, 30, 31, 30,
 
 /* This is the earliest year we are sure to be able to handle
    on all platforms w/o problems */
-#define  BASEYEAR       1902 
+#define  BASEYEAR       1902
 
 /* A more "clever" mktime
  * return  1, if successful
@@ -669,8 +669,8 @@ static int erl_mktime(time_t *c, struct tm *tm) {
     clock = mktime(tm);
 
     if (clock != -1) {
-	*c = clock;
-	return 1;
+        *c = clock;
+        return 1;
     }
 
     /* in rare occasions mktime returns -1
@@ -687,7 +687,7 @@ static int erl_mktime(time_t *c, struct tm *tm) {
     *c = -1;
 
     if (clock == -2) {
-	return 1;
+        return 1;
     }
 
     return -1;
@@ -697,14 +697,14 @@ static int erl_mktime(time_t *c, struct tm *tm) {
  * gregday
  *
  * Returns the number of days since Jan 1, 1600, if year is
- * greater of equal to 1600 , and month [1-12] and day [1-31] 
+ * greater of equal to 1600 , and month [1-12] and day [1-31]
  * are within range. Otherwise it returns -1.
  */
 static time_t gregday(int year, int month, int day)
 {
   Sint ndays = 0;
   Sint gyear, pyear, m;
-  
+
   /* number of days in previous years */
   gyear = year - 1600;
   if (gyear > 0) {
@@ -725,8 +725,8 @@ static time_t gregday(int year, int month, int day)
 #define SECONDS_PER_HOUR    (60 * SECONDS_PER_MINUTE)
 #define SECONDS_PER_DAY     (24 * SECONDS_PER_HOUR)
 
-int seconds_to_univ(Sint64 time, Sint *year, Sint *month, Sint *day, 
-	Sint *hour, Sint *minute, Sint *second) {
+int seconds_to_univ(Sint64 time, Sint *year, Sint *month, Sint *day,
+        Sint *hour, Sint *minute, Sint *second) {
 
     Sint y,mi;
     Sint days = time / SECONDS_PER_DAY;
@@ -734,10 +734,10 @@ int seconds_to_univ(Sint64 time, Sint *year, Sint *month, Sint *day,
     Sint tmp;
 
     if (secs < 0) {
-	days--;
-	secs += SECONDS_PER_DAY;
+        days--;
+        secs += SECONDS_PER_DAY;
     }
-    
+
     tmp     = secs % SECONDS_PER_HOUR;
 
     *hour   = secs / SECONDS_PER_HOUR;
@@ -745,12 +745,12 @@ int seconds_to_univ(Sint64 time, Sint *year, Sint *month, Sint *day,
     *second = tmp  % SECONDS_PER_MINUTE;
 
     days   += 719468;
-    y       = (10000*((Sint64)days) + 14780) / 3652425; 
+    y       = (10000*((Sint64)days) + 14780) / 3652425;
     tmp     = days - (365 * y + y/4 - y/100 + y/400);
 
     if (tmp < 0) {
-	y--;
-	tmp = days - (365*y + y/4 - y/100 + y/400);
+        y--;
+        tmp = days - (365*y + y/4 - y/100 + y/400);
     }
     mi = (100 * tmp + 52)/3060;
     *month = (mi + 2) % 12 + 1;
@@ -765,16 +765,16 @@ int univ_to_seconds(Sint year, Sint month, Sint day, Sint hour, Sint minute, Sin
 
     if (!(IN_RANGE(1600, year, INT_MAX - 1) &&
           IN_RANGE(1, month, 12) &&
-          IN_RANGE(1, day, (mdays[month] + 
-                             (month == 2 
-                              && (year % 4 == 0) 
+          IN_RANGE(1, day, (mdays[month] +
+                             (month == 2
+                              && (year % 4 == 0)
                               && (year % 100 != 0 || year % 400 == 0)))) &&
           IN_RANGE(0, hour, 23) &&
           IN_RANGE(0, minute, 59) &&
           IN_RANGE(0, second, 59))) {
       return 0;
     }
- 
+
     days   = gregday(year, month, day);
     *time  = SECONDS_PER_DAY;
     *time *= days;             /* don't try overflow it, it hurts */
@@ -790,28 +790,28 @@ int univ_to_seconds(Sint year, Sint month, Sint day, Sint hour, Sint minute, Sin
 extern time_t time2posix(time_t);
 #endif
 
-int 
-local_to_univ(Sint *year, Sint *month, Sint *day, 
-	      Sint *hour, Sint *minute, Sint *second, int isdst)
+int
+local_to_univ(Sint *year, Sint *month, Sint *day,
+              Sint *hour, Sint *minute, Sint *second, int isdst)
 {
     time_t the_clock;
     struct tm *tm, t;
 #ifdef HAVE_GMTIME_R
     struct tm tmbuf;
 #endif
-    
+
     if (!(IN_RANGE(BASEYEAR, *year, INT_MAX - 1) &&
           IN_RANGE(1, *month, 12) &&
-          IN_RANGE(1, *day, (mdays[*month] + 
-                             (*month == 2 
-                              && (*year % 4 == 0) 
+          IN_RANGE(1, *day, (mdays[*month] +
+                             (*month == 2
+                              && (*year % 4 == 0)
                               && (*year % 100 != 0 || *year % 400 == 0)))) &&
           IN_RANGE(0, *hour, 23) &&
           IN_RANGE(0, *minute, 59) &&
           IN_RANGE(0, *second, 59))) {
       return 0;
     }
-    
+
     t.tm_year = *year - 1900;
     t.tm_mon = *month - 1;
     t.tm_mday = *day;
@@ -825,19 +825,19 @@ local_to_univ(Sint *year, Sint *month, Sint *day,
      */
 
     if (erl_mktime(&the_clock, &t) < 0) {
-	if (isdst) {
-	    /* If this is a timezone without DST and the OS (correctly)
-	       refuses to give us a DST time, we simulate the Linux/Solaris
-	       behaviour of giving the same data as if is_dst was not set. */
-	    t.tm_isdst = 0;
-	    if (erl_mktime(&the_clock, &t) < 0) {
-		/* Failed anyway, something else is bad - will be a badarg */
-		return 0;
-	    }
-	} else {
-	    /* Something else is the matter, badarg. */
-	    return 0;
-	}
+        if (isdst) {
+            /* If this is a timezone without DST and the OS (correctly)
+               refuses to give us a DST time, we simulate the Linux/Solaris
+               behaviour of giving the same data as if is_dst was not set. */
+            t.tm_isdst = 0;
+            if (erl_mktime(&the_clock, &t) < 0) {
+                /* Failed anyway, something else is bad - will be a badarg */
+                return 0;
+            }
+        } else {
+            /* Something else is the matter, badarg. */
+            return 0;
+        }
     }
 
 #ifdef HAVE_TIME2POSIX
@@ -865,28 +865,28 @@ local_to_univ(Sint *year, Sint *month, Sint *day,
 extern time_t posix2time(time_t);
 #endif
 
-int 
-univ_to_local(Sint *year, Sint *month, Sint *day, 
-	      Sint *hour, Sint *minute, Sint *second)
+int
+univ_to_local(Sint *year, Sint *month, Sint *day,
+              Sint *hour, Sint *minute, Sint *second)
 {
     time_t the_clock;
     struct tm *tm;
 #ifdef HAVE_LOCALTIME_R
     struct tm tmbuf;
 #endif
-    
+
     if (!(IN_RANGE(BASEYEAR, *year, INT_MAX - 1) &&
           IN_RANGE(1, *month, 12) &&
-          IN_RANGE(1, *day, (mdays[*month] + 
-                             (*month == 2 
-                              && (*year % 4 == 0) 
+          IN_RANGE(1, *day, (mdays[*month] +
+                             (*month == 2
+                              && (*year % 4 == 0)
                               && (*year % 100 != 0 || *year % 400 == 0)))) &&
           IN_RANGE(0, *hour, 23) &&
           IN_RANGE(0, *minute, 59) &&
           IN_RANGE(0, *second, 59))) {
       return 0;
     }
-    
+
     the_clock = *second + 60 * (*minute + 60 * (*hour + 24 *
                                             gregday(*year, *month, *day)));
 #ifdef HAVE_POSIX2TIME
@@ -910,13 +910,13 @@ univ_to_local(Sint *year, Sint *month, Sint *day,
     tm = localtime(&the_clock);
 #endif
     if (tm) {
-	*year   = tm->tm_year + 1900;
-	*month  = tm->tm_mon +1;
-	*day    = tm->tm_mday;
-	*hour   = tm->tm_hour;
-	*minute = tm->tm_min;
-	*second = tm->tm_sec;
-	return 1;
+        *year   = tm->tm_year + 1900;
+        *month  = tm->tm_mon +1;
+        *day    = tm->tm_mday;
+        *hour   = tm->tm_hour;
+        *minute = tm->tm_min;
+        *second = tm->tm_sec;
+        return 1;
     }
     return 0;
 }
@@ -927,26 +927,26 @@ void
 get_now(Uint* megasec, Uint* sec, Uint* microsec)
 {
     Sint64 now_us, then;
-    
+
 #if defined(USE_LOCKED_GTOD)
     erts_smp_mtx_lock(&erts_timeofday_mtx);
 #endif
-    
+
     now_us = get_tolerant_timeofday_us();
     do_erts_deliver_time(now_us / 1000);
 
     /* Make sure time is later than last */
     do {
-	then = erts_smp_atomic_read_wb(&then_us.i);
-	if (then >= now_us) {
-	    now_us = then+1;
-	}
+        then = erts_smp_atomic_read_wb(&then_us.i);
+        if (then >= now_us) {
+            now_us = then+1;
+        }
     } while (erts_smp_atomic_cmpxchg_mb(&then_us.i,now_us,then) != then);
 
 #if defined(USE_LOCKED_GTOD)
     erts_smp_mtx_unlock(&erts_timeofday_mtx);
 #endif
-    
+
     *megasec = (Uint) ((now_us / 1000000) / 1000000);
     *sec = (Uint) ((now_us / 1000000) % 1000000);
     *microsec = (Uint) (now_us % 1000000);
@@ -958,9 +958,9 @@ void
 get_sys_now(Uint* megasec, Uint* sec, Uint* microsec)
 {
     SysTimeval now;
-    
+
     sys_gettimeofday(&now);
-    
+
     *megasec = (Uint) (now.tv_sec / 1000000);
     *sec = (Uint) (now.tv_sec % 1000000);
     *microsec = (Uint) (now.tv_usec);
@@ -973,7 +973,7 @@ get_sys_now(Uint* megasec, Uint* sec, Uint* microsec)
 
 void erts_deliver_time(void) {
     Sint64 now_ms;
-    
+
 #if defined(USE_LOCKED_GTOD)
     erts_smp_mtx_lock(&erts_timeofday_mtx);
 #endif
@@ -1000,30 +1000,30 @@ void erts_time_remaining(SysTimeval *rem_time)
 
     ticks = (erts_time_t) erts_next_time();
     if (ticks == (erts_time_t) -1) {
-	/* timer queue empty */
-	/* this will cause at most 100000000 ticks */
-	rem_time->tv_sec = 100000;
-	rem_time->tv_usec = 0;
+        /* timer queue empty */
+        /* this will cause at most 100000000 ticks */
+        rem_time->tv_sec = 100000;
+        rem_time->tv_usec = 0;
     } else {
-	/* next timeout after ticks ticks */
-	ticks *= CLOCK_RESOLUTION;
-	
-#if defined(USE_LOCKED_GTOD)
-	erts_smp_mtx_lock(&erts_timeofday_mtx);
-#endif
-
-	elapsed = get_tolerant_timeofday_ms() - erts_smp_atomic_read_nob(&last_delivered_ms.i);
+        /* next timeout after ticks ticks */
+        ticks *= CLOCK_RESOLUTION;
 
 #if defined(USE_LOCKED_GTOD)
-	erts_smp_mtx_unlock(&erts_timeofday_mtx);
+        erts_smp_mtx_lock(&erts_timeofday_mtx);
 #endif
-	
-	if (ticks <= elapsed) { /* Ooops, better hurry */
-	    rem_time->tv_sec = rem_time->tv_usec = 0;
-	    return;
-	}
-	rem_time->tv_sec = (ticks - elapsed) / 1000;
-	rem_time->tv_usec = 1000 * ((ticks - elapsed) % 1000);
+
+        elapsed = get_tolerant_timeofday_ms() - erts_smp_atomic_read_nob(&last_delivered_ms.i);
+
+#if defined(USE_LOCKED_GTOD)
+        erts_smp_mtx_unlock(&erts_timeofday_mtx);
+#endif
+
+        if (ticks <= elapsed) { /* Ooops, better hurry */
+            rem_time->tv_sec = rem_time->tv_usec = 0;
+            return;
+        }
+        rem_time->tv_sec = (ticks - elapsed) / 1000;
+        rem_time->tv_usec = 1000 * ((ticks - elapsed) % 1000);
     }
 }
 
@@ -1047,9 +1047,9 @@ erts_get_time(void)
 #if defined(USE_LOCKED_GTOD)
     erts_smp_mtx_lock(&erts_timeofday_mtx);
 #endif
-    
+
     get_tolerant_timeofday(&sys_tv);
-    
+
 #if defined(USE_LOCKED_GTOD)
     erts_smp_mtx_unlock(&erts_timeofday_mtx);
 #endif
