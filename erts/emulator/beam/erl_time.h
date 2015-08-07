@@ -24,28 +24,47 @@
 #define ERTS_SHORT_TIME_T_MIN ERTS_AINT32_T_MIN
 typedef erts_aint32_t erts_short_time_t;
 
-extern erts_smp_atomic32_t do_time;	/* set at clock interrupt */
-extern erts_smp_atomic_t* last_delivered_ms_p;
+/* timer wheel size MUST be a power of 2 */
+#ifdef SMALL_MEMORY
+#define ERTS_TIW_SIZE (1 << 13)     /*  8192 */
+#else
+#define ERTS_TIW_SIZE (1 << 16)     /* 65536 */
+#endif
+
+/* defined in time.c, set at clock interrupt */
+extern erts_smp_atomic32_t  do_time;
+
+/*
+    Added in the original WA patches.
+
+    TODO: There has GOT to be a better way!
+
+    defined in erl_time_sup.c
+
+    Points into a cache-aligned internal structure to provide access for the
+    inline function erts_get_timer_time() defined in this file.
+
+    Initial search doesn't even show the function being called!
+*/
+extern erts_smp_atomic_t  * last_delivered_ms_p;
 
 /*
 ** Timer entry:
 */
-typedef struct erl_timer {
-    struct erl_timer* next;	/* next entry tiw slot or chain */
-    struct erl_timer* prev;	/* prev entry tiw slot or chain */
-    Uint instance;		/* timer wheel instance */
-    Uint slot;			/* slot in timer wheel */
-    Uint count;			/* number of loops remaining */
-    int    active;		/* 1=activated, 0=deactivated */
-    /* called when timeout */
-    void (*timeout)(void*);
-    /* called when cancel (may be NULL) */
-    void (*cancel)(void*);
-    void* arg;        /* argument to timeout/cancel procs */
-} ErlTimer;
-
 typedef void (*ErlTimeoutProc)(void*);
 typedef void (*ErlCancelProc)(void*);
+
+typedef struct erl_timer_ {
+    struct erl_timer_ * next;       /* next entry tiw slot or chain */
+    struct erl_timer_ * prev;       /* prev entry tiw slot or chain */
+    Uint                instance;   /* timer wheel instance */
+    Uint                slot;       /* slot in timer wheel */
+    Uint                count;      /* number of loops remaining */
+    int                 active;     /* 1=activated, 0=deactivated */
+    ErlTimeoutProc      timeout;    /* called when timeout */
+    ErlCancelProc       cancel;     /* called when cancel (may be NULL) */
+    void              * arg;        /* argument to timeout/cancel procs */
+} ErlTimer;
 
 #ifdef ERTS_SMP
 /*
@@ -125,7 +144,15 @@ erts_approx_time_t erts_get_approx_time(void);
 void erts_get_timeval(SysTimeval *tv);
 erts_time_t erts_get_time(void);
 
+/*
+    Added in the original WA patches.
+
+    TODO: There has GOT to be a better way!
+
+    Initial search doesn't even show the function being called!
+*/
 ERTS_GLB_INLINE Uint64 erts_get_timer_time(void);
+
 ERTS_GLB_INLINE int erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p);
 
 #if ERTS_GLB_INLINE_INCL_FUNC_DEF
