@@ -30,6 +30,34 @@
   </header>
   <p>This document describes the changes made to the ERTS application.</p>
 
+<section><title>Erts 6.4.1.2-basho0</title>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+            Multiple timer wheels are used in SMP builds to allow for
+            higher concurrency. Additionally, a lot of timer and timer
+            wheel code has been cleaned up and/or refactored to clarify
+            and enforce consistent semantics.
+          </p>
+          <p>
+            While timer wheels are not explicitly bound to schedulers, each
+            scheduler will always add timers to the same timer wheel,
+            while lookup of timers that are due for processing may search
+            across wheels.
+          </p>
+          <p>
+            Non-SMP runtimes should benefit from the removal of some
+            extraneous synchronization code as well.
+          </p>
+          <p>Basho Id: OTP-6</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
 <section><title>Erts 6.4.1.2</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
@@ -11857,17 +11885,17 @@
             support.</p>
           <p>The runtime system with SMP support is in this release
             focused on stability and there are a number of steps
-            with optimizations to follow before it will take 
+            with optimizations to follow before it will take
             full advantage of multi processor systems.
             The released system is however truly multi threaded
             and you will notice increased performance
             for many applications already.
-            We recommend that you evaluate your application on  
+            We recommend that you evaluate your application on
             the SMP version of the runtime system and wait for some
-            more optimizations before you use it in a real product. 
-            You will then discover if there are any problems in 
-            your application that needs to be fixed in order for 
-            it to work properly in a multi threaded environment. 
+            more optimizations before you use it in a real product.
+            You will then discover if there are any problems in
+            your application that needs to be fixed in order for
+            it to work properly in a multi threaded environment.
             More optimized versions of the runtime system
             with SMP support will be included in the R11B
             maintenance releases.</p>

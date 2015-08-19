@@ -80,6 +80,7 @@
 #include "sys.h"
 #include "erl_vm.h"
 #include "global.h"
+#include "time_internal.h"
 
 static erts_smp_mtx_t erts_timeofday_mtx;
 
@@ -106,7 +107,7 @@ static union {
 static void
 init_approx_time(void)
 {
-    erts_smp_atomic_init_nob(&approx.time, 0);
+    erts_smp_atomic_init_nob(& approx.time, 0);
 }
 
 static ERTS_INLINE erts_approx_time_t

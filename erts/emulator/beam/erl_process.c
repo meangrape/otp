@@ -1031,7 +1031,7 @@ reply_sched_wall_time(void *vswtrp)
 
     if (swtrp->req_sched == esdp->no)
 	rp_locks &= ~ERTS_PROC_LOCK_MAIN;
- 
+
     if (rp_locks)
 	erts_smp_proc_unlock(rp, rp_locks);
 
@@ -1423,7 +1423,7 @@ init_misc_aux_work(void)
 
     init_misc_aux_work_alloc();
 
-    misc_aux_work_queues = 
+    misc_aux_work_queues =
 	erts_alloc_permanent_cache_aligned(ERTS_ALC_T_MISC_AUX_WORK_Q,
 					   sizeof(erts_algnd_misc_aux_work_q_t)
 					   * (erts_no_schedulers+1));
@@ -2274,7 +2274,7 @@ erts_set_aux_work_timeout(int ix, erts_aint32_t type, int enable)
 	refc = erts_atomic32_inc_read_acqb(&aux_work_tmo->refc);
 	if (refc == 1) {
 	    erts_atomic32_inc_acqb(&aux_work_tmo->refc);
-	    if (aux_work_tmo->initialized) 
+	    if (aux_work_tmo->initialized)
 		setup_aux_work_timer();
 	}
     }
@@ -4180,7 +4180,7 @@ check_balance(ErtsRunQueue *c_rq)
 
     erts_smp_runq_unlock(c_rq);
 
-    if (balance_info.halftime) {	
+    if (balance_info.halftime) {
 	balance_info.halftime = 0;
 	erts_smp_atomic32_set_nob(&balance_info.checking_balance, 0);
 	ERTS_FOREACH_RUNQ(rq,
@@ -4294,7 +4294,7 @@ check_balance(ErtsRunQueue *c_rq)
 	    else {
 		Sint64 xreds = 0;
 		Sint64 procreds = treds;
-		procreds -= 
+		procreds -=
 		    ((Sint64)
 		     run_queue_info[qix].prio[ERTS_PORT_PRIO_LEVEL].reds);
 
@@ -4500,7 +4500,7 @@ if (pix == 2) erts_fprintf(stderr, "%d ", len_diff);
 		    len_diff = 0;
 		}
 #endif
-		    
+
 		run_queue_compare[qix].qix = qix;
 		run_queue_compare[qix].len = len_diff;
 		if (len_diff != 0) {
@@ -4840,7 +4840,7 @@ typedef enum {
 #define ERTS_WAKEUP_OTHER_DEC_SHIFT_HIGH 1
 #define ERTS_WAKEUP_OTHER_DEC_SHIFT_MEDIUM 0
 #define ERTS_WAKEUP_OTHER_DEC_SHIFT_LOW -2
-#define ERTS_WAKEUP_OTHER_DEC_SHIFT_VERY_LOW -5 
+#define ERTS_WAKEUP_OTHER_DEC_SHIFT_VERY_LOW -5
 
 #define ERTS_WAKEUP_OTHER_DEC_SHIFT 2
 #define ERTS_WAKEUP_OTHER_FIXED_INC (CONTEXT_REDS/10)
@@ -5096,7 +5096,7 @@ erts_sched_set_wakeup_other_thresold(char *str)
 	sys_strcmp(str, "medium") == 0 || sys_strcmp(str, "low") == 0 ||
 	sys_strcmp(str, "very_low") == 0) {
 	return 0;
-    } 
+    }
     return EINVAL;
 #endif
 }
@@ -5117,7 +5117,7 @@ erts_sched_set_wakeup_other_type(char *str)
 #else
     if (sys_strcmp(str, "default") == 0 || sys_strcmp(str, "legacy") == 0) {
 	return 0;
-    } 
+    }
     return EINVAL;
 #endif
 }
@@ -5492,9 +5492,9 @@ erts_init_scheduling(int no_schedulers, int no_schedulers_online
     daww_ptr = NULL;
 #endif
 
-    erts_aligned_scheduler_data = 
+    erts_aligned_scheduler_data =
 	erts_alloc_permanent_cache_aligned(ERTS_ALC_T_SCHDLR_DATA,
-					   n*sizeof(ErtsAlignedSchedulerData));					   
+					   n*sizeof(ErtsAlignedSchedulerData));
 
     for (ix = 0; ix < n; ix++) {
 	ErtsSchedulerData *esdp = ERTS_SCHEDULER_IX(ix);
@@ -7449,9 +7449,9 @@ erts_block_multi_scheduling(Process *p, ErtsProcLocks plocks, int on, int all)
 			   != schdlr_sspnd.msb.wait_active)
 			erts_smp_cnd_wait(&schdlr_sspnd.cnd,
 					  &schdlr_sspnd.mtx);
-		    
+
 		    erts_smp_mtx_unlock(&schdlr_sspnd.mtx);
-		    
+
 		    erts_thr_progress_active(esdp, 1);
 		    erts_thr_progress_finalize_wait(esdp);
 
@@ -8012,7 +8012,7 @@ handle_pending_suspend(Process *p, ErtsProcLocks p_locks)
 	    erts_free(ERTS_ALC_T_PEND_SUSPEND, (void *) free_psp);
 	}
     }
-    
+
 }
 
 static ERTS_INLINE void
@@ -8560,7 +8560,7 @@ resume_process_1(BIF_ALIST_1)
     ErtsSuspendMonitor *smon;
     Process *suspendee;
     int is_active;
- 
+
     if (BIF_P->common.id == BIF_ARG_1)
 	BIF_ERROR(BIF_P, BADARG);
 
@@ -8701,7 +8701,7 @@ erts_process_status(Process *c_p, ErtsProcLocks c_p_locks,
 }
 
 /*
-** Suspend a currently executing process 
+** Suspend a currently executing process
 ** If we are to suspend on a port the busy_port is the thing
 ** otherwise busy_port is NIL
 */
@@ -8889,8 +8889,8 @@ erts_set_process_priority(Process *p, Eterm value)
  * schedule system-level activities.
  *
  * We use the same queue for normal and low prio processes.
- * We reschedule low prio processes a certain number of times 
- * so that normal processes get to run more frequently. 
+ * We reschedule low prio processes a certain number of times
+ * so that normal processes get to run more frequently.
  */
 
 Process *schedule(Process *p, int calls)
@@ -8987,7 +8987,7 @@ Process *schedule(Process *p, int calls)
 	if (state & ERTS_PSFLG_PENDING_EXIT)
 	    erts_handle_pending_exit(p, (ERTS_PROC_LOCK_MAIN
 					 | ERTS_PROC_LOCK_STATUS));
-	if (p->pending_suspenders) 
+	if (p->pending_suspenders)
 	    handle_pending_suspend(p, (ERTS_PROC_LOCK_MAIN
 				       | ERTS_PROC_LOCK_STATUS));
 #endif
@@ -9471,7 +9471,7 @@ Process *schedule(Process *p, int calls)
 	    free_proxy_proc(proxy_p);
 	    proxy_p = NULL;
 	}
-	    
+
 	p->fcalls = reds;
 	ERTS_SMP_CHK_HAVE_ONLY_MAIN_PROC_LOCK(p);
 
@@ -9992,7 +9992,7 @@ erts_internal_request_system_task_3(BIF_ALIST_3)
 	    n = e = a;
 	    n &= ~ERTS_PSFLGS_ACT_PRIO_MASK;
 	    n |= (prio << ERTS_PSFLGS_ACT_PRIO_OFFSET);
-	    a = erts_smp_atomic32_cmpxchg_nob(&rp->state, n, e);    
+	    a = erts_smp_atomic32_cmpxchg_nob(&rp->state, n, e);
 	} while (a != e);
 	rp_state = n;
     }
@@ -10316,11 +10316,11 @@ exec_misc_ops(ErtsRunQueue *rq)
     ErtsMiscOpList *tmp_molp = molp;
 
     for (i = 0; i < ERTS_MAX_MISC_OPS-1; i++) {
-	if (!tmp_molp) 
+	if (!tmp_molp)
 	    goto mtq;
 	tmp_molp = tmp_molp->next;
     }
-    
+
     if (!tmp_molp) {
     mtq:
 	rq->misc.start = NULL;
@@ -10447,7 +10447,7 @@ alloc_process(ErtsRunQueue *rq, erts_aint32_t state)
     }
 
     ASSERT(internal_pid_serial(p->common.id) <= ERTS_MAX_PID_SERIAL);
-    
+
     p->approx_started = erts_get_approx_time();
     p->rcount = 0;
     p->heap = NULL;
@@ -10538,7 +10538,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     }
     p->schedule_count = 0;
     ASSERT(p->min_heap_size == erts_next_heap_size(p->min_heap_size, 0));
-    
+
     p->initial[INITIAL_MOD] = mod;
     p->initial[INITIAL_FUN] = func;
     p->initial[INITIAL_ARI] = (Uint) arity;
@@ -10608,7 +10608,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #ifdef ERTS_SMP
     p->common.u.alive.ptimer = NULL;
 #else
-    sys_memset(&p->common.u.alive.tm, 0, sizeof(ErlTimer));
+    erts_init_timer(& p->common.u.alive.tm);
 #endif
 
     p->common.u.alive.reg = NULL;
@@ -10695,7 +10695,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 	ASSERT(ret == 0);
 	ret = erts_add_link(&ERTS_P_LINKS(p), LINK_PID, parent->common.id);
 	ASSERT(ret == 0);
-#else	
+#else
 	erts_add_link(&ERTS_P_LINKS(parent), LINK_PID, p->common.id);
 	erts_add_link(&ERTS_P_LINKS(p), LINK_PID, parent->common.id);
 #endif
@@ -10801,7 +10801,7 @@ void erts_init_empty_process(Process *p)
 #ifdef ERTS_SMP
     p->common.u.alive.ptimer = NULL;
 #else
-    memset(&(p->common.u.alive.tm), 0, sizeof(ErlTimer));
+    erts_init_timer(& p->common.u.alive.tm);
 #endif
     p->next = NULL;
     p->off_heap.first = NULL;
@@ -10885,7 +10885,7 @@ void erts_init_empty_process(Process *p)
     p->fp_exception = 0;
 #endif
 
-}    
+}
 
 #ifdef DEBUG
 
@@ -11020,7 +11020,7 @@ delete_process(Process* p)
     /*
      * Free all pending message buffers.
      */
-    if (p->mbuf != NULL) {	
+    if (p->mbuf != NULL) {
 	free_message_buffer(p->mbuf);
     }
 
@@ -11228,7 +11228,7 @@ static ERTS_INLINE void
 send_exit_message(Process *to, ErtsProcLocks *to_locksp,
 		  Eterm exit_term, Uint term_size, Eterm token)
 {
-    if (token == NIL 
+    if (token == NIL
 #ifdef USE_VM_PROBES
 	|| token == am_have_dt_utag
 #endif
@@ -11312,7 +11312,7 @@ send_exit_message(Process *to, ErtsProcLocks *to_locksp,
  * scheduled when the pending exit was set, the first scheduler that
  * schedules a new process will set the receiving process in the exiting
  * state just before it schedules next process.
- * 
+ *
  * When the exit signal is placed in the pending_exit field, the signal
  * is considered as being in transit on the Erlang level. The signal is
  * actually in some kind of semi transit state, since we have already
@@ -11347,7 +11347,7 @@ send_exit_signal(Process *c_p,		/* current process if and only
 		 Eterm token,		/* token */
 		 Process *token_update, /* token updater */
 		 Uint32 flags		/* flags */
-    )		
+    )
 {
     erts_aint32_t state = erts_smp_atomic32_read_nob(&rp->state);
     Eterm rsn = reason == am_kill ? am_killed : reason;
@@ -11373,7 +11373,7 @@ send_exit_signal(Process *c_p,		/* current process if and only
 
     if ((state & ERTS_PSFLG_TRAP_EXIT)
 	&& (reason != am_kill || (flags & ERTS_XSIG_FLG_IGN_KILL))) {
-	if (is_not_nil(token) 
+	if (is_not_nil(token)
 #ifdef USE_VM_PROBES
 	    && token != am_have_dt_utag
 #endif
@@ -11589,7 +11589,7 @@ static void doit_exit_monitor(ErtsMonitor *mon, void *vpcontext)
 		goto done;
 	    }
 	    erts_fire_port_monitor(prt, mon->ref);
-	    erts_port_release(prt); 
+	    erts_port_release(prt);
 	} else if (is_internal_pid(mon->pid)) {/* local by name or pid */
 	    Eterm watched;
 	    DeclareTmpHeapNoproc(lhp,3);
@@ -11604,17 +11604,17 @@ static void doit_exit_monitor(ErtsMonitor *mon, void *vpcontext)
 	    if (rmon) {
 		erts_destroy_monitor(rmon);
 		watched = (is_atom(mon->name)
-			   ? TUPLE2(lhp, mon->name, 
+			   ? TUPLE2(lhp, mon->name,
 				    erts_this_dist_entry->sysname)
 			   : pcontext->p->common.id);
-		erts_queue_monitor_message(rp, &rp_locks, mon->ref, am_process, 
+		erts_queue_monitor_message(rp, &rp_locks, mon->ref, am_process,
 					   watched, pcontext->reason);
 	    }
 	    UnUseTmpHeapNoproc(3);
 	    /* else: demonitor while we exited, i.e. do nothing... */
 	    erts_smp_proc_unlock(rp, rp_locks);
 	} else { /* external by pid or name */
-	    ASSERT(is_external_pid(mon->pid));    
+	    ASSERT(is_external_pid(mon->pid));
 	    dep = external_pid_dist_entry(mon->pid);
 	    ASSERT(dep != NULL);
 	    if (dep) {
@@ -11641,10 +11641,10 @@ static void doit_exit_monitor(ErtsMonitor *mon, void *vpcontext)
 	}
     }
  done:
-    /* As the monitors are previously removed from the process, 
+    /* As the monitors are previously removed from the process,
        distribution operations will not cause monitors to disappear,
        we can safely delete it. */
-       
+
     erts_destroy_monitor(mon);
 }
 
@@ -11705,7 +11705,7 @@ static void doit_exit_link(ErtsLink *lnk, void *vpcontext)
 		    xres = send_exit_signal(NULL,
 					    p->common.id,
 					    rp,
-					    &rp_locks, 
+					    &rp_locks,
 					    reason,
 					    exit_tuple,
 					    exit_tuple_sz,
@@ -11746,7 +11746,7 @@ static void doit_exit_link(ErtsLink *lnk, void *vpcontext)
 	ASSERT(is_node_name_atom(item));
 	dep = erts_sysname_to_connected_dist_entry(item);
 	if(dep) {
-	    /* dist entries have node links in a separate structure to 
+	    /* dist entries have node links in a separate structure to
 	       avoid confusion */
 	    erts_smp_de_links_lock(dep);
 	    rlnk = erts_remove_link(&(dep->node_links), p->common.id);
@@ -11756,7 +11756,7 @@ static void doit_exit_link(ErtsLink *lnk, void *vpcontext)
 	    erts_deref_dist_entry(dep);
 	}
 	break;
-	
+
     default:
 	erl_exit(1, "bad type in link list\n");
 	break;
@@ -11780,7 +11780,7 @@ resume_suspend_monitor(ErtsSuspendMonitor *smon, void *vc_p)
 
 /* this function fishishes a process and propagates exit messages - called
    by process_main when a process dies */
-void 
+void
 erts_do_exit_process(Process* p, Eterm reason)
 {
     p->arity = 0;		/* No live registers */
@@ -11818,7 +11818,7 @@ erts_do_exit_process(Process* p, Eterm reason)
 	}
     }
 
-    cancel_suspend_of_suspendee(p, ERTS_PROC_LOCKS_ALL); 
+    cancel_suspend_of_suspendee(p, ERTS_PROC_LOCKS_ALL);
 
     ERTS_SMP_MSGQ_MV_INQ2PRIVQ(p);
 #endif
@@ -11917,7 +11917,7 @@ erts_continue_exit_process(Process *p)
 	erts_delete_nodes_monitors(p, ERTS_PROC_LOCK_MAIN);
 	p->nodes_monitors = NULL;
     }
-	
+
 
     if (p->suspend_monitors) {
 	erts_sweep_suspend_monitors(p->suspend_monitors,
@@ -11947,7 +11947,7 @@ erts_continue_exit_process(Process *p)
 #endif
 
     /*
-     * Note! The monitor and link fields will be overwritten 
+     * Note! The monitor and link fields will be overwritten
      * by erts_ptab_delete_element() below.
      */
     mon = ERTS_P_MONITORS(p);
@@ -12009,7 +12009,7 @@ erts_continue_exit_process(Process *p)
 	    erts_smp_proc_dec_refc(p);
 #endif
     }
-    
+
     dep = ((p->flags & F_DISTRIBUTION)
 	   ? ERTS_PROC_SET_DIST_ENTRY(p, ERTS_PROC_LOCKS_ALL, NULL)
 	   : NULL);

@@ -24,47 +24,110 @@
 #define ERTS_SHORT_TIME_T_MIN ERTS_AINT32_T_MIN
 typedef erts_aint32_t erts_short_time_t;
 
-/* timer wheel size MUST be a power of 2 */
-#ifdef SMALL_MEMORY
-#define ERTS_TIW_SIZE (1 << 13)     /*  8192 */
-#else
-#define ERTS_TIW_SIZE (1 << 16)     /* 65536 */
-#endif
-
 /* defined in time.c, set at clock interrupt */
 extern erts_smp_atomic32_t  do_time;
 
 /*
-    Added in the original WA patches.
-
-    TODO: There has GOT to be a better way!
-
-    defined in erl_time_sup.c
-
-    Points into a cache-aligned internal structure to provide access for the
-    inline function erts_get_timer_time() defined in this file.
-
-    Initial search doesn't even show the function being called!
-*/
-extern erts_smp_atomic_t  * last_delivered_ms_p;
+ * Timer wheel size MUST be a power of 2
+ *
+ * This is a tradeoff - the larger the wheel, the fewer entries there are
+ * likely to be in any given slot, so list traversal in the slot is shorter.
+ * OTOH, traversing empty slots wastes time, when bumping timers.
+ * All of the timer traversal is done holding a lock on the wheel, and a
+ * couple of operations traverse all of the timers, so optimizing traversal
+ * is desirable to reduce the time the lock is held.
+ * The timers in a wheel will take up the same amount of space regardless of
+ * the slot they're in, so the only difference is how long a list has to be
+ * traversed on insertion vs how many empty slots have to be traverersed on
+ * bump.
+ * It MAY be desirable to make this size tunable for applications that know
+ * they use lots of or very few timers.
+ */
+#ifdef SMALL_MEMORY
+#define ERTS_TIW_SIZE   (1 << 13)   /*  8192 */
+#else
+#define ERTS_TIW_SIZE   (1 << 16)   /* 65536 */
+#endif
+#ifdef  ERTS_SMP
+#define ERTS_MULTI_TIW  1
+#else
+#define ERTS_MULTI_TIW  0
+#endif
 
 /*
-** Timer entry:
-*/
-typedef void (*ErlTimeoutProc)(void*);
-typedef void (*ErlCancelProc)(void*);
+ * Timer entry:
+ */
+typedef void * ErlTimerProcArg;
+typedef void (* ErlTimeoutProc)(ErlTimerProcArg);
+typedef void (* ErlCancelProc)(ErlTimerProcArg);
+typedef struct erl_timer_wheel_ ErlTimerWheel;
+typedef struct erl_timer_ ErlTimer;
 
-typedef struct erl_timer_ {
-    struct erl_timer_ * next;       /* next entry tiw slot or chain */
-    struct erl_timer_ * prev;       /* prev entry tiw slot or chain */
-    Uint                instance;   /* timer wheel instance */
-    Uint                slot;       /* slot in timer wheel */
-    Uint                count;      /* number of loops remaining */
-    int                 active;     /* 1=activated, 0=deactivated */
-    ErlTimeoutProc      timeout;    /* called when timeout */
+/*
+    tiw_index_t is an unsigned integer type that
+        - can hold at least ERTS_TIW_SIZE
+        - can be read in a single operation by the CPU
+    It IS NOT to be used in general atomic operations, but may be checked
+    before acquiring a lock.
+
+    This was originally a Uint in all cases, although that type is larger than
+    the native CPU word size on certain platform configurations (e.g. 64 bits
+    on most 32-bit platforms). ERTS_TIW_SIZE fits comfortably within 32 bits,
+    so prefer the native 'unsigned' type, which should be an atomic read on
+    pretty much anything unless it CANNOT hold the value, which would probably
+    only happen on some crufty old 16-bit harware that we REALLY don't care
+    about.
+*/
+#if (ERTS_TIW_SIZE < UINT_MAX)
+typedef unsigned    tiw_index_t;
+#define INVALID_TIW_INDEX_T UINT_MAX
+#else
+typedef Uint        tiw_index_t;
+#define INVALID_TIW_INDEX_T ERTS_UINT_MAX
+#endif
+
+/*
+ *  values are only relevant if active != 0
+ *
+ *  ordered to maintain alignment on sizeof(pointer) as long as we can
+ */
+struct erl_timer_
+{
+    ErlTimer *          next;       /* next entry tiw slot or chain */
+    ErlTimer *          prev;       /* prev entry tiw slot or chain */
+#if ERTS_MULTI_TIW
+    ErlTimerWheel *     wheel;      /* timer wheel instance */
+#endif
+    ErlTimeoutProc      timeout;    /* called when timeout (can't be NULL) */
     ErlCancelProc       cancel;     /* called when cancel (may be NULL) */
-    void              * arg;        /* argument to timeout/cancel procs */
-} ErlTimer;
+    ErlTimerProcArg     arg;        /* argument to timeout/cancel procs */
+    Uint                count;      /* number of loops remaining */
+    tiw_index_t         slot;       /* slot in timer wheel */
+    int        volatile active;     /* 1=activated, 0=deactivated */
+};
+
+ERTS_GLB_INLINE ErlTimer * erts_init_timer(ErlTimer *);
+
+#if ERTS_GLB_INLINE_INCL_FUNC_DEF
+
+ERTS_GLB_INLINE ErlTimer * erts_init_timer(ErlTimer * timer)
+{
+    /* compiler SHOULD optimize this to something like memset */
+    timer->next     = NULL;
+    timer->prev     = NULL;
+#if ERTS_MULTI_TIW
+    timer->wheel    = NULL;
+#endif
+    timer->timeout  = NULL;
+    timer->cancel   = NULL;
+    timer->arg      = NULL;
+    timer->count    = 0;
+    timer->active   = 0;
+    timer->slot     = INVALID_TIW_INDEX_T;
+    return timer;
+}
+
+#endif /* #if ERTS_GLB_INLINE_INCL_FUNC_DEF */
 
 #ifdef ERTS_SMP
 /*
@@ -75,13 +138,12 @@ union ErtsSmpPTimer_ {
     struct {
         ErlTimer tm;
         Eterm id;
-        void (*timeout_func)(void*);
-        ErtsSmpPTimer **timer_ref;
+        ErlTimeoutProc timeout_func;
+        ErtsSmpPTimer ** timer_ref;
         Uint32 flags;
     } timer;
-    ErtsSmpPTimer *next;
+    ErtsSmpPTimer * next;
 };
-
 
 void erts_create_smp_ptimer(ErtsSmpPTimer **timer_ref,
                             Eterm id,
@@ -92,14 +154,14 @@ void erts_cancel_smp_ptimer(ErtsSmpPTimer *ptimer);
 
 /* timer-wheel api */
 
-void erts_init_time(void);
-void erts_set_timer(ErlTimer*, ErlTimeoutProc, ErlCancelProc, void*, Uint);
-void erts_cancel_timer(ErlTimer*);
+void erts_set_timer(ErlTimer *,
+        ErlTimeoutProc, ErlCancelProc, ErlTimerProcArg, Uint);
+void erts_cancel_timer(ErlTimer *);
 void erts_bump_timer(erts_short_time_t);
-Uint erts_timer_wheel_memory_size(void);
 Uint erts_time_left(ErlTimer *);
-erts_short_time_t erts_next_time(void);
 
+Uint erts_timer_wheel_memory_size(void);
+void erts_init_time(void);
 #ifdef DEBUG
 void erts_p_slpq(void);
 #endif
@@ -124,7 +186,6 @@ ERTS_GLB_INLINE void erts_do_time_add(erts_short_time_t elapsed)
 
 #endif /* #if ERTS_GLB_INLINE_INCL_FUNC_DEF */
 
-
 /* time_sup */
 
 #if (defined(HAVE_GETHRVTIME) || defined(HAVE_CLOCK_GETTIME))
@@ -144,27 +205,11 @@ erts_approx_time_t erts_get_approx_time(void);
 void erts_get_timeval(SysTimeval *tv);
 erts_time_t erts_get_time(void);
 
-/*
-    Added in the original WA patches.
-
-    TODO: There has GOT to be a better way!
-
-    Initial search doesn't even show the function being called!
-*/
-ERTS_GLB_INLINE Uint64 erts_get_timer_time(void);
-
 ERTS_GLB_INLINE int erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p);
 
 #if ERTS_GLB_INLINE_INCL_FUNC_DEF
 
-ERTS_GLB_INLINE Uint64
-erts_get_timer_time (void)
-{
-    return erts_smp_atomic_read_nob(last_delivered_ms_p);
-}
-
-ERTS_GLB_INLINE int
-erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p)
+ERTS_GLB_INLINE int erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p)
 {
     if (t1p->tv_sec == t2p->tv_sec) {
         if (t1p->tv_usec < t2p->tv_usec)
@@ -177,4 +222,5 @@ erts_cmp_timeval(SysTimeval *t1p, SysTimeval *t2p)
 }
 
 #endif /* #if ERTS_GLB_INLINE_INCL_FUNC_DEF */
+
 #endif /* ERL_TIME_H__ */

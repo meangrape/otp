@@ -68,7 +68,7 @@ struct ErtsBifTimer_ {
 #define TIMER_HASH_VEC_SZ	10007
 #define BTM_PREALC_SZ		100
 #endif
-static ErtsBifTimer **bif_timer_tab;  
+static ErtsBifTimer **bif_timer_tab;
 static Uint no_bif_timers;
 
 
@@ -266,7 +266,7 @@ link_proc(Process *p, ErtsBifTimer* btm)
     btm->receiver.proc.ess = p;
     btm->receiver.proc.prev = NULL;
     btm->receiver.proc.next = p->u.bif_timers;
-    if (p->u.bif_timers)	
+    if (p->u.bif_timers)
 	p->u.bif_timers->receiver.proc.prev = btm;
     p->u.bif_timers = btm;
 }
@@ -398,7 +398,7 @@ setup_bif_timer(Uint32 xflags,
     Uint timeout;
     Eterm ref;
     Uint32 *ref_numbers;
-    
+
     if (!term_to_Uint(time, &timeout))
 	return THE_NON_VALUE;
 #if defined(ARCH_64) && !HALFWORD_HEAP
@@ -480,11 +480,10 @@ setup_bif_timer(Uint32 xflags,
 
     tab_insert(btm);
     ASSERT(btm == tab_find(ref));
-    btm->tm.active = 0; /* MUST be initalized */
-    erts_set_timer(&btm->tm,
+    erts_set_timer(erts_init_timer(& btm->tm),	/* MUST be initalized */
 		  (ErlTimeoutProc) bif_timer_timeout,
 		  (ErlCancelProc) bif_timer_cleanup,
-		  (void *) btm,
+		  (ErlTimerProcArg) btm,
 		  timeout);
     return ref;
 }
