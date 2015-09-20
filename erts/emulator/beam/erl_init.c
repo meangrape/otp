@@ -40,6 +40,7 @@
 #include "erl_printf_term.h"
 #include "erl_misc_utils.h"
 #include "packet_parser.h"
+#include "erl_cpu_features.h"
 #include "erl_cpu_topology.h"
 #include "erl_thr_progress.h"
 #include "erl_thr_queue.h"
@@ -170,8 +171,8 @@ int erts_backtrace_depth;	/* How many functions to show in a backtrace
 
 erts_smp_atomic32_t erts_max_gen_gcs;
 
-Eterm erts_error_logger_warnings; /* What to map warning logs to, am_error, 
-				     am_info or am_warning, am_error is 
+Eterm erts_error_logger_warnings; /* What to map warning logs to, am_error,
+				     am_info or am_warning, am_error is
 				     the default for BC */
 
 int erts_compat_rel;
@@ -187,10 +188,6 @@ static int no_dirty_io_schedulers;
 #ifdef DEBUG
 Uint32 verbose;             /* See erl_debug.h for information about verbose */
 #endif
-
-int erts_disable_tolerant_timeofday; /* Time correction can be disabled it is
-				      * not and/or it is too slow.
-				      */
 
 int erts_atom_table_size = ATOM_LIMIT;	/* Maximum number of atoms */
 
@@ -238,15 +235,15 @@ has_prefix(const char *prefix, const char *string)
 }
 
 static char*
-progname(char *fullname) 
+progname(char *fullname)
 {
     int i;
-    
+
     i = strlen(fullname);
     while (i >= 0) {
-	if ((fullname[i] != '/') && (fullname[i] != '\\')) 
+	if ((fullname[i] != '/') && (fullname[i] != '\\'))
 	    i--;
-	else 
+	else
 	    break;
     }
     return fullname+i+1;
@@ -260,11 +257,11 @@ this_rel_num(void)
     if (this_rel < 1) {
 	int i;
 	char this_rel_str[] = ERLANG_OTP_RELEASE;
-	    
+
 	i = 0;
 	while (this_rel_str[i] && !isdigit((int) this_rel_str[i]))
 	    i++;
-	this_rel = atoi(&this_rel_str[i]); 
+	this_rel = atoi(&this_rel_str[i]);
 	if (this_rel < 1)
 	    erl_exit(-1, "Unexpected ERLANG_OTP_RELEASE format\n");
     }
@@ -377,7 +374,7 @@ erl_first_process_otp(char* modname, void* code, unsigned size, int argc, char**
     Process parent;
     ErlSpawnOpts so;
     Eterm env;
-    
+
     start_mod = erts_atom_put((byte *) modname, sys_strlen(modname), ERTS_ATOM_ENC_LATIN1, 1);
     if (erts_find_function(start_mod, am_start, 2,
 			   erts_active_code_ix()) == NULL) {
@@ -458,7 +455,7 @@ get_arg(char* rest, char* next, int* ip)
     return rest;
 }
 
-static void 
+static void
 load_preloaded(void)
 {
     int i;
@@ -477,7 +474,7 @@ load_preloaded(void)
 	length = preload_p[i].size;
 	module_name = erts_atom_put((byte *) name, sys_strlen(name), ERTS_ATOM_ENC_LATIN1, 1);
 	if ((code = sys_preload_begin(&preload_p[i])) == 0)
-	    erl_exit(1, "Failed to find preloaded code for module %s\n", 
+	    erl_exit(1, "Failed to find preloaded code for module %s\n",
 		     name);
 	res = erts_preload_module(NULL, 0, NIL, &module_name, code, length);
 	sys_preload_end(&preload_p[i]);
@@ -685,7 +682,7 @@ early_init(int *argc, char **argv) /*
 
     erts_sched_compact_load = 1;
     erts_printf_eterm_func = erts_printf_term;
-    erts_disable_tolerant_timeofday = 0;
+    erts_tolerant_timeofday.disable = 0;
     display_items = 200;
     erts_backtrace_depth = DEFAULT_BACKTRACE_SIZE;
     erts_async_max_threads = ERTS_DEFAULT_NO_ASYNC_THREADS;
@@ -697,6 +694,7 @@ early_init(int *argc, char **argv) /*
 
     erts_use_sender_punish = 1;
 
+    erts_init_cpu_features();
     erts_pre_early_init_cpu_topology(&max_reader_groups,
 				     &ncpu,
 				     &ncpuonln,
@@ -1135,7 +1133,7 @@ early_init(int *argc, char **argv) /*
 #ifdef ERTS_ENABLE_LOCK_CHECK
     erts_lc_late_init();
 #endif
-    
+
 #ifdef ERTS_ENABLE_LOCK_COUNT
     erts_lcnt_late_init();
 #endif
@@ -1168,10 +1166,10 @@ static void set_main_stack_size(void)
 	    erts_fprintf(stderr, "failed to set stack size for scheduler "
 				 "thread to %d bytes\n", bytes);
 	    erts_usage();
-	}	    
+	}
 # else
 	erts_fprintf(stderr, "no OS support for dynamic stack size limit\n");
-	erts_usage();    
+	erts_usage();
 # endif
     }
 }
@@ -1237,7 +1235,7 @@ erl_start(int argc, char **argv)
 
 	    /*
 	     * NOTE: -M flags are handled (and removed from argv) by
-	     * erts_alloc_init(). 
+	     * erts_alloc_init().
 	     *
 	     * The -d, -m, -S, -t, and -T flags was removed in
 	     * Erlang 5.3/OTP R9C.
@@ -1883,7 +1881,7 @@ erl_start(int argc, char **argv)
 	    /* suggested stack size (Kilo Words) for threads in thread pool */
 	    arg = get_arg(argv[i]+2, argv[i+1], &i);
 	    erts_async_thread_suggested_stack_size = atoi(arg);
-	    
+
 	    if ((erts_async_thread_suggested_stack_size
 		 < ERTS_ASYNC_THREAD_MIN_STACK_SIZE)
 		|| (erts_async_thread_suggested_stack_size >
@@ -1911,7 +1909,7 @@ erl_start(int argc, char **argv)
 	}
 	case 'c':
 	    if (argv[i][2] == 0) { /* -c: documented option */
-		erts_disable_tolerant_timeofday = 1;
+		erts_tolerant_timeofday.disable = 1;
 	    }
 #ifdef ERTS_OPCODE_COUNTER_SUPPORT
 	    else if (argv[i][2] == 'i') { /* -ci: undcoumented option*/

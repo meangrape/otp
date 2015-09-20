@@ -70,6 +70,9 @@
  *
  */
 
+/* prevent type conflict in erl_time.h */
+#define HIDE_ERTS_DO_TIME   1
+
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
@@ -122,6 +125,26 @@ typedef Uint        tiw_count_t;
 #endif
 
 /*
+ * EXPERIMENTAL!
+ *
+ * Support for splitting each wheel into multiple lock sections.
+ *
+ * TIW_SLOT_GROUPS absolutely MUST be a power of 2!
+ */
+#ifdef ERTS_SMP
+#define TIW_SLOT_GROUPS     (1 << 0)
+#define TIW_SLOTS_PER_GROUP (ERTS_TIW_SIZE >> (TIW_SLOT_GROUPS - 1))
+#else
+#define TIW_SLOT_GROUPS     0
+#define TIW_SLOTS_PER_GROUP ERTS_TIW_SIZE
+#endif
+#define USE_SLOT_GROUPS     (TIW_SLOT_GROUPS > 1)
+
+#if (TIW_SLOT_GROUPS > 1)
+#error  Timer wheel slot groups implementation is not complete!
+#endif
+
+/*
     BEGIN wheel->sync protected variables
 
     The individual timer cells in each wheel are protected by the same mutex.
@@ -153,7 +176,7 @@ typedef struct
 struct erl_timer_wheel_
 {
 #ifdef ERTS_SMP
-    erts_smp_mtx_t          sync[1];
+    erts_smp_mtx_t          sync[TIW_SLOT_GROUPS];
 #endif
 #if ERTS_MULTI_TIW
     ErlTimerWheel *         next;   /* all wheels are linked in a ring */
@@ -169,26 +192,27 @@ struct erl_timer_wheel_
     TimerWheelEntry         timers[ERTS_TIW_SIZE];
 };
 
+#ifdef ERTS_SMP
+#if (TIW_SLOT_GROUPS > 1)
 static ERTS_INLINE void tiw_lock_init(ErlTimerWheel * wheel)
 {
-#ifdef ERTS_SMP
-    erts_smp_mtx_init(wheel->sync, "timer_wheel");
-#endif
+    unsigned  x;
+    for (x = 0; x < TIW_SLOT_GROUPS; ++x)
+        erts_smp_mtx_init((wheel->sync + x), "timer_wheel");
 }
+#else
+#define tiw_lock_init(TIW)      erts_smp_mtx_init((TIW)->sync, "timer_wheel")
+#endif
+#define tiw_lock_acquire(TIW)   erts_smp_mtx_lock((TIW)->sync)
+#define tiw_lock_release(TIW)   erts_smp_mtx_unlock((TIW)->sync)
 
-static ERTS_INLINE void tiw_lock_acquire(ErlTimerWheel * wheel)
-{
-#ifdef ERTS_SMP
-    erts_smp_mtx_lock(wheel->sync);
-#endif
-}
+#else   /* ! ERTS_SMP */
 
-static ERTS_INLINE void tiw_lock_release(ErlTimerWheel * wheel)
-{
-#ifdef ERTS_SMP
-    erts_smp_mtx_unlock(wheel->sync);
-#endif
-}
+#define tiw_lock_init(TIW)
+#define tiw_lock_acquire(TIW)
+#define tiw_lock_release(TIW)
+
+#endif  /* ERTS_SMP */
 
 /*
     END wheel->sync protected variables
@@ -278,10 +302,10 @@ static int tiw_itime; /* Constant after init */
  *  Current ticks handling
  */
 
-erts_smp_atomic32_t do_time;    /* set at clock interrupt */
+TIME_SUP_ALIGNED_VAR(erts_smp_atomic32_t, erts_do_time);
 
-#define do_time_init()      erts_smp_atomic32_init_nob(& do_time, 0)
-#define READ_DO_TIME        erts_smp_atomic32_read_acqb(& do_time)
+#define do_time_init()      erts_smp_atomic32_init_nob(erts_do_time, 0)
+#define READ_DO_TIME        erts_smp_atomic32_read_acqb(erts_do_time)
 #define s_do_time_read()    ((s_short_time_t) READ_DO_TIME)
 #define s_do_time_update()  ((s_short_time_t) READ_DO_TIME)
 #define u_do_time_read()    ((u_short_time_t) READ_DO_TIME)

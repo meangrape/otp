@@ -212,7 +212,7 @@ typedef struct {
     erts_atomic32_t pref_wakeup_used;
     erts_atomic32_t managed_count;
     erts_atomic32_t managed_id;
-    erts_atomic32_t unmanaged_id;    
+    erts_atomic32_t unmanaged_id;
     int chk_next_ix;
     struct {
 	int waiting;
@@ -470,7 +470,7 @@ erts_thr_progress_init(int no_schedulers, int managed, int unmanaged)
 	for (j = 0; j < um_high; j++)
 	    erts_atomic32_init_nob(&intrnl->unmanaged.data[i]->high[j], 0);
 	intrnl->unmanaged.data[i]->low
-	    = &intrnl->unmanaged.data[i]->high[um_high];	
+	    = &intrnl->unmanaged.data[i]->high[um_high];
 	intrnl->unmanaged.data[i]->low_sz = um_low;
 	for (j = 0; j < um_low; j++)
 	    erts_atomic32_init_nob(&intrnl->unmanaged.data[i]->low[j], 0);
@@ -865,7 +865,7 @@ erts_thr_progress_prepare_wait(ErtsSchedulerData *esdp)
     if ((lflgs & (ERTS_THR_PRGR_LFLG_NO_LEADER
 		  | ERTS_THR_PRGR_LFLG_WAITING_UM
 		  | ERTS_THR_PRGR_LFLG_ACTIVE_MASK))
-	== ERTS_THR_PRGR_LFLG_NO_LEADER 
+	== ERTS_THR_PRGR_LFLG_NO_LEADER
 	&& got_sched_wakeups()) {
 	/* Someone need to make progress */
 	wakeup_managed(0);
@@ -1349,7 +1349,7 @@ erts_thr_progress_fatal_error_block(SWord timeout,
      * if cpu is busy. If we got tolerant time of day we use it
      * to prevent this.
      */
-    if (!erts_disable_tolerant_timeofday) {
+    if (! erts_tolerant_timeofday.disable) {
 	erts_get_timeval(&to);
 	to.tv_sec += timeout / 1000;
 	to.tv_sec += timeout % 1000;
@@ -1378,7 +1378,7 @@ erts_thr_progress_fatal_error_block(SWord timeout,
 	    break; /* Succefully blocked all managed threads */
 	if (time_left <= 0)
 	    break; /* Timeout */
-	if (!erts_disable_tolerant_timeofday) {
+	if (! erts_tolerant_timeofday.disable) {
 	    SysTimeval now;
 	    erts_get_timeval(&now);
 	    if (now.tv_sec > to.tv_sec)
@@ -1495,7 +1495,7 @@ void erts_thr_progress_dbg_print_state(void)
 		);
     }
     erts_fprintf(stderr, "-----------------------\n");
-    
+
 
 }
 

@@ -24,11 +24,8 @@
 #define ERTS_SHORT_TIME_T_MIN ERTS_AINT32_T_MIN
 typedef erts_aint32_t erts_short_time_t;
 
-/* defined in time.c, set at clock interrupt */
-extern erts_smp_atomic32_t  do_time;
-
 /*
- * Timer wheel size MUST be a power of 2
+ * ERTS_TIW_SIZE absolutely MUST be a power of 2!
  *
  * This is a tradeoff - the larger the wheel, the fewer entries there are
  * likely to be in any given slot, so list traversal in the slot is shorter.
@@ -166,25 +163,21 @@ void erts_init_time(void);
 void erts_p_slpq(void);
 #endif
 
+#ifndef HIDE_ERTS_DO_TIME
+/* set at clock interrupt */
+extern erts_smp_atomic32_t  erts_do_time[1];
 ERTS_GLB_INLINE erts_short_time_t erts_do_time_read_and_reset(void);
-ERTS_GLB_INLINE void erts_do_time_add(erts_short_time_t);
 
 #if ERTS_GLB_INLINE_INCL_FUNC_DEF
-
 ERTS_GLB_INLINE erts_short_time_t erts_do_time_read_and_reset(void)
 {
-    erts_short_time_t time = erts_smp_atomic32_xchg_acqb(&do_time, 0);
+    erts_short_time_t time = erts_smp_atomic32_xchg_acqb(erts_do_time, 0);
     if (time < 0)
         erl_exit(ERTS_ABORT_EXIT, "Internal time management error\n");
     return time;
 }
-
-ERTS_GLB_INLINE void erts_do_time_add(erts_short_time_t elapsed)
-{
-    erts_smp_atomic32_add_relb(&do_time, elapsed);
-}
-
-#endif /* #if ERTS_GLB_INLINE_INCL_FUNC_DEF */
+#endif  /* ERTS_GLB_INLINE_INCL_FUNC_DEF */
+#endif  /* HIDE_ERTS_DO_TIME */
 
 /* time_sup */
 

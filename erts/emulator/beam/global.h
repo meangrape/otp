@@ -63,7 +63,7 @@ extern void erl_nif_init(void);
 /* Driver handle (wrapper for old plain handle) */
 #define ERL_DE_OK      0
 #define ERL_DE_UNLOAD  1
-#define ERL_DE_FORCE_UNLOAD 2 
+#define ERL_DE_FORCE_UNLOAD 2
 #define ERL_DE_RELOAD  3
 #define ERL_DE_FORCE_RELOAD  4
 #define ERL_DE_PERMANENT 5
@@ -96,7 +96,7 @@ extern void erl_nif_init(void);
 typedef struct de_proc_entry {
     Process *proc;                   /* The process... */
     Uint    awaiting_status;         /* PROC_LOADED == Have loaded the driver
-			                PROC_AWAIT_UNLOAD == Wants to be notified 
+			                PROC_AWAIT_UNLOAD == Wants to be notified
 			                when we have unloaded the driver (was locked)
 			                PROC_AWAIT_LOAD == Wants to be notified when we
 			                reloaded the driver (old was locked) */
@@ -154,10 +154,10 @@ struct erts_driver_t_ {
 			 unsigned int *flags);
     void (*event)(ErlDrvData drv_data, ErlDrvEvent event,
 		  ErlDrvEventData event_data);
-    void (*ready_input)(ErlDrvData drv_data, ErlDrvEvent event); 
-    void (*ready_output)(ErlDrvData drv_data, ErlDrvEvent event);  
+    void (*ready_input)(ErlDrvData drv_data, ErlDrvEvent event);
+    void (*ready_output)(ErlDrvData drv_data, ErlDrvEvent event);
     void (*timeout)(ErlDrvData drv_data);
-    void (*ready_async)(ErlDrvData drv_data, ErlDrvThreadData thread_data); /* Might be NULL */ 
+    void (*ready_async)(ErlDrvData drv_data, ErlDrvThreadData thread_data); /* Might be NULL */
     void (*process_exit)(ErlDrvData drv_data, ErlDrvMonitor *monitor);
     void (*stop_select)(ErlDrvEvent event, void*); /* Might be NULL */
     void (*emergency_close)(ErlDrvData drv_data);  /* Might be NULL */
@@ -193,7 +193,7 @@ extern Eterm erts_ddll_monitor_driver(Process *p,
 ** Note that the two structures Binary and ErlDrvBinary HAVE to
 ** be equal except for extra fields in the beginning of the struct.
 ** ErlDrvBinary is defined in erl_driver.h.
-** When driver_alloc_binary is called, a Binary is allocated, but 
+** When driver_alloc_binary is called, a Binary is allocated, but
 ** the pointer returned is to the address of the first element that
 ** also occurs in the ErlDrvBinary struct (driver.*binary takes care if this).
 ** The driver need never know about additions to the internal Binary of the
@@ -319,7 +319,7 @@ erts_mk_magic_binary_term(Eterm **hpp, ErlOffHeap *ohp, Binary *mbp)
 
     erts_refc_inc(&mbp->refc, 1);
 
-    return make_binary(pb);    
+    return make_binary(pb);
 }
 
 #endif
@@ -347,7 +347,9 @@ extern Uint display_items;	/* no of items to display in traces etc */
 extern int erts_backtrace_depth;
 extern erts_smp_atomic32_t erts_max_gen_gcs;
 
-extern int erts_disable_tolerant_timeofday;
+#ifndef HIDE_ERTS_TTOD_DISABLE
+extern struct {char volatile disable;} erts_tolerant_timeofday;
+#endif  /* HIDE_ERTS_TTOD_DISABLE */
 
 extern int bif_reductions;      /* reductions + fcalls (when doing call_bif) */
 extern int stackdump_on_exit;
@@ -618,7 +620,7 @@ erts_bld_port_info(Eterm **hpp,
 		   ErlOffHeap *ohp,
 		   Uint *szp,
 		   Port *prt,
-		   Eterm item); 
+		   Eterm item);
 
 void erts_bif_info_init(void);
 
@@ -914,14 +916,14 @@ Sint erts_unicode_set_loop_limit(Sint limit);
 void erts_native_filename_put(Eterm ioterm, int encoding, byte *p) ;
 Sint erts_native_filename_need(Eterm ioterm, int encoding);
 void erts_copy_utf8_to_utf16_little(byte *target, byte *bytes, int num_chars);
-int erts_analyze_utf8(byte *source, Uint size, 
+int erts_analyze_utf8(byte *source, Uint size,
 			byte **err_pos, Uint *num_chars, int *left);
-int erts_analyze_utf8_x(byte *source, Uint size, 
+int erts_analyze_utf8_x(byte *source, Uint size,
 			byte **err_pos, Uint *num_chars, int *left,
 			Sint *num_latin1_chars, Uint max_chars);
-char *erts_convert_filename_to_native(Eterm name, char *statbuf, 
-				      size_t statbuf_size, 
-				      ErtsAlcType_t alloc_type, 
+char *erts_convert_filename_to_native(Eterm name, char *statbuf,
+				      size_t statbuf_size,
+				      ErtsAlcType_t alloc_type,
 				      int allow_empty, int allow_atom,
 				      Sint *used /* out */);
 char *erts_convert_filename_to_encoding(Eterm name, char *statbuf,
@@ -954,7 +956,7 @@ struct Sint_buf {
 #else
     char s[12];
 #endif
-};	
+};
 char* Sint_to_buf(Sint, struct Sint_buf*);
 
 #define ERTS_IOLIST_STATE_INITER(C_P, OBJ)	\
@@ -1086,7 +1088,7 @@ do {								\
 #define MatchSetGetSource(MPSP) erts_match_set_get_source(MPSP)
 
 extern Binary *erts_match_set_compile(Process *p, Eterm matchexpr);
-Eterm erts_match_set_lint(Process *p, Eterm matchexpr); 
+Eterm erts_match_set_lint(Process *p, Eterm matchexpr);
 extern void erts_match_set_release_result(Process* p);
 
 enum erts_pam_run_flags {
@@ -1095,7 +1097,7 @@ enum erts_pam_run_flags {
     ERTS_PAM_CONTIGUOUS_TUPLE=4,
     ERTS_PAM_IGNORE_TRACE_SILENT=8
 };
-extern Eterm erts_match_set_run(Process *p, Binary *mpsp, 
+extern Eterm erts_match_set_run(Process *p, Binary *mpsp,
 				Eterm *args, int num_args,
 				enum erts_pam_run_flags in_flags,
 				Uint32 *return_flags);
