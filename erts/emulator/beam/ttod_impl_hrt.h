@@ -73,12 +73,10 @@ typedef struct      /* 16 bytes */
 }
     ttod_hrt_ts_pair_t;
 
-//#define volatile
 static volatile TIME_SUP_ALIGNED_VAR(s_nanosecs_t,          ttod_hrt_corr);
 static volatile TIME_SUP_ALIGNED_VAR(u_nanosecs_t,          ttod_hrt_last);
 static volatile TIME_SUP_ALIGNED_VAR(ttod_hrt_ts_pair_t,    ttod_hrt_sync);
 static volatile TIME_SUP_ALIGNED_VAR(ttod_hrt_ts_pair_t,    ttod_hrt_init);
-//#undef  volatile
 
 static TIME_SUP_ALIGNED_VAR(erts_smp_mtx_t, ttod_hrt_lock);
 
@@ -256,6 +254,7 @@ static get_ttod_f init_ttod_hrt(const char ** name)
         }
     }
 #endif
+    sys_init_hrtime();
 
     sys_memset((void *) ttod_hrt_corr, 0, sizeof(ttod_hrt_corr));
     sys_memset((void *) ttod_hrt_last, 0, sizeof(ttod_hrt_last));
@@ -263,7 +262,7 @@ static get_ttod_f init_ttod_hrt(const char ** name)
     sys_memset((void *) ttod_hrt_init, 0, sizeof(ttod_hrt_init));
 
     sys_memset(ttod_hrt_lock, 0, sizeof(ttod_hrt_lock));
-    erts_smp_mtx_init(ttod_hrt_lock, "TTOD HRT");
+    erts_smp_mtx_init(ttod_hrt_lock, "tolerant_timeofday");
 
     fetch_ttod_hrt_ts_pair((ttod_hrt_ts_pair_t *) ttod_hrt_init);
     *ttod_hrt_sync = *ttod_hrt_init;

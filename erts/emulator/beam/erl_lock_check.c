@@ -168,6 +168,7 @@ static erts_lc_lock_order_t erts_lock_order[] = {
     {	"timer_wheel",				NULL			},
     {	"system_block",				NULL			},
     {	"timeofday",				NULL			},
+    {	"tolerant_timeofday",			"address"		},
     {	"breakpoints",				NULL			},
     {	"pollsets_lock",			NULL			},
     {	"pix_lock",				"address"		},

@@ -1,6 +1,7 @@
 /*
  * %CopyrightBegin%
  *
+ * Copyright Basho Technologies, Inc 2015. All Rights Reserved.
  * Copyright Ericsson AB 1999-2012. All Rights Reserved.
  *
  * The contents of this file are subject to the Erlang Public License,

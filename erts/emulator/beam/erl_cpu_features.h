@@ -41,8 +41,16 @@
 #define CPU_ARCH_X86                1
 #define CPU_ARCH_X86_64             1
 #define CPU_HAVE_DIRECT_ATOMIC_128  1
+/* TODO: come up with a better test for this */
+#ifdef  DEBUG
+#define CPU_USE_GCC_ATOMIC_128_ASM  1
+#else
+#define CPU_USE_GCC_ATOMIC_128_ASM  0
+#endif  /* use old GCC 128-bit intrinsics */
+#include <x86intrin.h>
 # elif  defined(__i386__)
 #define CPU_ARCH_X86                1
+#include <x86intrin.h>
 # endif /* architecture */
 #define CPU_FORCE_INLINE    __inline__ __attribute__((__always_inline__))
 
@@ -196,15 +204,45 @@ cpu_compare_and_swap_64(volatile void * dest, void * src, void * expect)
 static CPU_FORCE_INLINE void
 cpu_atomic_load_128(volatile void * src, void * dest)
 {
+#if CPU_USE_GCC_ATOMIC_128_ASM
+    do
+    {   /* yields a consistent copy at some instant */
+        ((Uint64 *) dest)[0] = ((volatile Uint64 *) src)[0];
+        ((Uint64 *) dest)[1] = ((volatile Uint64 *) src)[1];
+    }
+    while (((Uint64 *) dest)[0] != ((volatile Uint64 *) src)[0]);
+#else
     __atomic_load(
         (volatile __int128 *) src, (__int128 *) dest, __ATOMIC_RELAXED);
+#endif  /* CPU_USE_GCC_ATOMIC_128_ASM */
 }
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_128(volatile void * dest, void * src, void * expect)
 {
+#if CPU_USE_GCC_ATOMIC_128_ASM
+    /*
+     * Not the absolute most efficient implementation, but good enough.
+     * In particular, it always writes the value back to 'expect' even if it
+     * hasn't changed. Then again, that may not cost any more than a
+     * conditional jump.
+     * This code SHOULD only get used in debug builds, where the intrinsic
+     * isn't found by the linker.
+     */
+    unsigned char ret;
+    __asm__ __volatile__ (
+                "lock"
+        "\n\t"  "cmpxchg16b (%0)"
+        "\n\t"  "setz    %1"
+        : "+mr" (dest), "=c" (ret),
+          "+a" (((Uint64 *) expect)[0]), "+d" (((Uint64 *) expect)[1])
+        : "b" (((Uint64 *) src)[0]), "c" (((Uint64 *) src)[1])
+        : "cc" );
+    return  ret;
+#else
     return __atomic_compare_exchange(
         (volatile __int128 *) dest, (__int128 *) expect, (__int128 *) src,
         0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+#endif  /* CPU_USE_GCC_ATOMIC_128_ASM */
 }
 #elif   defined(CPU_HAVE_MSVC_INTRINSICS)
 #pragma intrinsic(_InterlockedCompareExchange128)

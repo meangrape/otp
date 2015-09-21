@@ -70,6 +70,9 @@
  *
  */
 
+/* disable debug messages */
+#define TIME_INTERNAL_DEBUG 0
+
 /* prevent type conflict in erl_time.h */
 #define HIDE_ERTS_DO_TIME   1
 
@@ -277,8 +280,9 @@ static ERTS_INLINE ErlTimerWheel * sched_timer_wheel(void)
 }
 static ERTS_INLINE ErlTimerWheel * timer_timer_wheel(ErlTimer * timer)
 {
+    ErlTimerWheel * wheel;
     ASSERT(timer != NULL);
-    ErlTimerWheel * const wheel = timer->wheel;
+    wheel = timer->wheel;
     ASSERT(wheel != NULL);
     return wheel;
 }
@@ -520,7 +524,7 @@ void erts_bump_timer(erts_short_time_t dt)
 #if ERTS_MULTI_TIW
     unsigned  const wc = tiw_instances;
     unsigned        wx;
-    DBG_FMT("bump_timer(%d) stsrting at wheel[%u]", dt, timer_wheel_id(wheel));
+    DBG_FMT("bump_timer(%d) starting at wheel[%u]", dt, timer_wheel_id(wheel));
 #define TIW_ITERATE for (wx = 0; wx < wc; ++wx, wheel = wheel->next)
 #else
     DBG_FMT("bump_timer(%d)", dt);
@@ -716,12 +720,13 @@ void erts_set_timer(
     }
     else    /* slot is not empty, insert timer between head and tail */
     {
+        ErlTimer *  pos;
         /* find the last timer with a count <= to this one */
         /* 'pos' should never be NULL after the 'tail' check above */
         DBG_FMT("insert timer %p count %u into wheel[%u]->slot[%u]",
             timer, count, timer_wheel_id(wheel), timer->slot);
 
-        ErlTimer *  pos = entry->head;
+        pos = entry->head;
         while (pos->count <= count)
             pos = pos->next;
         timer->next = pos;
@@ -864,6 +869,9 @@ void erts_init_time(void)
 #define TIW_ALLOC_DATA  timer_wheel
 #define TIW_ALLOC_SIZE  sizeof(ErlTimerWheel)
 #endif
+#ifdef TIW_ITIME_IS_CONSTANT
+    int itime;
+#endif
     DBG_NL();
     DBG_MSG("Initializing timer wheels");
     ASSERT(TIW_ALLOC_DATA == NULL);
@@ -872,7 +880,7 @@ void erts_init_time(void)
         must be done before do_time_init()  if timer thread is enabled
     */
 #ifdef TIW_ITIME_IS_CONSTANT
-    int itime = erts_init_time_sup();
+    itime = erts_init_time_sup();
     if (itime != TIW_ITIME)
         erl_exit(ERTS_ABORT_EXIT,
             "timer resolution mismatch %d != %d", itime, TIW_ITIME);
