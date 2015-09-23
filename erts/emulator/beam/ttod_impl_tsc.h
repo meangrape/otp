@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  *
- * Copyright Basho Technologies, Inc 2015. All Rights Reserved.
+ * Copyright Basho Technologies, Inc 2014,2015. All Rights Reserved.
  *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
@@ -86,10 +86,10 @@ static volatile TIME_SUP_ALIGNED_VAR(ttod_tsc_ts_pair_t,    ttod_tsc_last);
 static volatile TIME_SUP_ALIGNED_VAR(ttod_tsc_ts_pair_t,    ttod_tsc_init);
 static volatile TIME_SUP_ALIGNED_VAR(u_ticks_t,             ttod_tsc_minmax);
 
-#define TTOD_TSC_REQ_CPU_FEATS \
-    (ERTS_CPU_FEAT_X86_TSCP|ERTS_CPU_FEAT_X86_TSCS|ERTS_CPU_FEAT_X86_CX16)
-/* be paranoid - Intel or AMD only! */
+/* be paranoid - Intel or AMD x86_64 only! */
 #define TTOD_TSC_REQ_CPU_VENDS  (ERTS_CPU_VEND_INTEL|ERTS_CPU_VEND_AMD)
+#define TTOD_TSC_REQ_CPU_FEATS  (ERTS_CPU_ARCH_X86_64 \
+    |ERTS_CPU_FEAT_X86_TSCP|ERTS_CPU_FEAT_X86_TSCS|ERTS_CPU_FEAT_X86_CX16)
 
 /* ensures fixed order */
 static CPU_FORCE_INLINE Uint64

@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  *
- * Copyright Basho Technologies, Inc 2015. All Rights Reserved.
+ * Copyright Basho Technologies, Inc 2014,2015. All Rights Reserved.
  *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
@@ -135,7 +135,7 @@ x86_test_std_1:
 */
     CPU_GET_CPUID(1);
     if (ECX & (1u << 13))
-        erts_cpu_features |= ERTS_CPU_FEAT_X86_CX16;
+        erts_cpu_features |= (ERTS_CPU_FEAT_X86_CX16|ERTS_CPU_FEAT_ATOMIC_128);
     if (ECX & (1u << 20))
         erts_cpu_features |= ERTS_CPU_FEAT_X86_CRC32;
     if (ECX & (1u << 25))
@@ -171,7 +171,7 @@ x86_test_ext1:
         erts_cpu_features |= ERTS_CPU_FEAT_X86_TSCP;
 #if !CPU_ARCH_X86_64
     if (EDX & (1u << 29))
-        erts_cpu_features |= ERTS_CPU_FEAT_64_BIT;
+        erts_cpu_features |= (ERTS_CPU_ARCH_X86_64|ERTS_CPU_FEAT_64_BIT);
 #endif
 
 #endif  /* IDENTIFY_X86_FEATURES */

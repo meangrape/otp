@@ -2,6 +2,7 @@
  * %CopyrightBegin%
  *
  * Copyright Basho Technologies, Inc 2015. All Rights Reserved.
+ * Copyright Ericsson AB 1999-2012. All Rights Reserved.
  *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
@@ -42,9 +43,8 @@
  * TODO: Eliminate the mutex!
  */
 
-#if     defined(HAVE_GETHRTIME) \
-    &&  CPU_HAVE_DIRECT_ATOMIC_OPS && CPU_HAVE_DIRECT_ATOMIC_128 \
-    &&  (CPU_HAVE_GCC_INTRINSICS || CPU_HAVE_MSVC_INTRINSICS)
+#if defined(HAVE_GETHRTIME) \
+    &&  CPU_HAVE_DIRECT_ATOMIC_OPS && CPU_HAVE_DIRECT_ATOMIC_128
 #undef  HAVE_TTOD_HRT
 #define HAVE_TTOD_HRT 1
 #endif  /* requirements check */
@@ -73,15 +73,21 @@ typedef struct      /* 16 bytes */
 }
     ttod_hrt_ts_pair_t;
 
-static volatile TIME_SUP_ALIGNED_VAR(s_nanosecs_t,          ttod_hrt_corr);
-static volatile TIME_SUP_ALIGNED_VAR(u_nanosecs_t,          ttod_hrt_last);
+typedef struct      /* 16 bytes */
+{
+    s_nanosecs_t    adj;    /* current correction bias  */
+    u_nanosecs_t    hrt;    /* last update              */
+}
+    ttod_hrt_current_t;
+
+static volatile TIME_SUP_ALIGNED_VAR(ttod_hrt_current_t,    ttod_hrt_stat);
 static volatile TIME_SUP_ALIGNED_VAR(ttod_hrt_ts_pair_t,    ttod_hrt_sync);
 static volatile TIME_SUP_ALIGNED_VAR(ttod_hrt_ts_pair_t,    ttod_hrt_init);
 
-static TIME_SUP_ALIGNED_VAR(erts_smp_mtx_t, ttod_hrt_lock);
+#define TTOD_HRT_REQ_CPU_FEATS  (ERTS_CPU_FEAT_64_BIT|ERTS_CPU_FEAT_ATOMIC_128)
 
 /* how many nanroseconds between resyncs */
-#define TTOD_HRT_NANOS_PER_RESYNC   (HND_MILLION * 750)
+#define TTOD_HRT_NANOS_PER_RESYNC   (ONE_MILLION * 750)
 
 #define s_sys_gethrtime()   ((s_nanosecs_t) sys_gethrtime())
 #define u_sys_gethrtime()   ((u_nanosecs_t) sys_gethrtime())
@@ -118,6 +124,20 @@ swap_ttod_hrt_ts_pair(volatile ttod_hrt_ts_pair_t * dest,
 {
     return cpu_compare_and_swap_128(dest, src, expect);
 }
+
+static CPU_FORCE_INLINE void
+load_ttod_hrt_current(
+    volatile ttod_hrt_current_t * src, ttod_hrt_current_t * dest)
+{
+    cpu_atomic_load_128(src, dest);
+}
+
+static CPU_FORCE_INLINE int
+swap_ttod_hrt_current(volatile ttod_hrt_current_t * dest,
+    ttod_hrt_current_t * src, ttod_hrt_current_t * expect)
+{
+    return cpu_compare_and_swap_128(dest, src, expect);
+}
 /*
  * End of 16-byte structure atomic operations
  */
@@ -133,14 +153,12 @@ swap_ttod_hrt_ts_pair(volatile ttod_hrt_ts_pair_t * dest,
 static u_microsecs_t get_ttod_hrt(void)
 {
     ttod_hrt_ts_pair_t  init_tp, sync_tp;
-    u_nanosecs_t        curr_ns;
+    ttod_hrt_current_t  last, curr;
     s_nanosecs_t        diff_ns;
 
-    erts_smp_mtx_lock(ttod_hrt_lock);
-
+    curr.hrt = u_sys_gethrtime();
     load_ttod_hrt_ts_pair(ttod_hrt_init, & init_tp);
-    curr_ns = u_sys_gethrtime();
-    diff_ns = (s_nanosecs_t) (curr_ns - init_tp.hrt);
+    diff_ns = (s_nanosecs_t) (curr.hrt - init_tp.hrt);
 
     if (diff_ns < 0)
     {
@@ -154,19 +172,26 @@ static u_microsecs_t get_ttod_hrt(void)
         return  TTOD_FAIL_PERMANENT;
     }
     load_ttod_hrt_ts_pair(ttod_hrt_sync, & sync_tp);
-    diff_ns += *ttod_hrt_corr;
+    load_ttod_hrt_current(ttod_hrt_stat, & last);
+    diff_ns += (curr.adj = last.adj);
 
-    if ((curr_ns - sync_tp.hrt) > TTOD_HRT_NANOS_PER_RESYNC)
+    if ((curr.hrt - sync_tp.hrt) > TTOD_HRT_NANOS_PER_RESYNC)
     {
         ttod_hrt_ts_pair_t  curr_tp;
-        s_nanosecs_t        diff_hrt, diff_tod, diff_calc;
+        s_nanosecs_t        diff_hrt, diff_tod, diff_calc, diff_abs;
         int                 new_sync = 0;
 
         fetch_ttod_hrt_ts_pair(& curr_tp);
+        curr.hrt  = curr_tp.hrt;
         diff_hrt  = (s_nanosecs_t) (curr_tp.hrt - init_tp.hrt);
-        diff_ns   = (((s_nanosecs_t) diff_hrt) + *ttod_hrt_corr);
+        diff_ns   = (diff_hrt + last.adj);
         diff_tod  = (s_nanosecs_t) (curr_tp.tod - init_tp.tod);
         diff_calc = (diff_ns - diff_tod);
+#if 1   /* should be intrinsic in just about all cases */
+        diff_abs  = llabs(diff_calc);
+#else
+        diff_abs  = (diff_calc < 0) ? (0 - diff_calc) : diff_calc;
+#endif
         /*
          * only re-calculate the correction if they differ by more than
          * 0.01 second (ten milliseconds)
@@ -175,48 +200,29 @@ static u_microsecs_t get_ttod_hrt(void)
          * time was fetched, so if that was less than 100ns ago no change
          * will be applied - might be a problem on a heavily loaded system
          */
-        if (diff_calc > TEN_MILLION)
+        if (diff_abs > TEN_MILLION)
         {
-            /* decrease correction */
             const s_nanosecs_t  corr_pct =
-                (s_nanosecs_t) ((curr_tp.hrt - *ttod_hrt_last) / ONE_HUNDRED);
-            if (corr_pct >= diff_calc)
+                (s_nanosecs_t) ((curr.hrt - last.hrt) / ONE_HUNDRED);
+            if (corr_pct >= diff_abs)
             {
-                *ttod_hrt_corr -= diff_calc;
+                curr.adj -= diff_calc;
                 new_sync = 1;
             }
+            else if (diff_calc < 0)
+                curr.adj += corr_pct;
             else
-                *ttod_hrt_corr -= corr_pct;
+                curr.adj -= corr_pct;
 
-            diff_ns = (((s_nanosecs_t) diff_hrt) + *ttod_hrt_corr);
-        }
-        else if (diff_calc < -TEN_MILLION)
-        {
-            /* increase correction */
-            const s_nanosecs_t  corr_pct =
-                (s_nanosecs_t) ((curr_tp.hrt - *ttod_hrt_last) / ONE_HUNDRED);
-            if (corr_pct >= -diff_calc)
-            {
-                *ttod_hrt_corr -= diff_calc;
-                new_sync = 1;
-            }
-            else
-                *ttod_hrt_corr += corr_pct;
-
-            diff_ns = (((s_nanosecs_t) diff_hrt) + *ttod_hrt_corr);
+            diff_ns = (((s_nanosecs_t) diff_hrt) + curr.adj);
         }
         else
             new_sync = 1;
 
         if (new_sync)
             swap_ttod_hrt_ts_pair(ttod_hrt_sync, & curr_tp, & sync_tp);
-
-        *ttod_hrt_last = curr_tp.hrt;
     }
-    else
-        *ttod_hrt_last = curr_ns;
-
-    erts_smp_mtx_unlock(ttod_hrt_lock);
+    swap_ttod_hrt_current(ttod_hrt_stat, & curr, & last);
 
     return  ((init_tp.tod + diff_ns) / ONE_THOUSAND);
 }
@@ -233,6 +239,10 @@ static get_ttod_f init_ttod_hrt(const char ** name)
 {
     /* MUST be initialized before ANY return */
     *name = "HRT";
+
+    /* minimum required capabilities */
+    if ((erts_cpu_features & TTOD_HRT_REQ_CPU_FEATS) != TTOD_HRT_REQ_CPU_FEATS)
+        return  NULL;
 
     /*
      * Not sure what the issue is here, so I'm leaving the code mostly as-is.
@@ -256,17 +266,13 @@ static get_ttod_f init_ttod_hrt(const char ** name)
 #endif
     sys_init_hrtime();
 
-    sys_memset((void *) ttod_hrt_corr, 0, sizeof(ttod_hrt_corr));
-    sys_memset((void *) ttod_hrt_last, 0, sizeof(ttod_hrt_last));
+    sys_memset((void *) ttod_hrt_stat, 0, sizeof(ttod_hrt_stat));
     sys_memset((void *) ttod_hrt_sync, 0, sizeof(ttod_hrt_sync));
     sys_memset((void *) ttod_hrt_init, 0, sizeof(ttod_hrt_init));
 
-    sys_memset(ttod_hrt_lock, 0, sizeof(ttod_hrt_lock));
-    erts_smp_mtx_init(ttod_hrt_lock, "tolerant_timeofday");
-
     fetch_ttod_hrt_ts_pair((ttod_hrt_ts_pair_t *) ttod_hrt_init);
     *ttod_hrt_sync = *ttod_hrt_init;
-    *ttod_hrt_last = ttod_hrt_init->hrt;
+    ttod_hrt_stat->hrt = ttod_hrt_init->hrt;
 
     return  get_ttod_hrt;
 }

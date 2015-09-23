@@ -2,6 +2,7 @@
  * %CopyrightBegin%
  *
  * Copyright Basho Technologies, Inc 2015. All Rights Reserved.
+ * Copyright Ericsson AB 1999-2012. All Rights Reserved.
  *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
@@ -38,7 +39,7 @@
  * macro should have a zero value after inclusion of this file.
  */
 
-#if     defined(CORRECT_USING_TIMES)
+#if     defined(CORRECT_USING_TIMES) && 0   /* disabled for now */
 #undef  HAVE_TTOD_TIMES
 #define HAVE_TTOD_TIMES 1
 #endif  /* requirements check */
@@ -62,7 +63,7 @@ static s_millisecs_t    ttod_times_last_cc;
  */
 static CPU_FORCE_INLINE clock_t sys_kernel_ticks(void)
 {
-#define KERNEL_TICKS_MASK   ~(1uLL << ((sizeof(clock_t) * 8) - 1))
+#define KERNEL_TICKS_MASK   ((1uLL << ((sizeof(clock_t) * 8) - 1)) - 1)
 #ifdef  ERTS_WRAP_SYS_TIMES
     return  (sys_times_wrap() & KERNEL_TICKS_MASK);
 #else
@@ -143,7 +144,7 @@ static u_microsecs_t get_ttod_times(void)
      * minus the correction suppression. The correction supression
      * will change slowly (max 1% of elapsed time) but in millisecond steps.
      */
-    act_corr = cur_corr - ttod_times_corr_supress;
+    act_corr = (cur_corr - ttod_times_corr_supress);
     if (max_adjust > 0)
     {
         /*
@@ -151,20 +152,21 @@ static u_microsecs_t get_ttod_times(void)
          * system time by changing the ttod_times_corr_supress variable.
          * It can change max_adjust milliseconds which is 1% of elapsed time
          */
-        if (act_corr > 0) {
-            if (cur_corr - ttod_times_corr_supress > max_adjust) {
+        if (act_corr > 0)
+        {
+            if ((cur_corr - ttod_times_corr_supress) > max_adjust)
                 ttod_times_corr_supress += max_adjust;
-            } else {
+            else
                 ttod_times_corr_supress = cur_corr;
-            }
-            act_corr = cur_corr - ttod_times_corr_supress;
-        } else if (act_corr < 0) {
-            if (ttod_times_corr_supress - cur_corr > max_adjust) {
+            act_corr = (cur_corr - ttod_times_corr_supress);
+        }
+        else if (act_corr < 0)
+        {
+            if ((ttod_times_corr_supress - cur_corr) > max_adjust)
                 ttod_times_corr_supress -= max_adjust;
-            } else {
+            else
                 ttod_times_corr_supress = cur_corr;
-            }
-            act_corr = cur_corr - ttod_times_corr_supress;
+            act_corr = (cur_corr - ttod_times_corr_supress);
         }
     }
     /*

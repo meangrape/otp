@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  *
- * Copyright Basho Technologies, Inc 2015. All Rights Reserved.
+ * Copyright Basho Technologies, Inc 2014,2015. All Rights Reserved.
  *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
