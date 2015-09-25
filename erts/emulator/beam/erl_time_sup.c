@@ -92,10 +92,18 @@
 #include "global.h"
 #include "time_internal.h"
 
+#if     (defined(DEBUG) || 1)
+#define TTOD_REPORT_IMPL_STATE  1
+#else
+#define TTOD_REPORT_IMPL_STATE  0
+#endif
+
 static  TIME_SUP_ALIGNED_VAR(erts_smp_atomic_t, gtv_ms);
 static  TIME_SUP_ALIGNED_VAR(erts_smp_atomic_t, then_us);
 static  TIME_SUP_ALIGNED_VAR(erts_smp_atomic_t, approx_secs);
 static  TIME_SUP_ALIGNED_VAR(erts_smp_atomic_t, last_delivered_ms);
+
+#define USE_LOCKED_GTOD 0
 
 /*
  * Attempt to lay things out to maintain the best alignment as far into the
@@ -110,7 +118,6 @@ static  TIME_SUP_ALIGNED_VAR(erts_smp_atomic_t, last_delivered_ms);
  */
 typedef struct
 {
-    SysTimes        last_times[1];
     s_millisecs_t   init_ms;
     SysTimeval      init_tv[1];
     erts_smp_mtx_t  tod_sync[1];
@@ -121,6 +128,29 @@ typedef struct
     time_sup_data_t;
 
 static  TIME_SUP_ALIGNED_VAR(time_sup_data_t, ts_data);
+
+#if     USE_LOCKED_GTOD
+#define ACQUIRE_TOD_OUTER()     erts_smp_mtx_lock(ts_data->tod_sync)
+#define RELEASE_TOD_OUTER()     erts_smp_mtx_unlock(ts_data->tod_sync)
+#define ACQUIRE_TOD_INNER()     ((void) 1)
+#define RELEASE_TOD_INNER()     ((void) 1)
+#else   /* ! USE_LOCKED_GTOD */
+#define ACQUIRE_TOD_OUTER()     ((void) 1)
+#define RELEASE_TOD_OUTER()     ((void) 1)
+#define ACQUIRE_TOD_INNER()     erts_smp_mtx_lock(ts_data->tod_sync)
+#define RELEASE_TOD_INNER()     erts_smp_mtx_unlock(ts_data->tod_sync)
+#endif  /* USE_LOCKED_GTOD */
+
+typedef SysTimes    times_acct_rec_t;
+
+typedef struct
+{
+    times_acct_rec_t    last[1];
+    erts_smp_mtx_t      sync[1];
+}
+    times_acct_data_t;
+
+static  TIME_SUP_ALIGNED_VAR(times_acct_data_t, ta_data);
 
 /*
  * Why this? Well, most platforms have a constant clock resolution of 1,
@@ -200,20 +230,20 @@ static void init_ttod_impl(init_ttod_f initfunc)
     erts_tolerant_timeofday.call[index] = initfunc(& ttod_impl_names[index]);
 
     if (erts_tolerant_timeofday.call[index] != NULL)
-#ifdef  DEBUG
+#if TTOD_REPORT_IMPL_STATE
     {
-        erts_printf(
+        erts_fprintf(stderr,
             "TTOD '%s' implementation initialized in slot %u\n",
             ttod_impl_names[index], index);
         erts_tolerant_timeofday.tail = (index + 1);
     }
     else
-        erts_printf(
+        erts_fprintf(stderr,
             "TTOD '%s' implementation failed to initialize\n",
             ttod_impl_names[index]);
-#else   /* ! DEBUG */
+#else   /* ! TTOD_REPORT_IMPL_STATE */
         erts_tolerant_timeofday.tail = (index + 1);
-#endif  /* DEBUG */
+#endif  /* TTOD_REPORT_IMPL_STATE */
 }
 
 static void init_tolerant_timeofday(void)
@@ -241,10 +271,11 @@ static void init_tolerant_timeofday(void)
     init_ttod_impl(init_ttod_times);
 #endif
 
-#ifdef  DEBUG
+#if TTOD_REPORT_IMPL_STATE
     if (! erts_tolerant_timeofday.tail)
-        erts_printf("No TTOD implementation initialized successfully\n");
-#endif  /* DEBUG */
+        erts_fprintf(stderr,
+            "No TTOD implementation initialized successfully\n");
+#endif  /* TTOD_REPORT_IMPL_STATE */
 }
 
 static u_microsecs_t get_tolerant_timeofday(void)
@@ -261,11 +292,11 @@ static u_microsecs_t get_tolerant_timeofday(void)
             switch (ret)
             {
                 case TTOD_FAIL_PERMANENT :
-#ifdef  DEBUG
-                    erts_printf(
+#if TTOD_REPORT_IMPL_STATE
+                    erts_fprintf(stderr,
                         "Permanent failure of TTOD '%s' in slot %u\n",
                         ttod_impl_names[index], index);
-#endif
+#endif  /* TTOD_REPORT_IMPL_STATE */
                     if (index == erts_tolerant_timeofday.head)
                     {
                         Uint32  pre = index;
@@ -339,8 +370,10 @@ get_approx_time(void)
 static CPU_FORCE_INLINE void
 update_approx_time_sec(erts_approx_time_t new_secs)
 {
+    /*
     erts_approx_time_t old_secs = get_approx_time();
     if (old_secs != new_secs)
+    */
         erts_smp_atomic_set_nob(approx_secs, new_secs);
 }
 
@@ -384,9 +417,7 @@ static void do_erts_deliver_time(s_millisecs_t curr_ms)
     {
         s_millisecs_t elapsed;
 
-#if !defined(USE_LOCKED_GTOD)
-        erts_smp_mtx_lock(ts_data->tod_sync);
-#endif
+        ACQUIRE_TOD_INNER();
 
         /* calculate and deliver appropriate number of ticks */
         elapsed = (curr_ms - erts_smp_atomic_read_nob(last_delivered_ms)) /
@@ -403,16 +434,18 @@ static void do_erts_deliver_time(s_millisecs_t curr_ms)
             erts_smp_atomic_set_nob(last_delivered_ms, curr_ms);
         }
 
-#if !defined(USE_LOCKED_GTOD)
-        erts_smp_mtx_unlock(ts_data->tod_sync);
-#endif
+        RELEASE_TOD_INNER();
     }
 }
 
 int
 erts_init_time_sup(void)
 {
+    sys_memset(ts_data, 0, sizeof(ts_data));
+    sys_memset(ta_data, 0, sizeof(ta_data));
+
     erts_smp_mtx_init(ts_data->tod_sync, "timeofday");
+    erts_smp_mtx_init(ta_data->sync, "time_sup");
 
     init_approx_time();
 
@@ -440,14 +473,15 @@ erts_init_time_sup(void)
  */
 
 void
-elapsed_time_both(UWord *ms_user, UWord *ms_sys,
-                  UWord *ms_user_diff, UWord *ms_sys_diff)
+elapsed_time_both(
+    UWord * ms_user, UWord * ms_sys,
+    UWord * ms_user_diff, UWord * ms_sys_diff)
 {
     UWord prev_total_user, prev_total_sys;
     UWord total_user, total_sys;
     SysTimes now;
 
-    sys_times(&now);
+    sys_times(& now);
     total_user = (now.tms_utime * 1000) / SYS_CLK_TCK;
     total_sys = (now.tms_stime * 1000) / SYS_CLK_TCK;
 
@@ -456,13 +490,13 @@ elapsed_time_both(UWord *ms_user, UWord *ms_sys,
     if (ms_sys != NULL)
         *ms_sys = total_sys;
 
-    erts_smp_mtx_lock(ts_data->tod_sync);
+    erts_smp_mtx_lock(ta_data->sync);
 
-    prev_total_user = (ts_data->last_times->tms_utime * 1000) / SYS_CLK_TCK;
-    prev_total_sys = (ts_data->last_times->tms_stime * 1000) / SYS_CLK_TCK;
-    *(ts_data->last_times) = now;
+    prev_total_user = (ta_data->last->tms_utime * 1000) / SYS_CLK_TCK;
+    prev_total_sys = (ta_data->last->tms_stime * 1000) / SYS_CLK_TCK;
+    *(ta_data->last) = now;
 
-    erts_smp_mtx_unlock(ts_data->tod_sync);
+    erts_smp_mtx_unlock(ta_data->sync);
 
     if (ms_user_diff != NULL)
         *ms_user_diff = total_user - prev_total_user;
@@ -471,31 +505,26 @@ elapsed_time_both(UWord *ms_user, UWord *ms_sys,
         *ms_sys_diff = total_sys - prev_total_sys;
 }
 
-
 /* wall clock routines */
 
 void
-wall_clock_elapsed_time_both(UWord *ms_total, UWord *ms_diff)
+wall_clock_elapsed_time_both(UWord * ms_total, UWord * ms_diff)
 {
-    UWord prev_total;
-    Sint64 cur_ms;
+    s_millisecs_t   cur_ms, prev_ms;
 
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_lock(ts_data->tod_sync);
-#endif
+    ACQUIRE_TOD_OUTER();
 
-    cur_ms = get_tolerant_timeofday_ms();
-
-    *ms_total = cur_ms - ts_data->init_ms;
-    prev_total = erts_smp_atomic_xchg_nob(gtv_ms, cur_ms) - ts_data->init_ms;
-    *ms_diff = *ms_total - prev_total;
+    cur_ms  = get_tolerant_timeofday_ms();
+    prev_ms = erts_smp_atomic_xchg_nob(gtv_ms, cur_ms);
 
     /* must sync the machine's idea of time here */
     do_erts_deliver_time(cur_ms);
 
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_unlock(ts_data->tod_sync);
-#endif
+    RELEASE_TOD_OUTER();
+
+    prev_ms  -= ts_data->init_ms;
+    *ms_total = (UWord) (cur_ms - ts_data->init_ms);
+    *ms_diff  = (*ms_total - (UWord) prev_ms);
 }
 
 /* get current time */
@@ -842,14 +871,11 @@ int univ_to_local(
 }
 
 /* get a timestamp */
-void
-get_now(Uint* megasec, Uint* sec, Uint* microsec)
+void get_now(Uint * megasec, Uint * sec, Uint * microsec)
 {
     Sint64 now_us, now_s, then;
 
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_lock(ts_data->tod_sync);
-#endif
+    ACQUIRE_TOD_OUTER();
 
     now_us = get_tolerant_timeofday_us();
     do_erts_deliver_time(now_us / 1000);
@@ -863,9 +889,7 @@ get_now(Uint* megasec, Uint* sec, Uint* microsec)
     }
     while (erts_smp_atomic_cmpxchg_mb(then_us, now_us, then) != then);
 
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_unlock(ts_data->tod_sync);
-#endif
+    RELEASE_TOD_OUTER();
 
     now_s = (now_us / ONE_MILLION);
     *megasec  = (Uint) (now_s / ONE_MILLION);
@@ -875,8 +899,7 @@ get_now(Uint* megasec, Uint* sec, Uint* microsec)
     update_approx_time_sec(now_s);
 }
 
-void
-get_sys_now(Uint* megasec, Uint* sec, Uint* microsec)
+void get_sys_now(Uint * megasec, Uint * sec, Uint * microsec)
 {
     SysTimeval now;
 
@@ -896,16 +919,13 @@ void erts_deliver_time(void)
 {
     Sint64 now_ms;
 
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_lock(ts_data->tod_sync);
-#endif
+    ACQUIRE_TOD_OUTER();
 
     now_ms = get_tolerant_timeofday_ms();
     do_erts_deliver_time(now_ms);
 
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_unlock(ts_data->tod_sync);
-#endif
+    RELEASE_TOD_OUTER();
+
     update_approx_time_sec(now_ms / ONE_THOUSAND);
 }
 
@@ -922,82 +942,60 @@ void erts_time_remaining(SysTimeval * rem_time)
     /* erts_next_time() returns no of ticks to next timeout or -1 if none */
 
     ticks = (erts_time_t) erts_next_time();
-    if (ticks == (erts_time_t) -1) {
+    if (ticks == (erts_time_t) -1)
+    {
         /* timer queue empty */
-        /* this will cause at most 100000000 ticks */
-        rem_time->tv_sec = 100000;
+        /* this will cause at most 100 million ticks */
+        rem_time->tv_sec  = HND_THOUSAND;
         rem_time->tv_usec = 0;
-    } else {
+    }
+    else
+    {
         /* next timeout after ticks ticks */
         ticks *= CLOCK_RESOLUTION;
 
-#if defined(USE_LOCKED_GTOD)
-        erts_smp_mtx_lock(ts_data->tod_sync);
-#endif
+        ACQUIRE_TOD_OUTER();
 
-        elapsed = get_tolerant_timeofday_ms() - erts_smp_atomic_read_nob(last_delivered_ms);
+        elapsed = (get_tolerant_timeofday_ms()
+            - erts_smp_atomic_read_nob(last_delivered_ms));
 
-#if defined(USE_LOCKED_GTOD)
-        erts_smp_mtx_unlock(ts_data->tod_sync);
-#endif
+        RELEASE_TOD_OUTER();
 
-        if (ticks <= elapsed) { /* Ooops, better hurry */
+        if (ticks <= elapsed)   /* Ooops, better hurry */
+        {
             rem_time->tv_sec = rem_time->tv_usec = 0;
             return;
         }
-        rem_time->tv_sec = (ticks - elapsed) / 1000;
-        rem_time->tv_usec = 1000 * ((ticks - elapsed) % 1000);
+        rem_time->tv_sec  = ((ticks - elapsed) / ONE_THOUSAND);
+        rem_time->tv_usec = (((ticks - elapsed) % ONE_THOUSAND) * ONE_THOUSAND);
     }
 }
 
 void erts_get_timeval(SysTimeval * tv)
 {
-    u_microsecs_t   us;
-
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_lock(ts_data->tod_sync);
-#endif
-
-    us = get_tolerant_timeofday();
-
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_unlock(ts_data->tod_sync);
-#endif
-
-    u_set_tv_micros(tv, us);
+    const u_microsecs_t usecs = get_tolerant_timeofday();
+    u_set_tv_micros(tv, usecs);
     update_approx_time_sec(tv->tv_sec);
 }
 
-erts_time_t
-erts_get_time(void)
+erts_time_t erts_get_time(void)
 {
-    Sint64  tv;
-
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_lock(ts_data->tod_sync);
-#endif
-
-    tv = get_tolerant_timeofday_us();
-
-#if defined(USE_LOCKED_GTOD)
-    erts_smp_mtx_unlock(ts_data->tod_sync);
-#endif
-
-    tv /= ONE_MILLION;
-    update_approx_time_sec(tv);
-    return tv;
+    const Sint64  secs = (get_tolerant_timeofday_us() /  ONE_MILLION);
+    update_approx_time_sec(secs);
+    return  secs;
 }
 
 #ifdef HAVE_ERTS_NOW_CPU
-void erts_get_now_cpu(Uint* megasec, Uint* sec, Uint* microsec)
+void erts_get_now_cpu(Uint * megasec, Uint * sec, Uint * microsec)
 {
-  SysCpuTime t;
-  SysTimespec tp;
+    SysCpuTime  t;
+    SysTimespec tp;
 
-  sys_get_proc_cputime(t, tp);
-  *microsec = (Uint)(tp.tv_nsec / 1000);
-  t = (tp.tv_sec / 1000000);
-  *megasec = (Uint)(t % 1000000);
-  *sec = (Uint)(tp.tv_sec % 1000000);
+    /* macro, 't' is a calculation buffer, result in 'tp' */
+    sys_get_proc_cputime(t, tp);
+
+    *megasec  = (Uint) ((tp.tv_sec / ONE_MILLION) % ONE_MILLION);
+    *sec      = (Uint) (tp.tv_sec % ONE_MILLION);
+    *microsec = (Uint) (tp.tv_nsec / ONE_THOUSAND);
 }
 #endif

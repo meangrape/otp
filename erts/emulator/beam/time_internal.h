@@ -206,13 +206,13 @@ extern time_t time2posix(time_t);
 erts_short_time_t erts_next_time(void);
 
 #if TIME_INTERNAL_DEBUG
-#define DBG_NL()    erts_printf("\n")
-#define DBG_LOC()   erts_printf("%s:%u\n", __FILE__, __LINE__)
-#define DBG_UINT(V) erts_printf("%s:%u %s = %u\n", __FILE__, __LINE__, #V, V)
-#define DBG_SINT(V) erts_printf("%s:%u %s = %u\n", __FILE__, __LINE__, #V, V)
-#define DBG_MSG(S)  erts_printf("%s:%u %s\n", __FILE__, __LINE__, S)
-#define DBG_PTR(P)  erts_printf("%s:%u %s = %p\n", __FILE__, __LINE__, #P, P)
-#define DBG_FMT(F,...)  erts_printf("%s:%u " F "\n", __FILE__, __LINE__, __VA_ARGS__)
+#define DBG_NL()    erts_fprintf(stderr, "\n")
+#define DBG_LOC()   erts_fprintf(stderr, "%s:%u\n", __FILE__, __LINE__)
+#define DBG_UINT(V) erts_fprintf(stderr, "%s:%u %s = %u\n", __FILE__, __LINE__, #V, V)
+#define DBG_SINT(V) erts_fprintf(stderr, "%s:%u %s = %u\n", __FILE__, __LINE__, #V, V)
+#define DBG_MSG(S)  erts_fprintf(stderr, "%s:%u %s\n", __FILE__, __LINE__, S)
+#define DBG_PTR(P)  erts_fprintf(stderr, "%s:%u %s = %p\n", __FILE__, __LINE__, #P, P)
+#define DBG_FMT(F,...)  erts_fprintf(stderr, "%s:%u " F "\n", __FILE__, __LINE__, __VA_ARGS__)
 #else
 #define DBG_NL()
 #define DBG_LOC()

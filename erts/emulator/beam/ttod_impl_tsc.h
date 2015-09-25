@@ -45,6 +45,9 @@
 #define HAVE_TTOD_TSC   1
 #if     CPU_HAVE_GCC_INTRINSICS
 #include <x86intrin.h>
+#ifndef __IA32INTRIN_H
+#define CPU_MISSING_GCC_X86_RDTSC   1
+#endif  /* ! __IA32INTRIN_H */
 #elif   CPU_HAVE_MSVC_INTRINSICS
 #include <intrin.h>
 #pragma intrinsic(__rdtsc)
@@ -91,12 +94,28 @@ static volatile TIME_SUP_ALIGNED_VAR(u_ticks_t,             ttod_tsc_minmax);
 #define TTOD_TSC_REQ_CPU_FEATS  (ERTS_CPU_ARCH_X86_64 \
     |ERTS_CPU_FEAT_X86_TSCP|ERTS_CPU_FEAT_X86_TSCS|ERTS_CPU_FEAT_X86_CX16)
 
+static CPU_FORCE_INLINE Uint64
+ttod_tsc_read_tsc(void)
+{
+#if CPU_MISSING_GCC_X86_RDTSC
+    union
+    {
+        Uint64  u64;
+        Uint32  u32[2];
+    }   tsc;
+    __asm__ __volatile__ ( "rdtsc" : "=a" (tsc.u32[0]), "=d" (tsc.u32[1]) );
+    return  tsc.u64;
+#else
+    return  __rdtsc();
+#endif
+}
+
 /* ensures fixed order */
 static CPU_FORCE_INLINE Uint64
 fetch_ttod_tsc_ts_pair_data(SysTimeval * tod)
 {
     sys_gettimeofday(tod);
-    return __rdtsc();
+    return  ttod_tsc_read_tsc();
 }
 
 static CPU_FORCE_INLINE void
@@ -177,7 +196,7 @@ static u_microsecs_t get_ttod_tsc(void)
     load_ttod_tsc_ts_pair(ttod_tsc_last, & last_tp);
     if ((ttod_tsc_init->tod + TTOD_TSC_MIN_CALC_MICROS) <= last_tp.tod)
     {
-        const u_ticks_t tsc = __rdtsc();
+        const u_ticks_t tsc = ttod_tsc_read_tsc();
         /* can we just calculate and return fast? */
         if ((last_tp.tsc + ttod_tsc_freq->resync) > tsc)
         {
@@ -232,9 +251,9 @@ static u_microsecs_t get_ttod_tsc(void)
                  */
                 if ((min_max[1] - min_max[0]) > (min_max[1] / ONE_HUNDRED))
                 {
-#ifdef  DEBUG
-                    erts_printf("Excessive TSC wobble\n");
-#endif
+#if TTOD_REPORT_IMPL_STATE
+                    erts_fprintf(stderr, "Excessive TSC wobble\n");
+#endif  /* TTOD_REPORT_IMPL_STATE */
                     return  TTOD_FAIL_PERMANENT;
                 }
                 break;
@@ -283,7 +302,7 @@ static get_ttod_f init_ttod_tsc(const char ** name)
     size_t  evsz = 0;
 
     /* MUST be initialized before ANY return */
-    *name = "CPU TSC";
+    *name = "TSC";
 
     /* initially, only activate when set in the environment */
     if (erts_sys_getenv("ERTS_ENABLE_TTOD_TSC", NULL, & evsz) < 0 || evsz < 2)
