@@ -38,6 +38,7 @@ listed for our products, but our focus is on particular versions of:
 * FreeBSD
 * Linux
 * OS X
+* SmartOS
 * Solaris
 
 #####Interoperability
@@ -52,7 +53,7 @@ configuration options to set them explicitly.
 No, we don't do Windows, and we don't even do all available versions of
 the systems listed above. While we do try to keep our changes as portable
 as the original distributions they're based on, we don't test beyond what
-our products suport.
+our products support.
 
 ###Building and Installing
 
@@ -63,9 +64,10 @@ in the [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) document.
 
 Our version identifiers correlate to the Erlang/OTP release without the
 _bashoN_ suffix, but our changes to individual ERTS components and OTP
-applications may not carry distinct versions. Our releases are intended to
-be used as a single cohesive installation, we do _NOT_ support mixing
-components between our releases and the original distributions.
+applications _may not_ always carry distinct versions yet.
+Our releases are intended to be used as a single cohesive installation,
+we do _NOT_ support mixing components between our releases and the original
+distributions.
 
 ###Contributing to Erlang/OTP
 
@@ -90,5 +92,5 @@ contribution of ours, is subject to the terms of the
   [2]: http://www.erlang.org
   [3]: http://www.erlang.org/EPLICENSE
   [4]: http://github.com/erlang/otp
-  [5]: http://github.com/erlang/otp/blob/maint/README.md
+  [5]: http://github.com/erlang/otp/blob/maint-17/README.md
   [6]: http://wiki.github.com/erlang/otp/submitting-patches
