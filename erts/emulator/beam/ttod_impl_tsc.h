@@ -181,8 +181,8 @@ swap_ttod_tsc_val(
  */
 
 /*
- * Return the number of milliseconds since 1-Jan-1970 UTC on success or one
- * of the 'TTOD_FAIL_xxx' results to try the next strategy.
+ * Return the number of microseconds since 1-Jan-1970 UTC on success or
+ * get_ttod_fail(get_ttod_tsc) to disable this strategy.
  *
  * Each implementation is responsible for figuring out when it has failed
  * permanently, but should not blindly continue trying when it's clear it's
@@ -193,6 +193,7 @@ static u_microsecs_t get_ttod_tsc(void)
     ttod_tsc_ts_pair_t  curr_tp, last_tp, init_tp;
     u_microsecs_t       micros;
 
+    /* EVERY implementation MUST do this! */
     if (erts_tolerant_timeofday.disable)
         return  gettimeofday_us();
 

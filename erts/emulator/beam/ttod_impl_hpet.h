@@ -55,8 +55,8 @@ static struct
     ttod_hpet_state;
 
 /*
- * Return the number of milliseconds since 1-Jan-1970 UTC on success or one
- * of the 'TTOD_FAIL_xxx' results to try the next strategy.
+ * Return the number of microseconds since 1-Jan-1970 UTC on success or
+ * get_ttod_fail(get_ttod_hpet) to disable this strategy.
  *
  * Each implementation is responsible for figuring out when it has failed
  * permanently, but should not blindly continue trying when it's clear it's
@@ -65,15 +65,20 @@ static struct
 static u_microsecs_t get_ttod_hpet(void)
 {
     SysTimeval  tod;
+
+    /* EVERY implementation MUST do this! */
+    if (erts_tolerant_timeofday.disable)
+        return  gettimeofday_us();
+
     sys_gettimeofday(& tod);
 
-    return  TTOD_FAIL_PERMANENT;
+    return  get_ttod_fail(get_ttod_hpet);
 }
 
 /*
  * Return a ttod function to indicate successful initialization.
  * Even if NULL is returned, the value in the '*name' output variable MAY
- * be used for a status massage, so it MUST be initialized.
+ * be used for a status message, so it MUST be initialized.
  *
  * This function should check the runtime environment to ensure support for
  * the strategy and only initialize if the necessary behavior is present.

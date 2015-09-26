@@ -39,10 +39,6 @@
  * macro should have a zero value after inclusion of this file.
  */
 
-/*
- * TODO: Eliminate the mutex!
- */
-
 #if defined(HAVE_GETHRTIME) \
     &&  CPU_HAVE_DIRECT_ATOMIC_OPS && CPU_HAVE_DIRECT_ATOMIC_128
 #undef  HAVE_TTOD_HRT
@@ -143,8 +139,8 @@ swap_ttod_hrt_current(volatile ttod_hrt_current_t * dest,
  */
 
 /*
- * Return the number of milliseconds since 1-Jan-1970 UTC on success or one
- * of the 'TTOD_FAIL_xxx' results to try the next strategy.
+ * Return the number of microseconds since 1-Jan-1970 UTC on success or
+ * get_ttod_fail(get_ttod_hrt) to disable this strategy.
  *
  * Each implementation is responsible for figuring out when it has failed
  * permanently, but should not blindly continue trying when it's clear it's
@@ -156,6 +152,7 @@ static u_microsecs_t get_ttod_hrt(void)
     ttod_hrt_current_t  last, curr;
     s_nanosecs_t        diff_ns;
 
+    /* EVERY implementation MUST do this! */
     if (erts_tolerant_timeofday.disable)
         return  gettimeofday_us();
 

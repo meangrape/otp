@@ -74,8 +74,8 @@ static CPU_FORCE_INLINE clock_t sys_kernel_ticks(void)
 }
 
 /*
- * Return the number of milliseconds since 1-Jan-1970 UTC on success or one
- * of the 'TTOD_FAIL_xxx' results to try the next strategy.
+ * Return the number of microseconds since 1-Jan-1970 UTC on success or
+ * get_ttod_fail(get_ttod_times) to disable this strategy.
  *
  * Each implementation is responsible for figuring out when it has failed
  * permanently, but should not blindly continue trying when it's clear it's
@@ -97,6 +97,10 @@ static u_microsecs_t get_ttod_times(void)
 #else
 #define TICK_MS (1000 / SYS_CLK_TCK)
 #endif
+
+    /* EVERY implementation MUST do this! */
+    if (erts_tolerant_timeofday.disable)
+        return  gettimeofday_us();
 
     sys_gettimeofday(tod_buf);
     curr_ct = sys_kernel_ticks();
