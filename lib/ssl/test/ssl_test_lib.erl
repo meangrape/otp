@@ -241,7 +241,21 @@ close(Pid) ->
     receive
 	{'DOWN', Monitor, process, Pid, Reason} ->
 	    erlang:demonitor(Monitor),
-	    ct:log("~p:~p~nPid: ~p down due to:~p ~n", [?MODULE,?LINE, Pid, Reason])
+	    ct:log("~p:~p~nPid: ~p down due to:~p ~n", [?MODULE,?LINE, Pid, Reason]) 
+		
+    end.
+
+close(Pid, Timeout) ->
+    ct:log("~p:~p~n Close ~p ~n", [?MODULE,?LINE, Pid]),
+    Monitor = erlang:monitor(process, Pid),
+    Pid ! close,
+    receive
+	{'DOWN', Monitor, process, Pid, Reason} ->
+	    erlang:demonitor(Monitor),
+	    ct:log("~p:~p~nPid: ~p down due to:~p ~n", [?MODULE,?LINE, Pid, Reason]) 
+    after 
+	Timeout ->
+	    exit(Pid, kill)
     end.
 
 check_result(Server, ServerMsg, Client, ClientMsg) -> 
@@ -360,7 +374,7 @@ cert_options(Config) ->
     SNIServerAKeyFile = filename:join([?config(priv_dir, Config), "a.server", "key.pem"]),
     SNIServerBCertFile = filename:join([?config(priv_dir, Config), "b.server", "cert.pem"]),
     SNIServerBKeyFile = filename:join([?config(priv_dir, Config), "b.server", "key.pem"]),
-    [{client_opts, [{ssl_imp, new},{reuseaddr, true}]}, 
+    [{client_opts, []}, 
      {client_verification_opts, [{cacertfile, ClientCaCertFile}, 
 				{certfile, ClientCertFile},  
 				{keyfile, ClientKeyFile},
@@ -1075,6 +1089,9 @@ is_sane_ecc(openssl) ->
 	    false;
 	"OpenSSL 1.0.0" ++ _ ->  % Known bug in openssl
 	    %% manifests as SSL_CHECK_SERVERHELLO_TLSEXT:tls invalid ecpointformat list
+	    false;
+	"OpenSSL 1.0.1l" ++ _ ->  
+	    %% Breaks signature verification 
 	    false;
 	"OpenSSL 0.9.8" ++ _ -> % Does not support ECC
 	    false;

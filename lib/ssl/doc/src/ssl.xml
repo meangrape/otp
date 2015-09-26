@@ -88,7 +88,8 @@
       <item>
 	<p><c>{verify, verify_type()}</c></p>
 	<p><c>| {verify_fun, {fun(), term()}}</c></p>
-	<p><c>| {fail_if_no_peer_cert, boolean()} {depth, integer()}</c></p>
+	<p><c>| {fail_if_no_peer_cert, boolean()}</c></p>
+	<p><c>| {depth, integer()}</c></p>
 	<p><c>| {cert, public_key:der_encoded()}</c></p>
 	<p><c>| {certfile, path()}</c></p>
 	<p><c>| {key, {'RSAPrivateKey'| 'DSAPrivateKey' | 'ECPrivateKey' 
@@ -663,11 +664,6 @@ fun(srp, Username :: string(), UserState :: term()) ->
       cipher suite can encipher.
       </item>
 
-      <tag><c>{psk_identity, string()}</c></tag>
-      <item>Specifies the server identity hint the server presents to the client.
-      </item>
-      <tag><c>{log_alert, boolean()}</c></tag>
-      <item>If false, error reports will not be displayed.</item>
       <tag><c>{honor_cipher_order, boolean()}</c></tag>
       <item>If true, use the server's preference for cipher selection. If false
       (the default), use the client's preference.
@@ -766,6 +762,21 @@ fun(srp, Username :: string(), UserState :: term()) ->
 	  <v>Reason = term()</v>
       </type>
       <desc><p>Closes an SSL connection.</p>
+      </desc>
+    </func>
+
+    <func>
+      <name>close(SslSocket, How) -> ok | {ok, port()} | {error, Reason}</name>
+      <fsummary>Closes an SSL connection.</fsummary>
+      <type>
+	  <v>SslSocket = sslsocket()</v>
+	  <v>How =  timeout() | {NewController::pid(), timeout()} </v>
+	  <v>Reason = term()</v>
+      </type>
+      <desc><p>Closes or downgrades an SSL connection, in the later case the transport
+      connection will be handed over to the <c>NewController</c> process after reciving
+      the TLS close alert from the peer. The retuned transport socket will have
+      the following options set [{active, false}, {packet, 0}, {mode, binary}].</p>
       </desc>
     </func>
 

@@ -373,6 +373,10 @@ handle_option([{auth_method_kb_interactive_data, _} = Opt | Rest], SocketOptions
     handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
 handle_option([{preferred_algorithms,_} = Opt | Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
+handle_option([{dh_gex_groups,_} = Opt | Rest], SocketOptions, SshOptions) ->
+    handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
+handle_option([{dh_gex_limits,_} = Opt | Rest], SocketOptions, SshOptions) ->
+    handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
 handle_option([{quiet_mode, _} = Opt|Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
 handle_option([{idle_time, _} = Opt | Rest], SocketOptions, SshOptions) ->
@@ -393,6 +397,8 @@ handle_option([{id_string, _ID} = Opt|Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
 handle_option([{profile, _ID} = Opt|Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
+handle_option([{max_random_length_padding, _Bool} = Opt|Rest], SocketOptions, SshOptions) ->
+    handle_option(Rest, SocketOptions, [handle_ssh_option(Opt) | SshOptions]);
 handle_option([Opt | Rest], SocketOptions, SshOptions) ->
     handle_option(Rest, [handle_inet_option(Opt) | SocketOptions], SshOptions).
 
@@ -411,6 +417,28 @@ handle_ssh_option({user_interaction, Value} = Opt) when is_boolean(Value) ->
     Opt;
 handle_ssh_option({preferred_algorithms,[_|_]} = Opt) -> 
     handle_pref_algs(Opt);
+handle_ssh_option({dh_gex_groups,L=[{I1,I2,I3}|_]}) when is_integer(I1), I1>0, 
+							 is_integer(I2), I2>0,
+							 is_integer(I3), I3>0 ->
+    {dh_gex_groups, lists:map(fun({N,G,P}) -> {N,{G,P}} end, L)};
+handle_ssh_option({dh_gex_groups,{file,File=[C|_]}}=Opt) when is_integer(C), C>0 ->
+    %% A string, (file name)
+    case file:consult(File) of
+	{ok, List} ->
+	    try handle_ssh_option({dh_gex_groups,List}) of
+		{dh_gex_groups,_} = NewOpt ->
+		    NewOpt
+	    catch
+		_:_ ->
+		    throw({error, {{eoptions, Opt}, "Bad format in file"}})
+	    end;
+	Error ->
+	    throw({error, {{eoptions, Opt},{"Error reading file",Error}}})
+    end;
+handle_ssh_option({dh_gex_limits,{Min,I,Max}} = Opt) when is_integer(Min), Min>0, 
+							  is_integer(I),   I>=Min,
+							  is_integer(Max), Max>=I ->
+    Opt;
 handle_ssh_option({connect_timeout, Value} = Opt) when is_integer(Value); Value == infinity ->
     Opt;
 handle_ssh_option({max_sessions, Value} = Opt) when is_integer(Value), Value>0 ->
@@ -488,6 +516,9 @@ handle_ssh_option({rekey_limit, Value} = Opt) when is_integer(Value) ->
 handle_ssh_option({id_string, random}) ->
     {id_string, {random,2,5}}; %% 2 - 5 random characters
 handle_ssh_option({id_string, ID} = Opt) when is_list(ID) ->
+    Opt;
+handle_ssh_option({max_random_length_padding, Value} = Opt) when is_integer(Value),
+								 Value =< 255 ->
     Opt;
 handle_ssh_option({profile, Value} = Opt) when is_atom(Value) ->
     Opt;

@@ -7938,11 +7938,16 @@ sched_thread_func(void *vesdp)
     ErtsThrPrgrCallbacks callbacks;
     ErtsSchedulerData *esdp = vesdp;
     Uint no = esdp->no;
+#ifdef ERTS_SMP
+    erts_tse_t *tse;
+#endif
 
     erts_sched_init_time_sup(esdp);
 
 #ifdef ERTS_SMP
-    ERTS_SCHED_SLEEP_INFO_IX(no - 1)->event = erts_tse_fetch();
+    tse = erts_tse_fetch();
+    erts_tse_prepare_timed(tse);
+    ERTS_SCHED_SLEEP_INFO_IX(no - 1)->event = tse;
     callbacks.arg = (void *) esdp->ssi;
     callbacks.wakeup = thr_prgr_wakeup;
     callbacks.prepare_wait = thr_prgr_prep_wait;
@@ -9177,6 +9182,10 @@ erts_set_process_priority(Process *p, Eterm value)
 
 	    a = erts_smp_atomic32_cmpxchg_mb(&p->state, n, e);
 	} while (a != e);
+
+        if (slocked)
+            erts_smp_proc_unlock(p, ERTS_PROC_LOCK_STATUS);
+
     }
 
     switch (oprio) {
@@ -11522,10 +11531,14 @@ save_pending_exiter(Process *p)
 {
     ErtsProcList *plp;
     ErtsRunQueue *rq;
+    ErtsSchedulerData *esdp = erts_get_scheduler_data();
 
     ERTS_SMP_LC_ASSERT(ERTS_PROC_LOCK_STATUS & erts_proc_lc_my_proc_locks(p));
 
-    rq = erts_get_runq_current(NULL);
+    if (!esdp)
+        rq = RUNQ_READ_RQ(&p->run_queue);
+    else
+        rq = esdp->run_queue;
 
     plp = proclist_create(p);
 
@@ -11542,6 +11555,7 @@ save_pending_exiter(Process *p)
     else
 #endif
 	wake_scheduler(rq);
+
 }
 
 #endif
@@ -11730,23 +11744,21 @@ send_exit_signal(Process *c_p,		/* current process if and only
 		if (need_locks
 		    && erts_smp_proc_trylock(rp, need_locks) == EBUSY) {
 		    /* ... but we havn't got all locks on it ... */
-		    save_pending_exiter(rp);
+		    save_pending_exiter(rp); 
 		    /*
 		     * The pending exit will be discovered when next
 		     * process is scheduled in
 		     */
-		    goto set_pending_exit;
+                    goto set_pending_exit;
 		}
-		else {
-		    /* ...and we have all locks on it... */
-		    *rp_locks = ERTS_PROC_LOCKS_ALL;
-		    set_proc_exiting(rp,
-				     state,
-				     (is_immed(rsn)
-				      ? rsn
-				      : copy_object(rsn, rp)),
-				     NULL);
-		}
+                /* ...and we have all locks on it... */
+                *rp_locks = ERTS_PROC_LOCKS_ALL;
+                set_proc_exiting(rp,
+                                 state,
+                                 (is_immed(rsn)
+                                  ? rsn
+                                  : copy_object(rsn, rp)),
+                                 NULL);
 	    }
 	    else { /* Process running... */
 
@@ -12126,7 +12138,8 @@ erts_do_exit_process(Process* p, Eterm reason)
 #endif
 
     if (p->static_flags & ERTS_STC_FLG_SYSTEM_PROC)
-	erl_exit(1, "System process %T terminated: %T\n", p->common.id, reason);
+	erl_exit(ERTS_DUMP_EXIT, "System process %T terminated: %T\n",
+                 p->common.id, reason);
 
 #ifdef ERTS_SMP
     ERTS_SMP_CHK_HAVE_ONLY_MAIN_PROC_LOCK(p);

@@ -2,7 +2,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2003-2014. All Rights Reserved.
+%% Copyright Ericsson AB 2003-2015. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@
 		    t_list/0,
 		    t_list/1,
 		    t_list_elements/2,
-		    t_list_termination/1,
+		    t_list_termination/2,
 		    t_mfa/0,
 		    t_module/0,
 		    t_nil/0,
@@ -514,14 +514,15 @@ type(erlang, 'bsl', 2, Xs, Opaques) ->
 type(erlang, 'bnot', 1, Xs, Opaques) ->
  strict(erlang, 'bnot', 1, Xs,
 	 fun ([X1]) ->
-	     case arith('bnot', X1, Opaques) of
+	     case arith_bnot(X1, Opaques) of
 	       error -> t_integer();
 	       {ok, T} -> T
 	     end
 	 end, Opaques);
 %% Guard bif, needs to be here.
 type(erlang, abs, 1, Xs, Opaques) ->
-  strict(erlang, abs, 1, Xs, fun ([X]) -> X end, Opaques);
+  strict(erlang, abs, 1, Xs,
+         fun ([X1]) -> arith_abs(X1, Opaques) end, Opaques);
 %% This returns (-X)-1, so it often gives a negative result.
 %%  strict(erlang, 'bnot', 1, Xs, fun (_) -> t_integer() end, Opaques);
 type(erlang, append, 2, Xs, _Opaques) -> type(erlang, '++', 2, Xs); % alias
@@ -1336,8 +1337,8 @@ type(lists, foldr, 3, Xs, _Opaques) -> type(lists, foldl, 3, Xs);  % same
 type(lists, keydelete, 3, Xs, Opaques) ->
   strict(lists, keydelete, 3, Xs,
 	 fun ([_, _, L]) ->
-	     Term = t_list_termination(L),
-	     t_sup(Term, erl_types:lift_list_to_pos_empty(L))
+	     Term = t_list_termination(L, Opaques),
+	     t_sup(Term, erl_types:lift_list_to_pos_empty(L, Opaques))
 	 end, Opaques);
 type(lists, keyfind, 3, Xs, Opaques) ->
   strict(lists, keyfind, 3, Xs,
@@ -1927,7 +1928,7 @@ negwidth(X, N) ->
     false -> negwidth(X, N+1)
   end.
 
-arith('bnot', X1, Opaques) ->
+arith_bnot(X1, Opaques) ->
   case t_is_integer(X1, Opaques) of
     false -> error;
     true ->
@@ -1935,6 +1936,28 @@ arith('bnot', X1, Opaques) ->
       Max1 = number_max(X1, Opaques),
       {ok, t_from_range(infinity_add(infinity_inv(Max1), -1),
 			infinity_add(infinity_inv(Min1), -1))}
+  end.
+
+arith_abs(X1, Opaques) ->
+  case t_is_integer(X1, Opaques) of
+    false ->
+      case t_is_float(X1, Opaques) of
+        true -> t_float();
+        false -> t_number()
+      end;
+    true ->
+      Min1 = number_min(X1, Opaques),
+      Max1 = number_max(X1, Opaques),
+      {NewMin, NewMax} =
+        case infinity_geq(Min1, 0) of
+          true -> {Min1, Max1};
+          false ->
+            case infinity_geq(Max1, 0) of
+              true  -> {0, infinity_inv(Min1)};
+              false -> {infinity_inv(Max1), infinity_inv(Min1)}
+            end
+        end,
+      t_from_range(NewMin, NewMax)
   end.
 
 arith_mult(Min1, Max1, Min2, Max2) ->
