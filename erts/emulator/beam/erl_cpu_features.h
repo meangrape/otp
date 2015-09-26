@@ -23,10 +23,12 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "erl_int_sizes_config.h"
 #include "sys.h"
 
 #undef  CPU_HAVE_DIRECT_ATOMIC_OPS
 #undef  CPU_HAVE_DIRECT_ATOMIC_128
+#undef  CPU_HAVE_ATOMIC_PTRPAIR_OPS
 #undef  CPU_HAVE_GCC_ASM
 #undef  CPU_HAVE_GCC_INTRINSICS
 #undef  CPU_HAVE_MSVC_ASM
@@ -165,6 +167,15 @@ cpu_compare_and_swap_32(volatile void * dest, void * src, void * expect)
         (volatile Uint32 *) dest, (Uint32 *) expect, (Uint32 *) src,
         0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
 }
+static CPU_FORCE_INLINE void
+cpu_atomic_load_64(volatile void * src, void * dest)
+{
+#if (SIZEOF_VOID_P == 8)
+    *((Uint64 *) dest) = *((volatile Uint64 *) src);
+#else
+    __atomic_load((volatile Uint64 *) src, (Uint64 *) dest, __ATOMIC_RELAXED);
+#endif
+}
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_64(volatile void * dest, void * src, void * expect)
 {
@@ -184,6 +195,16 @@ cpu_compare_and_swap_32(volatile void * dest, void * src, void * expect)
         return  1;
     *((__int32 *) expect) = out;
     return  0;
+}
+static CPU_FORCE_INLINE void
+cpu_atomic_load_64(volatile void * src, void * dest)
+{
+#if (SIZEOF_VOID_P == 8)
+    *((__int64 *) dest) = *((volatile __int64 *) src);
+#else
+    *((__int64 *) dest) =
+        _InterlockedCompareExchange64((volatile __int64 *) src, 0, 0);
+#endif
 }
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_64(volatile void * dest, void * src, void * expect)
@@ -287,6 +308,21 @@ cpu_compare_and_swap_128(volatile void * dest, void * src, void * expect)
 #endif  /* CPU_HAVE_xxx_INTRINSICS */
 
 #endif  /* CPU_HAVE_DIRECT_ATOMIC_128 */
+
+#if     (SIZEOF_VOID_P == 4)
+#define cpu_compare_and_swap_ptr        cpu_compare_and_swap_32
+#define cpu_atomic_load_ptr_pair        cpu_atomic_load_64
+#define cpu_compare_and_swap_ptr_pair   cpu_compare_and_swap_64
+#define CPU_HAVE_ATOMIC_PTRPAIR_OPS     1
+#elif   (SIZEOF_VOID_P == 8)
+#define cpu_compare_and_swap_ptr        cpu_compare_and_swap_64
+#if     CPU_HAVE_DIRECT_ATOMIC_128
+#define cpu_atomic_load_ptr_pair        cpu_atomic_load_128
+#define cpu_compare_and_swap_ptr_pair   cpu_compare_and_swap_128
+#define CPU_HAVE_ATOMIC_PTRPAIR_OPS     1
+#endif  /* CPU_HAVE_DIRECT_ATOMIC_128 */
+#endif  /* SIZEOF_VOID_P */
+
 #endif  /* CPU_HAVE_DIRECT_ATOMIC_OPS */
 
 #endif  /* ERL_CPU_FEATURES_H__ */

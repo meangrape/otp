@@ -156,20 +156,23 @@ static u_microsecs_t get_ttod_hrt(void)
     ttod_hrt_current_t  last, curr;
     s_nanosecs_t        diff_ns;
 
+    if (erts_tolerant_timeofday.disable)
+        return  gettimeofday_us();
+
     curr.hrt = u_sys_gethrtime();
     load_ttod_hrt_ts_pair(ttod_hrt_init, & init_tp);
     diff_ns = (s_nanosecs_t) (curr.hrt - init_tp.hrt);
 
     if (diff_ns < 0)
     {
-#ifdef  DEBUG
-        erts_printf(
+#if TTOD_REPORT_IMPL_STATE
+        erts_fprintf(stderr,
             "Unexpected behavior from operating system high resolution timer\n");
-#endif
+#endif  /* TTOD_REPORT_IMPL_STATE */
         /*
          * TODO: count errors, try to recover a couple of times, etc.
          */
-        return  TTOD_FAIL_PERMANENT;
+        return  get_ttod_fail(get_ttod_hrt);
     }
     load_ttod_hrt_ts_pair(ttod_hrt_sync, & sync_tp);
     load_ttod_hrt_current(ttod_hrt_stat, & last);

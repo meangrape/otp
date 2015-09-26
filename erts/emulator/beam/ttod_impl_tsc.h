@@ -193,6 +193,9 @@ static u_microsecs_t get_ttod_tsc(void)
     ttod_tsc_ts_pair_t  curr_tp, last_tp, init_tp;
     u_microsecs_t       micros;
 
+    if (erts_tolerant_timeofday.disable)
+        return  gettimeofday_us();
+
     load_ttod_tsc_ts_pair(ttod_tsc_last, & last_tp);
     if ((ttod_tsc_init->tod + TTOD_TSC_MIN_CALC_MICROS) <= last_tp.tod)
     {
@@ -249,12 +252,12 @@ static u_microsecs_t get_ttod_tsc(void)
                  * 0.1% might be too strict, as we're calculating against
                  * microseconds
                  */
-                if ((min_max[1] - min_max[0]) > (min_max[1] / ONE_HUNDRED))
+                if ((min_max[1] - min_max[0]) > (min_max[0] / ONE_HUNDRED))
                 {
 #if TTOD_REPORT_IMPL_STATE
                     erts_fprintf(stderr, "Excessive TSC wobble\n");
 #endif  /* TTOD_REPORT_IMPL_STATE */
-                    return  TTOD_FAIL_PERMANENT;
+                    return  get_ttod_fail(get_ttod_tsc);
                 }
                 break;
             }

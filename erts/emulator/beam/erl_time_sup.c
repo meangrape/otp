@@ -164,6 +164,13 @@ static  TIME_SUP_ALIGNED_VAR(times_acct_data_t, ta_data);
 #define CLOCK_RESOLUTION    SYS_CLOCK_RESOLUTION
 #endif
 
+static u_microsecs_t gettimeofday_us(void)
+{
+    SysTimeval  tod;
+    sys_gettimeofday(& tod);
+    return  u_get_tv_micros(& tod);
+}
+
 /*
  * Begin tolerant_timeofday stuff
  */
@@ -174,11 +181,36 @@ static  TIME_SUP_ALIGNED_VAR(times_acct_data_t, ta_data);
 #define HAVE_TTOD_TIMES 0
 #define HAVE_TTOD_TSC   0
 
-#define TTOD_FAIL_PERMANENT 0
-#define TTOD_FAIL_TRANSIENT 1
-
 typedef u_microsecs_t (* get_ttod_f)(void);
 typedef get_ttod_f (* init_ttod_f)(const char ** name);
+
+typedef struct      /* 2 x sizeof(void *) bytes */
+{
+    get_ttod_f      call;
+    const char *    name;
+}
+    ttod_impl_t;
+
+/*
+ * 'disable' is a boolean flag that is accessed externally at the address of
+ * the global symbol 'erts_tolerant_timeofday'.
+ */
+struct
+{
+    char           volatile disable;    /* !!! MUST be the first byte !!!   */
+    char                    fill[sizeof(ttod_impl_t) - 1];
+    /* align on a sizeof(ttod_impl_t)-byte boundary */
+    ttod_impl_t    volatile impl;
+}
+    erts_tolerant_timeofday erts_align_attribute(TIME_SUP_ALLOC_ALIGN);
+
+/*
+ * When a tolerant_timeofday implementation can no longer reasonably expect
+ * to be able to continue operating accurately, it should return via this
+ * function, which resets the 'get_tolerant_timeofday' pointers to the next
+ * available implementation.
+ */
+static  u_microsecs_t get_ttod_fail(get_ttod_f cur_impl);
 
 #include "ttod_impl_hpet.h"
 #include "ttod_impl_hrt.h"
@@ -193,63 +225,66 @@ typedef get_ttod_f (* init_ttod_f)(const char ** name);
 
 #if TTOD_IMPLS
 
-/*
- * 'disable' is a boolean flag that is accessed externally at the address of
- * the global symbol 'erts_tolerant_timeofday'.
- *
- * 'head' and 'tail' are the first and one-past-last element to try,
- * respectively, and change ONLY when the first or last implementation in
- * the table returns 'TTOD_FAIL_PERMANENT', to avoid having to serialize on
- * some mechanism to modify the contents of the 'call' array.
- *
- * This means the list can only shrink at its head or tail, and that permanent
- * failures of intervening implementations won't be cleared out unless and
- * until all of the implementations before or after them fail permanently.
- * Hopefully, this won't be an issue in practice.
- *
- * Each implementation is responsible for figuring out when it has failed
- * permanently.
- */
-struct
-{
-    char   volatile disable;    /* !!! MUST be the first byte !!!   */
-    char            fill[SIZEOF_VOID_P - 1];
-    Uint32 volatile head;
-    Uint32 volatile tail;
-    /* align on a sizeof(void *)-byte boundary, at least up to 64 bits  */
-    get_ttod_f      call[TTOD_IMPLS];
-}
-    erts_tolerant_timeofday erts_align_attribute(TIME_SUP_ALLOC_ALIGN);
+#if     ! CPU_HAVE_ATOMIC_PTRPAIR_OPS
+#error  Atomic operations on pairs of pointers required!
+#endif
 
-static const char * ttod_impl_names[TTOD_IMPLS];
+/* MUST have one extra slot for the default implementation */
+static ttod_impl_t ttod_impls[TTOD_IMPLS + 1];
+static unsigned    ttod_impl_count;
+
+static  u_microsecs_t get_ttod_fail(get_ttod_f cur_impl)
+{
+    ttod_impl_t     curr[1];
+    ttod_impl_t *   next;
+    unsigned        index;
+
+    for (index = 0; index < ttod_impl_count; ++index)
+    {
+        if (ttod_impls[index].call == cur_impl)
+        {
+            *curr = ttod_impls[index];
+            next  = (ttod_impls + (index + 1));
+            if ((index + 1) == ttod_impl_count)
+                erts_tolerant_timeofday.disable = -1;
+#if TTOD_REPORT_IMPL_STATE
+            erts_fprintf(stderr,
+                "TTOD strategy '%s' failed, switching to '%s'\n",
+                curr->name, next->name);
+#endif  /* TTOD_REPORT_IMPL_STATE */
+            break;
+        }
+    }
+    if (index >= ttod_impl_count)
+        erl_exit(ERTS_ABORT_EXIT, "TTOD internal error in get_ttod_fail().");
+
+    cpu_compare_and_swap_ptr_pair(& erts_tolerant_timeofday.impl, next, curr);
+
+    return  erts_tolerant_timeofday.impl.call();
+}
 
 static void init_ttod_impl(init_ttod_f initfunc)
 {
-    const unsigned  index = erts_tolerant_timeofday.tail;
+    ttod_impl_t * const impl = (ttod_impls + ttod_impl_count);
 
-    erts_tolerant_timeofday.call[index] = initfunc(& ttod_impl_names[index]);
+    impl->call = initfunc(& impl->name);
 
-    if (erts_tolerant_timeofday.call[index] != NULL)
+    if (impl->call != NULL)
 #if TTOD_REPORT_IMPL_STATE
-    {
         erts_fprintf(stderr,
-            "TTOD '%s' implementation initialized in slot %u\n",
-            ttod_impl_names[index], index);
-        erts_tolerant_timeofday.tail = (index + 1);
-    }
+            "TTOD '%s' strategy initialized in slot %u\n",
+            impl->name, ttod_impl_count++);
     else
         erts_fprintf(stderr,
-            "TTOD '%s' implementation failed to initialize\n",
-            ttod_impl_names[index]);
+            "TTOD '%s' strategy failed to initialize\n", impl->name);
 #else   /* ! TTOD_REPORT_IMPL_STATE */
-        erts_tolerant_timeofday.tail = (index + 1);
+        ++ttod_impl_count;
 #endif  /* TTOD_REPORT_IMPL_STATE */
 }
 
 static void init_tolerant_timeofday(void)
 {
-    erts_tolerant_timeofday.head  = 0;
-    erts_tolerant_timeofday.tail  = 0;
+    ttod_impl_count = 0;
 
 #if HAVE_TTOD_TSC
     init_ttod_impl(init_ttod_tsc);
@@ -271,60 +306,19 @@ static void init_tolerant_timeofday(void)
     init_ttod_impl(init_ttod_times);
 #endif
 
+    ttod_impls[ttod_impl_count].call = gettimeofday_us;
+    ttod_impls[ttod_impl_count].name = "Derault";
+
+    erts_tolerant_timeofday.impl = ttod_impls[0];
+
 #if TTOD_REPORT_IMPL_STATE
-    if (! erts_tolerant_timeofday.tail)
-        erts_fprintf(stderr,
-            "No TTOD implementation initialized successfully\n");
+    if (! ttod_impl_count)
+        erts_fprintf(stderr, "No TTOD strategy initialized successfully\n");
 #endif  /* TTOD_REPORT_IMPL_STATE */
 }
 
-static u_microsecs_t get_tolerant_timeofday(void)
-{
-    SysTimeval  tod;
+#define get_tolerant_timeofday()    ((* erts_tolerant_timeofday.impl.call)())
 
-    if (! erts_tolerant_timeofday.disable)
-    {
-        unsigned    index;
-        for (index = erts_tolerant_timeofday.head;
-            index < erts_tolerant_timeofday.tail ; ++index)
-        {
-            const u_microsecs_t ret = erts_tolerant_timeofday.call[index]();
-            switch (ret)
-            {
-                case TTOD_FAIL_PERMANENT :
-#if TTOD_REPORT_IMPL_STATE
-                    erts_fprintf(stderr,
-                        "Permanent failure of TTOD '%s' in slot %u\n",
-                        ttod_impl_names[index], index);
-#endif  /* TTOD_REPORT_IMPL_STATE */
-                    if (index == erts_tolerant_timeofday.head)
-                    {
-                        Uint32  pre = index;
-                        Uint32  val = (index + 1);
-                        cpu_compare_and_swap_32(
-                            & erts_tolerant_timeofday.head, & val, & pre);
-                    }
-                    else if ((index + 1) == erts_tolerant_timeofday.tail)
-                    {
-                        Uint32  pre = (index + 1);
-                        Uint32  val = index;
-                        cpu_compare_and_swap_32(
-                            & erts_tolerant_timeofday.tail, & val, & pre);
-                    }
-                    break;
-                case TTOD_FAIL_TRANSIENT :
-                    break;
-                default :
-                    return  ret;
-                    break;
-            }
-        }
-        if (erts_tolerant_timeofday.head >= erts_tolerant_timeofday.tail)
-            erts_tolerant_timeofday.disable = -1;
-    }
-    sys_gettimeofday(& tod);
-    return  u_get_tv_micros(& tod);
-}
 static CPU_FORCE_INLINE s_millisecs_t get_tolerant_timeofday_ms(void)
 {
     return  ((s_millisecs_t) (get_tolerant_timeofday() / ONE_THOUSAND));
@@ -334,17 +328,19 @@ static CPU_FORCE_INLINE s_millisecs_t get_tolerant_timeofday_ms(void)
 
 #define init_tolerant_timeofday()   ((void) 1)
 
-static CPU_FORCE_INLINE u_microsecs_t get_tolerant_timeofday(void)
-{
-    SysTimeval  tod;
-    sys_gettimeofday(& tod);
-    return  u_get_tv_micros(& tod);
-}
+#define get_tolerant_timeofday      gettimeofday_us
+
 static CPU_FORCE_INLINE s_millisecs_t get_tolerant_timeofday_ms(void)
 {
     SysTimeval  tod;
     sys_gettimeofday(& tod);
     return  s_get_tv_millis(& tod);
+}
+
+/* symbol must be defined, though it should never be called */
+static  u_microsecs_t get_ttod_fail(get_ttod_f cur_impl)
+{
+    return  gettimeofday_us();
 }
 
 #endif  /* TTOD_IMPLS */
