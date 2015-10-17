@@ -26,7 +26,7 @@ In all cases, our releases are entirely unsupported on platforms upon which
 we don't release Erlang-based products. They might work there, but we neither
 build nor test on anything but supported platforms.
 
-##<a name="build"></a> Building
+##<a name="build"></a>Building
 
 ### Basho Configuration
 
@@ -158,7 +158,7 @@ In particular, they may not survive live migration across virtual machines.*
 |`mach`|disabled|OS X|experimental|Uses a high frequency, low cost tick counter to extrapolate and stabilize system time.|
 |`upt`|enabled|Linux, Unix|stable|Uses the system's uptime counter to stabilize system time. This strategy has significant drawbacks, see the [implementation notes](#ttod.upt).|
 
-##<a name="install"></a> Test & Install
+##<a name="install"></a>Test & Install
 
 ### Run the Smoke Tests
 
@@ -167,7 +167,7 @@ In particular, they may not survive live migration across virtual machines.*
 ### Install the Documentation
 
 
-##<a name="run"></a> Running
+##<a name="run"></a>Running
 
 ### Programatic Interfaces
 
@@ -300,7 +300,7 @@ recalibrate themselves when aberant behavior is apparent (counters going
 backward, not incrementing at expected frequencies, etc), but *will* disable
 themselves when they cannot return accurate times with confidence.
 
-#####<a name="ttod.tsc"></a> TSC
+#####<a name="ttod.tsc"></a>TSC
 
 The TSC strategy is quite experimental. When actually used, this strategy has
 by far the best performance characteristics, but for safety it will only
@@ -316,12 +316,12 @@ more than one physical CPU package.
 The CPU package limitation is expected to be removed, the NUMA limitation may
 not be.
 
-#####<a name="ttod.hpet"></a> HPET
+#####<a name="ttod.hpet"></a>HPET
 
 This strategy is incomplete and will not initialize successfully on any
 platform as of this writing.
 
-#####<a name="ttod.hrt"></a> HRT
+#####<a name="ttod.hrt"></a>HRT
 
 This strategy uses the `gethrtime()` interface on supporting platforms to
 extrapolate and stabilize the system time.
@@ -329,19 +329,19 @@ It is enabled by default on Solaris and its derivatives.
 While not a supported platform, the code *should* enable itself on HP-UX as
 well.
 
-#####<a name="ttod.mach"></a> Mach
+#####<a name="ttod.mach"></a>Mach
 
 This strategy uses the `mach_absolute_time()` process timer on supporting
 platforms to extrapolate and stabilize the system time.
 It enabled by default on Darwin (OS X).
 
-#####<a name="ttod.hrc"></a> HRC
+#####<a name="ttod.hrc"></a>HRC
 
 This strategy uses the `clock_gettime(CLOCK_MONOTONIC)` interface on supporting
 platforms to extrapolate and stabilize the system time.
 It is enabled by default on POSIX-conformant systems.
 
-#####<a name="ttod.upt"></a> UPT
+#####<a name="ttod.upt"></a>UPT
 
 This strategy uses the `times()` interface on supporting platforms to stabilize
 the system time.
