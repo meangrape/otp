@@ -1,0 +1,25 @@
+This directory contains code snippets that are included into
+AC_TRY_COMPILE/AC_COMPILE_IFELSE, AC_TRY_CPP/AC_PREPROC_IFELSE,
+AC_TRY_RUN/AC_RUN_IFELSE, etc clauses in configure.
+
+They have no standalone value.
+
+Tests are named X-zzz.ext where 'yyy' is a semi-descrptive name, 'ext' is an
+appropriate extension for the language, and 'X' is
+
+  c - compile test
+  l - link test
+  p - preprocessor test
+  r - run test
+
+Note that the extension used for the file is irrelevant to the compiler, it's
+only effect is on editors' language recognition.
+
+Where the autoconf macro in use accepts separate 'includes' and
+'function-body' parameters, it is recommended that one of these be left
+blank with '[]' and the other consist only of
+'[#include "autoconf/testcode/x-yyy.ext"]'
+
+In general, it's not worth the maintenance trouble to extract simple tests
+into separate files here; these should be reserved for more complicated tests
+that are easier to maintain as separate source files.

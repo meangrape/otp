@@ -10,8 +10,14 @@
 ##Basho Erlang/OTP
 
 This is the home of [Basho's][1] version of **Erlang/OTP**, forked from
-Ericsson's repository.  You can _(and should!)_ read their
+Ericsson's [repository][4].  You can _(and should!)_ read their
 [README][5] file for information on the language and applications.
+
+##ATTENTION
+
+Beginning with Basho OTP-17, our releases ***WILL NOT BUILD*** for anything
+other than a 64-bit operating system running on an x86_64 platform! If you
+wish to target any other environment, this is not the OTP release for you.
 
 ###What's Here
 
@@ -19,7 +25,7 @@ Our modifications of the original distribution generally fall into one or
 more of the following categories:
 
 * Performance<br />
-  Our users care a lot about performance, and we do wahat we can to
+  Our users care a lot about performance, and we do what we can to
   get the best out of our products running on Erlang/OTP.
 * Security<br />
   In general, we tighten up security in our releases where it makes
@@ -32,8 +38,9 @@ more of the following categories:
 
 Erlang/OTP is designed to run on a wide array of platforms, while our
 products are not. As such, we only qualify our releases on 64-bit
-operating systems running on x86_64 processors. Specific versions are
-listed for our products, but our focus is on particular versions of:
+operating systems running on Intel and AMD x86_64 processors. Specific
+versions are listed for our products, but our focus is on particular
+versions of:
 
 * FreeBSD
 * Linux
@@ -57,8 +64,23 @@ our products support.
 
 ###Building and Installing
 
-Information on building and installing Erlang/OTP can be found
-in the [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) document.
+Some supported platforms require a compiler upgrade from their default.
+The common symptom of a too-old compiler is errors about missing 128-bit
+intrinsic functions, and even current compilers on some platforms may not
+be able to produce debug builds of the Erlang kernel. In general, best
+results will be achieved using the latest production-quality compiler on
+your platform.
+
+The recommended way to build Basho Erlang/OTP is with the `./otp_build`
+script located in the root of the source distribution. For a standard Basho
+production build, _NO_ configuration options are required - our releases
+default to building as if the `--enable-basho` option was specified, and
+unless you have components installed in unusual locations, no additional
+configuration is required or recommended.
+
+Additional information on building, installing, and running Basho's
+Erlang/OTP can be found in the [$ERL_TOP/HOWTO/BASHO.md](HOWTO/BASHO.md)
+and [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) documents.
 
 ####Versions
 

@@ -2,6 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 dnl %CopyrightBegin%
 dnl
+dnl Copyright Basho Technologies, Inc. 2015. All Rights Reserved.
 dnl Copyright Ericsson AB 1998-2014. All Rights Reserved.
 dnl
 dnl The contents of this file are subject to the Erlang Public License,
@@ -17,38 +18,56 @@ dnl under the License.
 dnl
 dnl %CopyrightEnd%
 
-AC_PREREQ(2.8)dnl
-
+AC_PREREQ(2.59)
 AC_INIT()
 
 LM_PRECIOUS_VARS
 
-default_cache_file=./config.cache
-
-if test "x$no_recursion" != "xyes" -a "x$OVERRIDE_CONFIG_CACHE" = "x"; then
-    # The no_recursion variable is not documented, but the only
-    # action we take on it is disabling caching which is safe!
-    if test "x$cache_file" != "x$default_cache_file"; then
-	echo "Ignoring the --cache-file argument since it can cause the system to be erroneously configured"
+dnl
+dnl Do NOT use the AC_MSG_xxx macros yet, m4 *may* barf this early
+dnl
+# The no_recursion variable is not documented, but the only
+# action we take on it is disabling caching which is safe!
+if test "x$no_recursion" != xyes \
+    -a "x$OVERRIDE_CONFIG_CACHE" = x \
+    -a "x$cache_file" != x/dev/null
+then
+  if test "x$cache_file" != x
+  then
+    case "$cache_file" in
+      config.cache | ./config.cache | */dev/null )
+        ;;
+      * )
+        echo Ignoring cache since it can cause the system to be erroneously configured
+        ;;
+    esac
+    if test -f "$cache_file"
+    then
+      echo Removing cache file $cache_file
+      rm -f "$cache_file"
     fi
-    echo "Disabling caching"
-    if test -f $cache_file; then
-	echo "Removing cache file $cache_file"
-	rm -f $cache_file
-    fi
-    cache_file=/dev/null
+  fi
+  echo Disabling caching
+  cache_file=/dev/null
 fi
 
-case "X$ERL_TOP" in
-    X)
-	;;
-    X/*)
-	test -f $ERL_TOP/erts/emulator/beam/beam_emu.c || {
-	     AC_MSG_ERROR([Invalid \$ERL_TOP])
-	}
-	srcdir="$ERL_TOP";;
-    *)
-	AC_MSG_ERROR([\$ERL_TOP needs to be absolute]);;
+AC_MSG_CHECKING(for Erlang/OTP source tree)
+
+case "x$ERL_TOP" in
+  x )
+    ;;
+  x/* )
+    if test -f "$ERL_TOP/OTP_VERSION" \
+      -a -f "$ERL_TOP/erts/vsn.mk" \
+      -a -f "$ERL_TOP/erts/emulator/beam/beam_emu.c"
+    then
+      srcdir="$ERL_TOP"
+    else
+      AC_MSG_ERROR([Invalid \$ERL_TOP])
+    fi
+    ;;
+  * )
+    AC_MSG_ERROR([\$ERL_TOP needs to be absolute]) ;;
 esac
 
 dnl How to set srcdir absolute is taken from the GNU Emacs distribution
@@ -56,26 +75,34 @@ dnl How to set srcdir absolute is taken from the GNU Emacs distribution
 #### avoid running the path through pwd unnecessary, since pwd can
 #### give you automounter prefixes, which can go away.
 case "${srcdir}" in
-  /* ) ;;
+  /* )
+    ;;
   . )
     ## We may be able to use the $PWD environment variable to make this
     ## absolute.  But sometimes PWD is inaccurate.
     ## Make sure CDPATH doesn't affect cd (in case PWD is relative).
     CDPATH=
-    if test "${PWD}" != "" && test "`(cd ${PWD} ; sh -c pwd)`" = "`pwd`"  ;
+    if test "x$PWD" != x && test "`(cd "$PWD" ; sh -c pwd)`" = "`pwd`"
     then
       srcdir="$PWD"
     else
-      srcdir="`(cd ${srcdir}; pwd)`"
+      srcdir="`(cd "$srcdir"; pwd)`"
     fi
-  ;;
-  *  ) srcdir="`(cd ${srcdir}; pwd)`" ;;
+    ;;
+  * )
+    srcdir="`(cd "$srcdir"; pwd)`"
+    ;;
 esac
 
 #
 # Now srcdir is absolute and also the top of Erlang distribution, ERL_TOP.
 #
-test "X$ERL_TOP" != "X" || ERL_TOP="$srcdir"
+if test "x$ERL_TOP" = x
+then
+  ERL_TOP="$srcdir"
+fi
+
+AC_MSG_RESULT([$ERL_TOP])
 AC_SUBST(ERL_TOP)
 
 dnl
@@ -90,196 +117,580 @@ dnl like to get cross compiling working, since we actually have
 dnl systems we cross compile for!
 dnl
 
-if test "X$host" != "Xfree_source" -a "X$host" != "Xwin32"; then
-    AC_CANONICAL_HOST
-fi
-
-TARGET=$host
+dnl
+dnl AC_CANONICAL_HOST does not like free_source as a host specification,
+dnl so we make a little special case.
+dnl
+case "$host" in
+  free_source )
+    target_cpu=x86_64
+    target_os=unix
+    target_vendor=unknown
+    target="${target_cpu}-${target_vendor}-${target_os}"
+    ;;
+  win32|win64 )
+    target_cpu=x86_64
+    target_os=$host
+    target_vendor=unknown
+    target="${target_cpu}-${target_vendor}-${target_os}"
+    ;;
+  * )
+    AC_CANONICAL_TARGET
+    ;;
+esac
+TARGET="$target"
 AC_SUBST(TARGET)
 
-if test "$cross_compiling" = "yes"; then
-    CROSS_COMPILING=yes
+#
+# some settings also define a variable with the suffix '_neg' which is the
+# negated value for use in other setting defaults
+#
+
+if test "x$cross_compiling" = xyes
+then
+  cross_compiling_neg=no
 else
-    CROSS_COMPILING=no
+  cross_compiling=no
+  cross_compiling_neg=yes
 fi
+CROSS_COMPILING=$cross_compiling
 AC_SUBST(CROSS_COMPILING)
-
-
-AC_ARG_ENABLE(bootstrap-only,
-AS_HELP_STRING([--enable-bootstrap-only],
-               [enable bootstrap only configuration]),
-[ if test "X$enableval" = "Xyes"; then
-     BOOTSTRAP_ONLY=yes
-  else
-     BOOTSTRAP_ONLY=no  
-  fi	
-],
-BOOTSTRAP_ONLY=no)
-
-AC_SUBST(BOOTSTRAP_ONLY)
-
-if test $CROSS_COMPILING = yes -a $BOOTSTRAP_ONLY = yes; then
-    AC_MSG_ERROR([Cannot both cross compile and build a bootstrap system])
-fi
-
-dnl Checks for programs.
-
-AC_PROG_CC
-AC_PROG_CXX
-AC_CHECK_TOOL(LD, [ld])
-
-#
-# We need GNU make, complain if we can't find it
-#
-AC_MSG_CHECKING(for GNU make)
-# If there is a Makefile created we don't want make to start making, run
-# in a subdirectory and -f /dev/null
-MAKE_PROG=x
-if test X"$CLEARCASE_MAKE_COMPAT" = X"gnu" -a X"$CLEARCASE_ROOT" != X"" ; then
-  eval clearmake -version 2>&1 | grep clearmake > /dev/null 2>&1
-  case $? in
-	0) MAKE_PROG="clearmake -V";;
-	*);;
-  esac
-fi
-if test X"$MAKE_PROG" = X"x"; then
-  mkdir conftestmake
-  if test -d conftestmake; then
-    cd conftestmake
-    for m in make gmake ggmake; do
-      eval $m --version -f /dev/null 2>&1 | grep GNU > /dev/null 2>&1
-      case $? in
-        0) MAKE_PROG=$m ; break ;;
-        *) ;;
-      esac
-    done
-    cd ..
-  else
-    AC_MSG_ERROR(could not create subdirectory)
-  fi
-fi
-rm -rf conftestmake
-case $MAKE_PROG in
-    x) AC_MSG_RESULT(no)
-       AC_MSG_ERROR(GNU make is required!)
-       ;;
-    *) AC_MSG_RESULT(yes ($MAKE_PROG))
-       AC_SUBST(MAKE_PROG)
-       ;;
-esac
-
-AC_PROG_INSTALL
-if test X"${INSTALL}" = "X${ac_aux_dir}/install-sh -c" && test -f /usr/ucb/install ; then
-   case $host_os in
-      osf*) ;;
-      *) INSTALL="/usr/ucb/install -c" ;;
-   esac
-fi
-
-AC_PROG_LN_S
-AC_PROG_RANLIB
-
-#
-# Get erts version from erts/vsn.mk
-#
-AC_MSG_CHECKING([ERTS version])
-[ERTS_VSN=`sed -n "s/^VSN[	 ]*=[	 ]*\(.*\)/\1/p" < $ERL_TOP/erts/vsn.mk`]
-AC_MSG_RESULT([$ERTS_VSN])
-AC_SUBST(ERTS_VSN)
 
 #
 # Get OTP release and OTP version from $ERL_TOP/OTP_VERSION
 #
 AC_MSG_CHECKING([OTP release])
-[OTP_REL=`cat $ERL_TOP/OTP_VERSION | sed "s|\([0-9]*\).*|\1|"`]
+[OTP_REL=`sed -n 's/^\([0-9]*\).*$/\1/p' < "$ERL_TOP/OTP_VERSION"`]
 AC_MSG_RESULT([$OTP_REL])
 AC_SUBST(OTP_REL)
 
 AC_MSG_CHECKING([OTP version])
-[OTP_VSN=`cat $ERL_TOP/OTP_VERSION`]
+[OTP_VSN=`cat "$ERL_TOP/OTP_VERSION"`]
 AC_MSG_RESULT([$OTP_VSN])
 AC_SUBST(OTP_VSN)
 
-AC_ARG_ENABLE(threads,
-AS_HELP_STRING([--enable-threads], [enable async thread support])
-AS_HELP_STRING([--disable-threads], [disable async thread support]))
+#
+# get the ERTS version
+#
+AC_MSG_CHECKING([ERTS version])
+dnl sed script contains embedded tab characters, use caution
+[ERTS_VSN=`sed -n 's/^VSN[	 ]*=[	 ]*\(.*\)/\1/p' < "$ERL_TOP/erts/vsn.mk"`]
+AC_MSG_RESULT([$ERTS_VSN])
+AC_SUBST(ERTS_VSN)
 
-AC_ARG_ENABLE(dirty-schedulers,
-AS_HELP_STRING([--enable-dirty-schedulers], [enable dirty scheduler support]))
+dnl
+dnl Options are listed in the order we want them to appear in help.
+dnl Many are interdependent, so rearranging them is not to be taken lightly.
+dnl
+dnl --enable-basho is the default, and enforces the following default
+dnl settings. By extension, it it forces incompatible options to
+dnl non-conflicting values as well.
+dnl
+dnl --enable-darwin-64bit (on OSX)
+dnl --enable-m64-build
+dnl --enable-kernel-poll
+dnl --enable-smp-support
+dnl --enable-threads
+dnl --disable-hipe
+dnl --with-ssl
+dnl
+dnl --bootstrap-only forces the following settings, and by extension all
+dnl settings that depend on them. Where there are conflicts, it overrides
+dnl --enable-basho.
+dnl
+dnl --disable-dirty-schedulers
+dnl --disable-hipe
+dnl   --disable-native-libs
+dnl --disable-sctp
+dnl --disable-smp-support
+dnl --disable-threads
+dnl --without-ssl
+dnl   --without-ssl-...
+dnl --without-termcap
+dnl
 
-AC_ARG_ENABLE(halfword-emulator,
-AS_HELP_STRING([--enable-halfword-emulator],
-               [enable halfword emulator (only for 64bit builds). Note: Halfword emulator is marked as deprecated and scheduled for removal in future major release.]))
+AC_ARG_ENABLE(basho,
+AS_HELP_STRING([--enable-basho], [use Basho's production configuration,
+  conflicting options cause errors (default)])
+AS_HELP_STRING([--disable-basho],
+  [allow overrides of Basho's production configuration]),[
+  case "$enableval" in
+    no )
+      enable_basho=no
+      ;;
+    * )
+      enable_basho=yes
+      ;;
+  esac],enable_basho=yes)
+
+if test "x$enable_basho" = xyes
+then
+  enable_basho_neg=no
+else
+  enable_basho_neg=yes
+fi
+
+AC_ARG_ENABLE(bootstrap-only,
+AS_HELP_STRING([--enable-bootstrap-only],
+  [enable bootstrap only configuration]),[
+  case "$enableval:$cross_compiling" in
+    no:* )
+      bootstrap_only=no
+      ;;
+    *:yes )
+      AC_MSG_ERROR([Cannot both cross compile and build a bootstrap system])
+      ;;
+    * )
+      bootstrap_only=yes
+      ;;
+  esac],bootstrap_only=no)
+BOOTSTRAP_ONLY=$bootstrap_only
+AC_SUBST(BOOTSTRAP_ONLY)
+
+if test "x$bootstrap_only" = xyes
+then
+  bootstrap_only_neg=no
+else
+  bootstrap_only_neg=yes
+fi
+
+AC_ARG_ENABLE(darwin-64bit,
+AS_HELP_STRING([--enable-darwin-64bit], [build 64-bit binaries on Darwin
+  (default with --enable-basho on OS X)]),[
+  case "$enable_basho:$enableval:$target_os" in
+    yes:no:darwin* )
+      AC_MSG_ERROR([--disable-darwin-64bit not allowed with --enable-basho])
+      ;;
+    no:no:* )
+      enable_darwin_64bit=no
+      ;;
+    *:darwin* )
+      case "$target_cpu" in
+        i?86|x86_64 )
+          enable_darwin_64bit=yes
+          ;;
+        * )
+          AC_MSG_ERROR([--enable-darwin-64bit only supported on x86 platforms])
+          ;;
+      esac
+      ;;
+    * )
+      AC_MSG_ERROR([--enable-darwin-64bit only supported on Darwin])
+      ;;
+  esac])
+
+AC_ARG_ENABLE(m64-build,
+AS_HELP_STRING([--enable-m64-build], [build 64-bit binaries using the -m64
+  flag to the compiler and linker (default with --enable-basho)]),[
+  case "$enable_basho:$enableval:$target_os" in
+    no:yes:* )
+      AC_MSG_ERROR([--disable-m64-build not allowed with --enable-basho])
+      ;;
+    no:* )
+      if test x$enable_darwin_64bit = xyes
+      then
+        AC_MSG_ERROR([--disable-m64-build conflicts with --enable-darwin-64bit])
+      fi
+      enable_m64_build=no
+      ;;
+    *:darwin* )
+      enable_m64_build=yes
+      enable_darwin_64bit=yes
+      ;;
+    * )
+      enable_m64_build=yes
+      ;;
+  esac],[if test x$enable_darwin_64bit = xyes
+  then
+    enable_m64_build=yes
+  fi])
+
+AC_ARG_ENABLE(darwin-universal,
+AS_HELP_STRING([--enable-darwin-universal], [build 32-bit universal binaries
+  on Darwin. Note: this release probably won't build with this flag, it's
+  included for compatibility only!]),[
+  case "$enable_basho:$enableval:$target_os" in
+    no:* )
+      enable_darwin_universal=no
+      ;;
+    *:yes:* )
+      AC_MSG_ERROR([--enable-darwin-universal not allowed with --enable-basho])
+      ;;
+    *:no:darwin* )
+      if test x$enable_darwin_64bit = xyes
+      then
+        AC_MSG_ERROR([--enable-darwin-universal not supported for 64-bit build])
+      fi
+      case "$build_os:$build_cpu" in
+        darwin*:x86_64 | darwin*:i386 )
+          enable_darwin_univeral=yes
+          ;;
+        * )
+          AC_MSG_ERROR(
+            [--enable-darwin-universal only supported on Darwin x86 hosts])
+          ;;
+      esac
+      ;;
+    * )
+      AC_MSG_NOTICE([--enable-darwin-universal ignored on non-darwin platform])
+      enable_darwin_univeral=no
+      ;;
+  esac],enable_darwin_universal=no)
+
+AC_ARG_ENABLE(m32-build,
+AS_HELP_STRING([--enable-m32-build], [build 32-bit binaries using the -m32
+  flag to the compiler and linker. Note: this release probably won't build
+  with this flag, it's included for compatibility only!]),[
+  case "$enable_basho:$enableval" in
+    no:* )
+      enable_m32_build=no
+      ;;
+    *:yes )
+      AC_MSG_ERROR([--enable-m32-build not allowed with --enable-basho])
+      ;;
+    * )
+      if test x$enable_m64_build = xyes
+      then
+        AC_MSG_ERROR([--enable-m32-build conflicts with 64-bit build])
+      fi
+      enable_m32_build=yes
+      ;;
+  esac],[if test x$enable_darwin_universal = xyes
+  then
+    enable_m32_build=yes
+  fi])
+
+if test "x$enable_m32_build" = x -a "x$enable_m64_build" = x
+then
+  case "$target_cpu" in
+    x86_64 )
+      enable_m64_build=yes
+      ;;
+    i?86 | ia32 )
+      enable_m32_build=yes
+      ;;
+  esac
+fi
 
 AC_ARG_ENABLE(smp-support,
-AS_HELP_STRING([--enable-smp-support], [enable smp support])
-AS_HELP_STRING([--disable-smp-support], [disable smp support]))
+AS_HELP_STRING([--enable-smp-support], [enable smp support (default)])
+AS_HELP_STRING([--disable-smp-support], [disable smp support]),[
+  case "$bootstrap_only:$enable_basho:$enableval" in
+    yes:*:yes )
+      AC_MSG_NOTICE([--enable-smp-support ignored in bootstrap-only configuration])
+      enable_smp_support=no
+      ;;
+    yes:* )
+      enable_smp_support=no
+      ;;
+    no:yes:no )
+      AC_MSG_ERROR([--disable-smp-support not allowed with --enable-basho])
+      ;;
+    *:no )
+      enable_smp_support=no
+      ;;
+    * )
+      enable_smp_support=yes
+      ;;
+  esac],[if test x$bootstrap_only = xyes
+  then
+    enable_smp_support=no
+  elif test x$enable_basho = xyes
+  then
+    enable_smp_support=yes
+  else
+    enable_smp_support=unknown
+  fi])
+
+AC_ARG_ENABLE(threads,
+AS_HELP_STRING([--enable-threads], [enable async thread support (default)])
+AS_HELP_STRING([--disable-threads], [disable async thread support]),[
+  case "$bootstrap_only:$enable_basho:$enableval" in
+    yes:*:yes )
+      AC_MSG_NOTICE([--enable-threads ignored in bootstrap-only configuration])
+      enable_threads=no
+      ;;
+    yes:* )
+      enable_threads=no
+      ;;
+    no:yes:no )
+      AC_MSG_ERROR([--disable-threads not allowed with --enable-basho])
+      ;;
+    *:no )
+      enable_threads=no
+      ;;
+    * )
+      enable_threads=yes
+      ;;
+  esac],enable_threads=$enable_smp_support)
+
+AC_ARG_ENABLE(kernel-poll,
+AS_HELP_STRING([--enable-kernel-poll], [enable kernel poll support (default)])
+AS_HELP_STRING([--disable-kernel-poll], [disable kernel poll support]),[
+  case "$enableval:$enable_basho" in
+    no:yes )
+      AC_MSG_ERROR([--disable-kernel-poll not allowed with --enable-basho])
+      ;;
+    no:* )
+      enable_kernel_poll=no
+      ;;
+    * )
+      enable_kernel_poll=yes
+      ;;
+  esac],enable_kernel_poll=unknown)
+
+AC_ARG_ENABLE(hipe,
+AS_HELP_STRING([--enable-hipe], [enable HiPE support])
+AS_HELP_STRING([--disable-hipe], [disable HiPE support (default)]),[
+  case "$bootstrap_only:$enable_basho:$enableval" in
+    yes:*:yes )
+      AC_MSG_NOTICE([--enable-hipe ignored in bootstrap-only configuration])
+      enable_hipe=no
+      ;;
+    yes:* )
+      enable_hipe=no
+      ;;
+    *:yes:yes )
+      AC_MSG_ERROR([--enable-hipe not allowed on $target_cpu-$target_os with --enable-basho])
+      ;;
+    *:no )
+      enable_hipe=no
+      ;;
+    * )
+      enable_hipe=yes
+      ;;
+  esac],enable_hipe=no)
+
+AC_ARG_ENABLE(native-libs,
+AS_HELP_STRING([--enable-native-libs], [compile Erlang libraries to native
+  code (default if HiPE is enabled and not cross compiling)]),[
+  case "$enableval:$enable_hipe" in
+    no:* )
+      enable_native_libs=no
+      ;;
+    *:yes )
+      enable_native_libs=yes
+      ;;
+    * )
+      AC_MSG_NOTICE([--enable-native-libs ignored with HiPE disabled])
+      enable_native_libs=no
+      ;;
+  esac],[if test "x$cross_compiling" = xyes
+  then
+    enable_native_libs=no
+  else
+    enable_native_libs=$enable_hipe
+  fi])
+NATIVE_LIBS_ENABLED=$enable_native_libs
+AC_SUBST(NATIVE_LIBS_ENABLED)
+
+AC_ARG_ENABLE(ttod,
+AS_HELP_STRING([--enable-ttod], [enables the tolerant_timeofday (TTOD)
+  mechanism, by which ERTS attempts to smooth sudden changes of system time
+  (default). When built, TTOD can be disabled at runtime with the '+c'
+  emulator switch.])
+AS_HELP_STRING([--disable-ttod], [disables the TTOD mechanism entirely, which
+  is strongly discouraged.])
+AS_HELP_STRING([--enable-ttod=@<:@comma-separated list of strategies@:>@],
+ [enables a specific set of TTOD strategies, documented elsewhere.
+  Note: this option should ONLY be used with expert guidance!]))
+
+AC_ARG_ENABLE(dirty-schedulers,
+AS_HELP_STRING([--enable-dirty-schedulers], [enable dirty scheduler support.
+  Note: dirty schedulers are an EXPERIMENTAL feature!]),[
+  case "$bootstrap_only:$enableval" in
+    yes:yes )
+      AC_MSG_NOTICE([--enable-dirty-schedulers ignored in bootstrap-only configuration])
+      enable_dirty_schedulers=no
+      ;;
+    *:no )
+      enable_dirty_schedulers=no
+      ;;
+    * )
+      enable_dirty_schedulers=yes
+      ;;
+  esac],enable_dirty_schedulers=no)
+
+AC_ARG_ENABLE(halfword-emulator,
+AS_HELP_STRING([--enable-halfword-emulator], [enable halfword emulator
+  (only for 64bit builds). Note: Halfword emulator is marked as deprecated
+  and scheduled for removal in future major release.]),[
+  case "$enableval:$enable_basho" in
+    no:* )
+      enable_halfword_emulator=no
+      ;;
+    *:yes )
+      AC_MSG_ERROR([--enable-halfword-emulator not allowed with --enable-basho])
+      ;;
+    * )
+      enable_halfword_emulator=yes
+      ;;
+  esac],enable_halfword_emulator=no)
 
 AC_ARG_WITH(termcap,
 AS_HELP_STRING([--with-termcap], [use termcap (default)])
-AS_HELP_STRING([--without-termcap],
-               [do not use any termcap libraries (ncurses,curses,termcap,termlib)]))
-
-AC_ARG_ENABLE(kernel-poll,
-AS_HELP_STRING([--enable-kernel-poll], [enable kernel poll support])
-AS_HELP_STRING([--disable-kernel-poll], [disable kernel poll support]))
+AS_HELP_STRING([--without-termcap], [do not use any termcap libraries
+  (ncurses,curses,termcap,termlib)]),[
+  case "$bootstrap_only:$enableval" in
+    yes:yes )
+      AC_MSG_NOTICE([--with-termcap ignored in bootstrap-only configuration])
+      with_termcap=no
+      ;;
+    no )
+      with_termcap=no
+      ;;
+    * )
+      with_termcap=yes
+      ;;
+  esac],with_termcap=$bootstrap_only_neg)
 
 AC_ARG_ENABLE(sctp,
-AS_HELP_STRING([--enable-sctp], [enable sctp support])
-AS_HELP_STRING([--disable-sctp], [disable sctp support]))
-
-AC_ARG_ENABLE(hipe,
-AS_HELP_STRING([--enable-hipe], [enable hipe support])
-AS_HELP_STRING([--disable-hipe], [disable hipe support]))
-
-AC_ARG_ENABLE(native-libs,
-AS_HELP_STRING([--enable-native-libs],
-               [compile Erlang libraries to native code]))
+AS_HELP_STRING([--enable-sctp], [enable sctp support (default)])
+AS_HELP_STRING([--disable-sctp], [disable sctp support]),[
+  case "$bootstrap_only:$enableval" in
+    yes:yes )
+      AC_MSG_NOTICE([--enable-sctp ignored in bootstrap-only configuration])
+      enable_sctp=no
+      ;;
+    no )
+      enable_sctp=no
+      ;;
+    * )
+      enable_sctp=yes
+      ;;
+  esac],[if test "x$bootstrap_only" = xyes
+  then
+    enable_sctp=no
+  else
+    enable_sctp=unknown
+  fi])
 
 AC_ARG_WITH(dynamic-trace,
 AS_HELP_STRING([--with-dynamic-trace={dtrace|systemtap}],
-	       [specify use of dynamic trace framework, dtrace or systemtap])
-AS_HELP_STRING([--without-dynamic-trace], 
-               [don't enable any dynamic tracing (default)]))
+  [specify use of dynamic trace framework, dtrace or systemtap])
+AS_HELP_STRING([--without-dynamic-trace],
+  [do not enable any dynamic tracing (default)]))
+
 AC_ARG_ENABLE(vm-probes,
-AS_HELP_STRING([--enable-vm-probes],
-               [add dynamic trace probes to the Beam VM (only possible if --with-dynamic-trace is enabled, and then default)]))
+AS_HELP_STRING([--enable-vm-probes], [add dynamic trace probes to the Beam VM
+  (only possible if --with-dynamic-trace is enabled, and then default)]))
+
 AC_ARG_WITH(javac,
 AS_HELP_STRING([--with-javac=JAVAC], [specify Java compiler to use])
 AS_HELP_STRING([--with-javac], [use a Java compiler if found (default)])
-AS_HELP_STRING([--without-javac], [don't use any Java compiler]))
+AS_HELP_STRING([--without-javac], [do not use any Java compiler]))
 
 AC_ARG_ENABLE(megaco_flex_scanner_lineno,
 AS_HELP_STRING([--disable-megaco-flex-scanner-lineno],
-               [disable megaco flex scanner lineno]))
+  [disable megaco flex scanner lineno]))
 
 AC_ARG_ENABLE(megaco_reentrant_flex_scanner,
 AS_HELP_STRING([--disable-megaco-reentrant-flex-scanner],
-               [disable reentrant megaco flex scanner]))
+  [disable reentrant megaco flex scanner]))
 
 AC_ARG_WITH(ssl,
-AS_HELP_STRING([--with-ssl=PATH], [specify location of OpenSSL include and lib])
 AS_HELP_STRING([--with-ssl], [use SSL (default)])
-AS_HELP_STRING([--without-ssl], [don't use SSL]))
+AS_HELP_STRING([--with-ssl=PATH], [specify location of OpenSSL include and lib])
+AS_HELP_STRING([--without-ssl], [do not use SSL]),[
+  case "$bootstrap_only:$enableval:$enable_basho" in
+    yes:no:* )
+      with_ssl=no
+      ;;
+    yes:* )
+      AC_MSG_NOTICE([--with-ssl ignored in bootstrap-only configuration])
+      with_ssl=no
+      ;;
+    no:yes:* )
+      with_ssl=yes
+      ;;
+    no:no:yes )
+      AC_MSG_ERROR([--without-ssl not allowed with --enable-basho])
+      ;;
+    no:no:no )
+      with_ssl=no
+      ;;
+    * )
+      if test ! -d "$enableval"
+      then
+        AC_MSG_ERROR(Invalid path to option --with-ssl=PATH)
+      fi
+      with_ssl="$enableval"
+      ;;
+  esac],with_ssl=$bootstrap_only_neg)
 
 AC_ARG_WITH(ssl-incl,
-AS_HELP_STRING([--with-ssl-incl=PATH],
-               [location of OpenSSL include dir, if different than specified by --with-ssl=PATH]))
-
-AC_ARG_WITH(ssl-rpath,
-AS_HELP_STRING([--with-ssl-rpath=yes|no|PATHS],
-               [runtime library path for OpenSSL. Default is 'yes', which equates to a
-	       number of standard locations. If 'no', then no runtime
-	       library paths wil be used. Anything else should be a
-	       comma separated list of paths.]))
+AS_HELP_STRING([--with-ssl-incl=PATH], [location of OpenSSL include dir,
+  if different than specified by --with-ssl=PATH]),[
+  case "$with_ssl:$enableval" in
+    *:no )
+      with_ssl_incl=no
+      ;;
+    no:* )
+      AC_MSG_NOTICE([--with-ssl-incl ignored with SSL disabled])
+      with_ssl_incl=no
+      ;;
+    * )
+      if test ! -d "$enableval"
+      then
+        AC_MSG_ERROR(Invalid path to option --with-ssl-incl=PATH)
+      fi
+      with_ssl_incl="$enableval"
+      ;;
+  esac],[case "$with_ssl" in
+    yes|no )
+      with_ssl_incl=no
+      ;;
+    * )
+      with_ssl_incl="$with_ssl"
+      ;;
+  esac])
 
 AC_ARG_ENABLE(dynamic-ssl-lib,
-AS_HELP_STRING([--disable-dynamic-ssl-lib],
-               [disable using dynamic openssl libraries]))
+AS_HELP_STRING([--disable-dynamic-ssl-lib], [disable using dynamic OpenSSL
+  libraries (NOT recommended!)]),[
+  case "$with_ssl:$enableval" in
+    *:no )
+      enable_dynamic_ssl=no
+      ;;
+    no:* )
+      AC_MSG_NOTICE([--{enable|disable}-dynamic-ssl-lib ignored with SSL disabled])
+      enable_dynamic_ssl=no
+      ;;
+    * )
+      enable_dynamic_ssl=yes
+      ;;
+  esac],enable_dynamic_ssl=yes)
+
+AC_ARG_WITH(ssl-rpath,
+AS_HELP_STRING([--with-ssl-rpath=yes|no|PATHS], [runtime library path(s) for
+  OpenSSL. Default is 'yes', which equates to a number of standard locations.
+  If 'no', then no runtime library paths will be used. Anything else should
+  be a comma separated list of paths.]),[
+  case "$enable_dynamic_ssl:$enableval" in
+    *:no )
+      with_ssl_rpath=no
+      ;;
+    no:* )
+      AC_MSG_NOTICE([--with-ssl-rpath ignored at runtime with dynamic SSL library disabled])
+      with_ssl_rpath="$enableval"
+      ;;
+    * )
+      # can't validate the path(s) here, they're for the target system(s)
+      with_ssl_rpath="$enableval"
+      ;;
+  esac],with_ssl_rpath=$enable_dynamic_ssl)
 
 AC_ARG_ENABLE(builtin-zlib,
 AS_HELP_STRING([--enable-builtin-zlib],
-               [force use of our own built-in zlib]))
+  [force use of our own built-in zlib]),[
+  case "$enableval" in
+    no )
+      enable_builtin_zlib=no
+      ;;
+    * )
+      enable_builtin_zlib=yes
+      ;;
+  esac],enable_builtin_zlib=no)
 
 dnl This functionality has been lost along the way... :(
 dnl It could perhaps be nice to reintroduce some day; therefore,
@@ -296,136 +707,192 @@ dnl     *)  erl_mandir='$(erlang_libdir)/man' ;;
 dnl   esac ], erl_mandir='$(erlang_libdir)/man')
 dnl AC_SUBST(erl_mandir)
 
-AC_ARG_ENABLE(darwin-universal,
-AS_HELP_STRING([--enable-darwin-universal],
-               [build universal binaries on darwin i386]),
-[ case "$enableval" in
-    no) enable_darwin_universal=no ;;
-    *)  enable_darwin_univeral=yes ;;
-  esac
-],enable_darwin_universal=no)
-
-
-AC_ARG_ENABLE(darwin-64bit,
-AS_HELP_STRING([--enable-darwin-64bit], [build 64bit binaries on darwin]),
-[ case "$enableval" in
-    no) enable_darwin_64bit=no ;;
-    *)  enable_darwin_64bit=yes ;;
-  esac
-],enable_darwin_64bit=no)
-
-AC_ARG_ENABLE(m64-build,
-AS_HELP_STRING([--enable-m64-build],
-               [build 64bit binaries using the -m64 flag to (g)cc]),
-[ case "$enableval" in
-    no) enable_m64_build=no ;;
-    *)  enable_m64_build=yes ;;
-  esac
-],enable_m64_build=no)
-
-AC_ARG_ENABLE(m32-build,
-AS_HELP_STRING([--enable-m32-build],
-               [build 32bit binaries using the -m32 flag to (g)cc]),
-[ case "$enableval" in
-    no) enable_m32_build=no ;;
-    *)
-	if test X${enable_darwin_64bit} = Xyes -o  X${enable_m64_build} = Xyes;
-	then
-		AC_MSG_ERROR([(--enable-darwin-64bit or --enable-m64-build) and --enable-m32-build are mutually exclusive]) ;
-	fi ;
-	enable_m32_build=yes ;;
-  esac
-],enable_m32_build=no)
-
 AC_ARG_WITH(libatomic_ops,
-	    AS_HELP_STRING([--with-libatomic_ops=PATH],
-			   [specify and prefer usage of libatomic_ops in the ethread library]))
-
-dnl OK, we might have darwin switches off different kinds, lets 
-dnl check it all before continuing.
-TMPSYS=`uname -s`-`uname -m`
-if test X${enable_darwin_universal} = Xyes; then
-	if test X${enable_darwin_64bit} = Xyes; then
-		AC_MSG_ERROR([--enable-darwin-universal and --enable-darwin-64bit mutually exclusive])
-	fi
-	enable_hipe=no
-	CFLAGS="-arch i386 -arch ppc $CFLAGS"
-	export CFLAGS
-	LDFLAGS="-arch i386 -arch ppc $LDFLAGS"
-	export LDFLAGS
-fi
-if test X${enable_darwin_64bit} = Xyes; then
-	case "$TMPSYS" in
-	    Darwin-i386|Darwin-x86_64)
-		;;
-	    Darwin*)
-		AC_MSG_ERROR([--enable-darwin-64bit only supported on x86 hosts])
-		;;
-	    *)
-		AC_MSG_ERROR([--enable-darwin-64bit only supported on Darwin])
-		;;
-	esac
-	enable_hipe=no
-	CFLAGS="-m64 $CFLAGS"
-	export CFLAGS
-	LDFLAGS="-m64 $LDFLAGS"
-	export LDFLAGS
-elif test X"$TMPSYS" '=' X"Darwin-i386"; then
-	CFLAGS="-m32 $CFLAGS"
-	export CFLAGS
-	LDFLAGS="-m32 $LDFLAGS"
-	export LDFLAGS
-fi
+AS_HELP_STRING([--with-libatomic_ops=PATH],
+  [specify and prefer usage of libatomic_ops in the ethread library]))
 
 m4_define(DEFAULT_SANITIZERS, [address,undefined])
 AC_ARG_ENABLE(sanitizers,
-    AS_HELP_STRING(
-        [--enable-sanitizers@<:@=comma-separated list of sanitizers@:>@],
-	    [Default=DEFAULT_SANITIZERS]))
+AS_HELP_STRING([--enable-sanitizers=@<:@comma-separated list of sanitizers@:>@],
+  [Default=DEFAULT_SANITIZERS]))
 
-AC_ARG_ENABLE([silent-rules], [dnl
-AS_HELP_STRING(
-  [--enable-silent-rules],
-  [less verbose build output (undo: "make V=1")])
-AS_HELP_STRING(
-  [--disable-silent-rules],
-  [verbose build output (undo: "make V=0")])dnl
-])
-
-DEFAULT_VERBOSITY=0
-if test X${enable_silent_rules} = Xno; then
-  DEFAULT_VERBOSITY=1
-fi
+AC_ARG_ENABLE([silent-rules],
+AS_HELP_STRING([--enable-silent-rules],
+  [less verbose build output (default) (undo: "make V=1")])
+AS_HELP_STRING([--disable-silent-rules],
+  [verbose build output (undo: "make V=0")]),[
+  case "$enableval" in
+    no )
+      DEFAULT_VERBOSITY=1
+      ;;
+    * )
+      DEFAULT_VERBOSITY=0
+      ;;
+  esac],DEFAULT_VERBOSITY=0)
 AC_SUBST(DEFAULT_VERBOSITY)
 
-if test X${enable_m64_build} = Xyes; then
-	enable_hipe=no
-	CFLAGS="-m64 $CFLAGS"
-	export CFLAGS
-	LDFLAGS="-m64 $LDFLAGS"
-	export LDFLAGS
+dnl ----------------------------------------------------------------------
+dnl handle architecture flags
+dnl ----------------------------------------------------------------------
+
+tmp_var_list="CFLAGS LDFLAGS"
+if test "x$CXXFLAGS" != x
+then
+  tmp_var_list="$tmp_var_list CXXFLAGS"
 fi
-if test X${enable_m32_build} = Xyes; then
-	enable_hipe=no
-	CFLAGS="-m32 $CFLAGS"
-	export CFLAGS
-	LDFLAGS="-m32 $LDFLAGS"
-	export LDFLAGS
+if test "x$enable_m32_build" = xyes
+then
+  if test "x$enable_darwin_univeral" = xyes
+  then
+    for tmp_var in $tmp_var_list
+    do
+      eval "tmp_val=\$$tmp_var"
+      tmp_str=`echo ' ' $tmp_val | tr -s ' '`
+      case " $tmp_str " in
+        *' -arch ppc '* )
+          ;;
+        *' -arch i386 '* )
+          ;;
+        *' -arch '* )
+          AC_MSG_ERROR($tmp_var contains an -arch flag that conflicts with --enable-darwin-universal)
+          ;;
+      esac
+      case " $tmp_str " in
+        *' -arch ppc '* )
+          ;;
+        * )
+          eval "$tmp_var=\"-arch ppc \$$tmp_var\""
+          export $tmp_var
+          ;;
+      esac
+      case " $tmp_str " in
+        *' -arch i386 '* )
+          ;;
+        * )
+          eval "$tmp_var=\"-arch i386 \$$tmp_var\""
+          export $tmp_var
+          ;;
+      esac
+    done
+  fi
+  for tmp_var in $tmp_var_list
+  do
+    eval "tmp_val=\$$tmp_var"
+    tmp_str=`echo ' ' $tmp_val | tr -s ' '`
+    case " $tmp_str " in
+      *' -m32 '* )
+        ;;
+      *' -m64 '* )
+        AC_MSG_ERROR($tmp_var contains -m64 flag that conflicts with --enable-m32-build)
+        ;;
+      * )
+        eval "$tmp_var=\"-m32 \$$tmp_var\""
+        export $tmp_var
+        ;;
+    esac
+  done
+elif test "x$enable_m64_build" = xyes
+then
+  for tmp_var in $tmp_var_list
+  do
+    eval "tmp_val=\$$tmp_var"
+    tmp_str=`echo ' ' $tmp_val | tr -s ' '`
+    case " $tmp_str " in
+      *' -m64 '* )
+        ;;
+      *' -m32 '* )
+        AC_MSG_ERROR($tmp_var contains -m32 flag that conflicts with --enable-m64-build)
+        ;;
+      * )
+        eval "$tmp_var=\"-m64 \$$tmp_var\""
+        export $tmp_var
+        ;;
+    esac
+  done
 fi
 
-NATIVE_LIBS_ENABLED=
-if test X${enable_native_libs} = Xyes -a X${enable_hipe} != Xno; then
-  NATIVE_LIBS_ENABLED=yes
-fi
-AC_SUBST(NATIVE_LIBS_ENABLED)
+dnl ----------------------------------------------------------------------
+dnl Checks for programs.
+dnl ----------------------------------------------------------------------
 
+AC_PROG_CC
+AC_PROG_CXX
+AC_CHECK_TOOL(LD, [ld])
+
+#
+# We need GNU make, complain if we can't find it
+#
+AC_MSG_CHECKING(for GNU make)
+# If there is a Makefile created we don't want make to start making, run
+# in a subdirectory and -f /dev/null
+MAKE_PROG=x
+if test "x$CLEARCASE_MAKE_COMPAT" = xgnu -a "x$CLEARCASE_ROOT" != x
+then
+  eval clearmake -version 2>&1 | grep clearmake > /dev/null 2>&1
+  case $? in
+    0 )
+      MAKE_PROG="clearmake -V"
+      ;;
+    * )
+      ;;
+  esac
+fi
+if test "$MAKE_PROG" = x
+then
+  mkdir conftestmake
+  if test -d conftestmake
+  then
+    cd conftestmake
+    for m in $MAKE make gmake ggmake
+    do
+      eval $m --version -f /dev/null 2>&1 | grep GNU > /dev/null 2>&1
+      case $? in
+        0 )
+          MAKE_PROG=$m
+          break
+          ;;
+        * )
+          ;;
+      esac
+    done
+    cd ..
+  else
+    AC_MSG_ERROR(could not create subdirectory)
+  fi
+fi
+rm -rf conftestmake
+case $MAKE_PROG in
+  x )
+    AC_MSG_RESULT(no)
+    AC_MSG_ERROR(GNU make is required!)
+    ;;
+  * )
+    AC_MSG_RESULT(yes ($MAKE_PROG))
+    AC_SUBST(MAKE_PROG)
+    ;;
+esac
+
+AC_PROG_INSTALL
+if test "x$INSTALL" = "x$ac_aux_dir/install-sh -c" && test -f /usr/ucb/install
+then
+  case $target_os in
+    osf* )
+      ;;
+    * )
+      INSTALL="/usr/ucb/install -c"
+      ;;
+   esac
+fi
+
+AC_PROG_LN_S
+AC_PROG_RANLIB
 
 rm -f $ERL_TOP/lib/SKIP-APPLICATIONS
 for app in `cd lib && ls -d *`; do
-    var=`eval echo \\$with_$app`
-    if test X${var} = Xno; then
-       echo "$app" >> $ERL_TOP/lib/SKIP-APPLICATIONS
-     fi
+  var=`eval echo \\$with_$app`
+  if test X${var} = Xno; then
+    echo "$app" >> $ERL_TOP/lib/SKIP-APPLICATIONS
+  fi
 done
 
 export ERL_TOP
@@ -478,14 +945,14 @@ if test -f "erts/doc/CONF_INFO"; then
   echo '**********************  DOCUMENTATION INFORMATION  ******************'
   echo '*********************************************************************'
   echo
-  printf "%-15s: \n" documentation; 
+  printf "%-15s: \n" documentation;
   havexsltproc="yes"
   for cmd in `cat erts/doc/CONF_INFO`; do
-	echo "                 $cmd is missing." 
+    echo "                 $cmd is missing."
   if test $cmd = "xsltproc"; then
     havexsltproc="no"
   fi
-  done  
+  done
   if test $havexsltproc = "no"; then
     echo '                 The documentation can not be built.'
   else

@@ -19,3 +19,28 @@
 
 /* Dirty scheduler support */
 #undef ERL_NIF_DIRTY_SCHEDULER_SUPPORT
+
+/*
+  Define non-zero to build tolerant_timeofday functionality.
+  If defined == 1, default strategies are used.
+  If defined >1, non-default ERTS_TTOD_USE_xxx definitions are used.
+*/
+#undef ERTS_TTOD_ENABLED
+
+/* define to exactly one to enable the TTOD HPET strategy */
+#undef ERTS_TTOD_USE_HPET
+
+/* define to exactly one to enable the TTOD HRC strategy */
+#undef ERTS_TTOD_USE_HRC
+
+/* define to exactly one to enable the TTOD HRT strategy */
+#undef ERTS_TTOD_USE_HRT
+
+/* define to exactly one to enable the TTOD Mach strategy */
+#undef ERTS_TTOD_USE_MACH
+
+/* define to exactly one to enable the TTOD TSC strategy */
+#undef ERTS_TTOD_USE_TSC
+
+/* define to exactly one to enable the TTOD UPT strategy */
+#undef ERTS_TTOD_USE_UPT
