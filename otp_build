@@ -324,6 +324,13 @@ do_autoconf ()
 	    esac
 	fi
 	
+	# RE utilities are sensitive to character encoding, and there are some
+	# offensive byte sequences in the autoconf inputs, so force SBCS
+	hide_vars LANG LC_CTYPE
+	LANG=C
+	LC_CTYPE=C
+	export LC_CTYPE LANG
+
 	hide_vars OVERRIDE_TARGET TARGET
 	TARGET=$BUILDSYS
 	export TARGET
@@ -345,6 +352,7 @@ do_autoconf ()
 	done
 
 	restore_vars OVERRIDE_TARGET TARGET
+	restore_vars LANG LC_CTYPE
 
         if target_contains win32; then
 	    WANT_AUTOCONF_VER=$save_want_autoconf_ver
