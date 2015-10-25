@@ -36,9 +36,8 @@
             SSL v3 is disabled due to its vulnerability to POODLE attacks.
             By extension, this leaves only TLS v1 and higher as supported
             secure communication protocols.
-          </p>
-          <p>
-            Own Id: RIAK-1485
+          </p><p>
+            Basho Id: RIAK-1485
           </p>
         </item>
 
@@ -47,14 +46,12 @@
             The default values of the secure_renegotiate and
             honor_cipher_order options have been changed to true and
             centralized to assure consistency.
-          </p>
-          <p>
+          </p><p>
             The default values of the above options, as well as that of the
             padding_check option added in SSL 6.0, have been centralized to
             assure consistency. These options are explicitly initialized to
             their defaults unless directly overridden.
-          </p>
-          <p>
+          </p><p>
             *** Basho strongly recommends against overriding these more
             secure defaults. ***
           </p>

@@ -4,7 +4,11 @@
 <chapter>
   <header>
     <copyright>
-      <year>2004</year><year>2013</year>
+      <year>2014</year><year>2015</year>
+      <holder>Basho Technologies, Inc.</holder>
+    </copyright>
+    <copyright>
+      <year>2004</year><year>2015</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -30,28 +34,74 @@
   </header>
   <p>This document describes the changes made to the ERTS application.</p>
 
-<section><title>Erts 6.4.1.2-basho0</title>
+<section><title>Erts 6.4.1.3-basho1</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Don't attempt to use fdatasync() on Mac OS X, where it does not
+	          conform to the POSIX specification.
+          </p><p>
+            Basho Id: OTP-14
+          </p>
+        </item>
+      </list>
+    </section>
 
     <section><title>Improvements and New Features</title>
       <list>
+        <item>
+          <p>
+            Restructure tolerant_timeofday behavior to be more configurable
+            with less lock contention. This removes mutexes entirely from
+            most timekeeping operations, and adds an option to use a stable
+            TSC on supporting CPUs.
+          </p><p>
+            Basho Id: OTP-41
+          </p>
+        </item>
+        <item>
+          <p>
+            Autoconf/configure script defaults to a Basho production build.
+          </p><p>
+            Basho Id: OTP-48
+          </p>
+        </item>
         <item>
           <p>
             Multiple timer wheels are used in SMP builds to allow for
             higher concurrency. Additionally, a lot of timer and timer
             wheel code has been cleaned up and/or refactored to clarify
             and enforce consistent semantics.
-          </p>
-          <p>
+          </p><p>
             While timer wheels are not explicitly bound to schedulers, each
             scheduler will always add timers to the same timer wheel,
             while lookup of timers that are due for processing may search
             across wheels.
-          </p>
-          <p>
+          </p><p>
             Non-SMP runtimes should benefit from the removal of some
             extraneous synchronization code as well.
+          </p><p>
+	          Basho Id: OTP-6
           </p>
-          <p>Basho Id: OTP-6</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Erts 6.4.1.3</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    When tracing with <c>process_dump</c> option, the VM
+	    could abort if there was an ongoing binary match
+	    somewhere in the call stack of the traced process./</p>
+          <p>
+	    Own Id: OTP-12968</p>
         </item>
       </list>
     </section>
