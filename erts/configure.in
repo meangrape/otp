@@ -1036,13 +1036,13 @@ do
   str=`echo ' ' $val | tr -s ' '`
   case " $str " in
     *' -m64 '* )
-      if "$ac_cv_sizeof_void_p" -ne 8
+      if test "$ac_cv_sizeof_void_p" -ne 8
       then
         AC_MSG_ERROR($var contains -m64 flag that conflicts with address width)
       fi
       ;;
     *' -m32 '* )
-      if "$ac_cv_sizeof_void_p" -ne 4
+      if test "$ac_cv_sizeof_void_p" -ne 4
       then
         AC_MSG_ERROR($var contains -m32 flag that conflicts with address width)
       fi
@@ -1054,6 +1054,19 @@ do
       ;;
   esac
 done
+
+dnl
+dnl our emulator uses 128-bit atomic operations, which may require the -mcx16
+dnl compiler option - see if it works (or is already present)
+dnl
+str=`echo ' ' $CFLAGS | tr -s ' '`
+case " $str " in
+  *' -mcx16 '* )
+    ;;
+  * )
+    LM_TRY_ENABLE_CFLAG([-mcx16], [CFLAGS])
+    ;;
+esac
 
 dnl ---------------------------------------------------------------------
 dnl Special stuff regarding CFLAGS and details in the environment...
