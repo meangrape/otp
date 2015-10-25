@@ -5,12 +5,12 @@
 ####Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Experimental | OTP-18 | [`basho-otp-18`](http://github.com/basho/otp/tree/basho-otp-18) | _n/a_ | [`OTP-18.1`](http://github.com/basho/otp/tree/OTP-18.1) |
+| Experimental | OTP-18 | [`basho-otp-18`](http://github.com/basho/otp/tree/basho-otp-18) | _n/a_ | [`OTP-18.1.3`](http://github.com/basho/otp/tree/OTP-18.1.3) |
 
 ##Basho Erlang/OTP
 
 This is the home of [Basho's][1] version of **Erlang/OTP**, forked from
-Ericsson's repository.  You can _(and should!)_ read their
+Ericsson's [repository][4].  You can _(and should!)_ read their
 [README][5] file for information on the language and applications.
 
 ###What's Here
@@ -19,7 +19,7 @@ Our modifications of the original distribution generally fall into one or
 more of the following categories:
 
 * Performance<br />
-  Our users care a lot about performance, and we do wahat we can to
+  Our users care a lot about performance, and we do what we can to
   get the best out of our products running on Erlang/OTP.
 * Security<br />
   In general, we tighten up security in our releases where it makes
@@ -38,6 +38,7 @@ listed for our products, but our focus is on particular versions of:
 * FreeBSD
 * Linux
 * OS X
+* SmartOS
 * Solaris
 
 #####Interoperability
@@ -52,7 +53,7 @@ configuration options to set them explicitly.
 No, we don't do Windows, and we don't even do all available versions of
 the systems listed above. While we do try to keep our changes as portable
 as the original distributions they're based on, we don't test beyond what
-our products suport.
+our products support.
 
 ###Building and Installing
 
