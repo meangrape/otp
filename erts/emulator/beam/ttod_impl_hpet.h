@@ -26,24 +26,28 @@
  * 'ttod_<strategy>', where '<strategy>' matches 'ttod_impl_<strategy>' in
  * the file name.
  *
- * On entry, the macro HAVE_TTOD_<STRATEGY> is defined with the value '0'.
- * If the necessary resources are available to implement the strategy, this
- * macro should be defined to exactly '1' after inclusion of this file, and
+ * On entry, if the macro ERTS_TTOD_USE_<STRATEGY> is defined with a non-zero
+ * value AND the necessary resources are available to implement the strategy,
+ * the macro should be defined to exactly '1' after inclusion of this file, and
  * 'init_ttod_<strategy>(char ** name)' should be a valid statement resolving
  * to a pointer to a get_ttod_f function on success or NULL if initialization
  * was not successful.
  *
  * If the strategy cannot (or should not) be used in the compilation
- * environment, no code should be included and the HAVE_TTOD_<STRATEGY>
+ * environment, no code should be included and the ERTS_TTOD_USE_<STRATEGY>
  * macro should have a zero value after inclusion of this file.
  */
 
-#if SOME_PREPROCESSOR_DEFINITIONS
-#undef  HAVE_TTOD_HPET
-#define HAVE_TTOD_HPET 1
+#if     ERTS_TTOD_USE_HPET \
+    &&  0   /* disabled for now */
+#undef  ERTS_TTOD_USE_HPET
+#define ERTS_TTOD_USE_HPET  1
+#else
+#undef  ERTS_TTOD_USE_HPET
+#define ERTS_TTOD_USE_HPET  0
 #endif  /* requirements check */
 
-#if HAVE_TTOD_HPET
+#if ERTS_TTOD_USE_HPET
 
 /*
  * Allocate locally as needed
@@ -86,9 +90,9 @@ static u_microsecs_t get_ttod_hpet(void)
 static get_ttod_f init_ttod_hpet(const char ** name)
 {
     /* MUST be initialized before ANY return */
-    *name = "HPET";
+    *name = "hpet";
 
     return  get_ttod_hpet;
 }
 
-#endif  /* HAVE_TTOD_HPET */
+#endif  /* ERTS_TTOD_USE_HPET */

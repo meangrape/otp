@@ -83,9 +83,17 @@
 /* prevent type conflict in global.h */
 #define HIDE_ERTS_TTOD_DISABLE  1
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
+#if defined(__APPLE__) && defined(__MACH__)
+#include <mach/mach_time.h>
+#ifndef HAVE_MACH_ABSOLUTE_TIME
+#define HAVE_MACH_ABSOLUTE_TIME 1
 #endif
+#endif
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#include "erts_ttod_config.h"
 
 #include "sys.h"
 #include "erl_vm.h"
@@ -110,8 +118,8 @@ static  TIME_SUP_ALIGNED_VAR(erts_smp_atomic_t, last_delivered_ms);
  * structure as possible.
  *
  * SysTimes SHOULD contain 4 clock_t values, which SHOULD be native integer
- * types, so no matter what I should take up some multiple of 64-bits.
- * s_millisecs_t is exactly 64-bits, so we're still aligned.
+ * types, so no matter what it SHOULD take up some multiple of 64 bits.
+ * s_millisecs_t is exactly 64 bits, so we're still aligned.
  * With a little luck, SysTimeval will be 2 integers of the same size, but
  * this is where alignment could go out the window.
  * Beyond here, we really don't know ...
@@ -173,13 +181,45 @@ static u_microsecs_t gettimeofday_us(void)
 
 /*
  * Begin tolerant_timeofday stuff
+ *
+ * ERTS_TTOD_USE_xxx macros MUST be kept in sync with erts_ttod_config.h.in!
  */
+#if !defined(ERTS_TTOD_ENABLED) || (ERTS_TTOD_ENABLED < 0)
+#define ERTS_TTOD_ENABLED   0
+#endif
+#if ERTS_TTOD_ENABLED
+/*
+ * Values assigned here define the default strategies.
+ * Define to '1' to build if supported on the platform, '0' to exclude.
+ */
+#if (ERTS_TTOD_ENABLED < 2)
+#define ERTS_TTOD_USE_HPET  1
+#define ERTS_TTOD_USE_HRC   1
+#define ERTS_TTOD_USE_HRT   1
+#define ERTS_TTOD_USE_MACH  1
+#define ERTS_TTOD_USE_TSC   1
+#define ERTS_TTOD_USE_UPT   1
+#endif
 
-#define HAVE_TTOD_HPET  0
-#define HAVE_TTOD_HRT   0
-#define HAVE_TTOD_MACH  0
-#define HAVE_TTOD_TIMES 0
-#define HAVE_TTOD_TSC   0
+#define ERTS_TTOD_IMPL_CHK  1
+#include "ttod_impl_hpet.h"
+#include "ttod_impl_hrc.h"
+#include "ttod_impl_hrt.h"
+#include "ttod_impl_mach.h"
+#include "ttod_impl_tsc.h"
+#include "ttod_impl_upt.h"
+#undef  ERTS_TTOD_IMPL_CHK
+
+/* maximum number of implementations we may have */
+#define ERTS_TTOD_IMPL_COUNT \
+    ( ERTS_TTOD_USE_HPET + ERTS_TTOD_USE_HRC + ERTS_TTOD_USE_HRT \
+    + ERTS_TTOD_USE_MACH + ERTS_TTOD_USE_TSC + ERTS_TTOD_USE_UPT )
+
+#else   /* ! ERTS_TTOD_ENABLED */
+#define ERTS_TTOD_IMPL_COUNT 0
+#endif  /* ERTS_TTOD_ENABLED */
+
+#if (ERTS_TTOD_IMPL_COUNT > 0)
 
 typedef u_microsecs_t (* get_ttod_f)(void);
 typedef get_ttod_f (* init_ttod_f)(const char ** name);
@@ -204,64 +244,100 @@ struct
 }
     erts_tolerant_timeofday erts_align_attribute(TIME_SUP_ALLOC_ALIGN);
 
+/* MUST have one extra slot for the default implementation */
+static ttod_impl_t ttod_impls[ERTS_TTOD_IMPL_COUNT + 1];
+static unsigned    ttod_impl_count;
+
+#if ERTS_TTOD_IMPL_NEED_GET_TTOD_FAIL || ERTS_TTOD_IMPL_NEED_GET_TTOD_NEXT
+/* let the compiler decide whether to inline or not */
+static unsigned get_ttod_impl_index(get_ttod_f impl)
+{
+    unsigned    index;
+    for (index = 0; index < ttod_impl_count; ++index)
+        if (ttod_impls[index].call == impl)
+            break;
+    return  index;
+}
+#endif  /* need get_ttod_impl_index */
+
+#if ERTS_TTOD_IMPL_NEED_GET_TTOD_FAIL
+#if     ! CPU_HAVE_ATOMIC_PTRPAIR_OPS
+#error  Atomic operations on pairs of pointers required!
+#endif
 /*
  * When a tolerant_timeofday implementation can no longer reasonably expect
  * to be able to continue operating accurately, it should return via this
  * function, which resets the 'get_tolerant_timeofday' pointers to the next
  * available implementation.
  */
-static  u_microsecs_t get_ttod_fail(get_ttod_f cur_impl);
-
-#include "ttod_impl_hpet.h"
-#include "ttod_impl_hrt.h"
-#include "ttod_impl_mach.h"
-#include "ttod_impl_times.h"
-#include "ttod_impl_tsc.h"
-
-/* maximum number of implementations we may have */
-#define TTOD_IMPLS \
-    ( HAVE_TTOD_HPET + HAVE_TTOD_HRT + HAVE_TTOD_MACH \
-    + HAVE_TTOD_TIMES + HAVE_TTOD_TSC )
-
-#if TTOD_IMPLS
-
-#if     ! CPU_HAVE_ATOMIC_PTRPAIR_OPS
-#error  Atomic operations on pairs of pointers required!
-#endif
-
-/* MUST have one extra slot for the default implementation */
-static ttod_impl_t ttod_impls[TTOD_IMPLS + 1];
-static unsigned    ttod_impl_count;
-
-static  u_microsecs_t get_ttod_fail(get_ttod_f cur_impl)
+static u_microsecs_t get_ttod_fail(get_ttod_f cur_impl)
 {
     ttod_impl_t     curr[1];
     ttod_impl_t *   next;
-    unsigned        index;
+    unsigned        index = get_ttod_impl_index(cur_impl);
 
-    for (index = 0; index < ttod_impl_count; ++index)
-    {
-        if (ttod_impls[index].call == cur_impl)
-        {
-            *curr = ttod_impls[index];
-            next  = (ttod_impls + (index + 1));
-            if ((index + 1) == ttod_impl_count)
-                erts_tolerant_timeofday.disable = -1;
-#if TTOD_REPORT_IMPL_STATE
-            erts_fprintf(stderr,
-                "TTOD strategy '%s' failed, switching to '%s'\n",
-                curr->name, next->name);
-#endif  /* TTOD_REPORT_IMPL_STATE */
-            break;
-        }
-    }
-    if (index >= ttod_impl_count)
+    *curr = ttod_impls[index++];
+    next  = (ttod_impls + index);
+    if (index == ttod_impl_count)
+        erts_tolerant_timeofday.disable = -1;
+    else if (index > ttod_impl_count)
         erl_exit(ERTS_ABORT_EXIT, "TTOD internal error in get_ttod_fail().");
+#if TTOD_REPORT_IMPL_STATE
+    erts_fprintf(stderr,
+        "TTOD strategy '%s' failed, switching to '%s'\n",
+        curr->name, next->name);
+#endif  /* TTOD_REPORT_IMPL_STATE */
 
     cpu_compare_and_swap_ptr_pair(& erts_tolerant_timeofday.impl, next, curr);
 
     return  erts_tolerant_timeofday.impl.call();
 }
+#endif  /* ERTS_TTOD_IMPL_NEED_GET_TTOD_FAIL */
+
+#if ERTS_TTOD_IMPL_NEED_GET_TTOD_NEXT
+/*
+ * When a tolerant_timeofday implementation can not currently provide a
+ * non-default result, such as when it hasn't yet had enough time to calibrate
+ * itself or has experienced a recoverable reset, it should return via this
+ * function to allow the next available implementation to give it a try.
+ */
+static u_microsecs_t get_ttod_next(get_ttod_f cur_impl)
+{
+    unsigned  index = (get_ttod_impl_index(cur_impl) + 1);
+    if (index > ttod_impl_count)
+        erl_exit(ERTS_ABORT_EXIT, "TTOD internal error in get_ttod_next().");
+    return  ttod_impls[index].call();
+}
+#endif  /* ERTS_TTOD_IMPL_NEED_GET_TTOD_NEXT */
+
+#if ERTS_TTOD_IMPL_NEED_BOUND_US_ADJUSTMENT
+/*
+ * Encapsulate how we limit adjustment changes. Given a difference in current
+ * vs calculated adjustment, returns the value to add to the current usecond
+ * adjustment value to move it closer to the calculated adjustment.
+ * Let the compiler decide whether to inline it or not.
+ */
+static s_microsecs_t bound_us_adjustment(s_microsecs_t offset)
+{
+    const u_microsecs_t abs = u_abs64(offset);
+    /* maximum 10ms per bump */
+    if (abs > ONE_MILLION)
+        return  (offset < 0) ? -TEN_THOUSAND : TEN_THOUSAND;
+    else if (abs > TEN_THOUSAND)
+        return  (offset / ONE_HUNDRED);
+    else if (abs > ONE_THOUSAND)
+        return  (offset / 10);
+    else
+        return  offset;
+}
+#endif  /* ERTS_TTOD_IMPL_NEED_BOUND_US_ADJUSTMENT */
+
+#include "ttod_impl_hpet.h"
+#include "ttod_impl_hrc.h"
+#include "ttod_impl_hrt.h"
+#include "ttod_impl_mach.h"
+#include "ttod_impl_tsc.h"
+#include "ttod_impl_upt.h"
 
 static void init_ttod_impl(init_ttod_f initfunc)
 {
@@ -286,28 +362,32 @@ static void init_tolerant_timeofday(void)
 {
     ttod_impl_count = 0;
 
-#if HAVE_TTOD_TSC
+#if ERTS_TTOD_USE_TSC
     init_ttod_impl(init_ttod_tsc);
 #endif
 
-#if HAVE_TTOD_HPET
+#if ERTS_TTOD_USE_MACH
+    init_ttod_impl(init_ttod_mach);
+#endif
+
+#if ERTS_TTOD_USE_HPET
     init_ttod_impl(init_ttod_hpet);
 #endif
 
-#if HAVE_TTOD_HRT
+#if ERTS_TTOD_USE_HRC
+    init_ttod_impl(init_ttod_hrc);
+#endif
+
+#if ERTS_TTOD_USE_HRT
     init_ttod_impl(init_ttod_hrt);
 #endif
 
-#if HAVE_TTOD_MACH
-    init_ttod_mach(init_ttod_hpet);
-#endif
-
-#if HAVE_TTOD_TIMES
+#if ERTS_TTOD_USE_UPT
     init_ttod_impl(init_ttod_times);
 #endif
 
     ttod_impls[ttod_impl_count].call = gettimeofday_us;
-    ttod_impls[ttod_impl_count].name = "Derault";
+    ttod_impls[ttod_impl_count].name = "Default";
 
     erts_tolerant_timeofday.impl = ttod_impls[0];
 
@@ -317,18 +397,24 @@ static void init_tolerant_timeofday(void)
 #endif  /* TTOD_REPORT_IMPL_STATE */
 }
 
-#define get_tolerant_timeofday()    ((* erts_tolerant_timeofday.impl.call)())
+#define get_tolerant_timeofday()    erts_tolerant_timeofday.impl.call()
 
 static CPU_FORCE_INLINE s_millisecs_t get_tolerant_timeofday_ms(void)
 {
     return  ((s_millisecs_t) (get_tolerant_timeofday() / ONE_THOUSAND));
 }
 
-#else   /* ! TTOD_IMPLS */
+#else   /* ! ERTS_TTOD_IMPL_COUNT */
+
+struct
+{
+    char volatile disable;
+}
+    erts_tolerant_timeofday;
 
 #define init_tolerant_timeofday()   ((void) 1)
 
-#define get_tolerant_timeofday      gettimeofday_us
+#define get_tolerant_timeofday()    gettimeofday_us()
 
 static CPU_FORCE_INLINE s_millisecs_t get_tolerant_timeofday_ms(void)
 {
@@ -337,13 +423,7 @@ static CPU_FORCE_INLINE s_millisecs_t get_tolerant_timeofday_ms(void)
     return  s_get_tv_millis(& tod);
 }
 
-/* symbol must be defined, though it should never be called */
-static  u_microsecs_t get_ttod_fail(get_ttod_f cur_impl)
-{
-    return  gettimeofday_us();
-}
-
-#endif  /* TTOD_IMPLS */
+#endif  /* ERTS_TTOD_IMPL_COUNT */
 
 #define get_tolerant_timeofday_us() ((s_microsecs_t) get_tolerant_timeofday())
 

@@ -155,7 +155,7 @@ AC_ISC_POSIX
 dnl
 dnl this MUST be on a single line or autoheader will barf
 dnl
-AC_CONFIG_HEADER($target/config.h:config.h.in include/internal/$target/ethread_header_config.h:include/internal/ethread_header_config.h.in include/$target/erl_int_sizes_config.h:include/erl_int_sizes_config.h.in include/$target/erl_native_features_config.h:include/erl_native_features_config.h.in)
+AC_CONFIG_HEADER($target/config.h:config.h.in include/internal/$target/ethread_header_config.h:include/internal/ethread_header_config.h.in include/internal/$target/erts_ttod_config.h:include/internal/erts_ttod_config.h.in include/$target/erl_int_sizes_config.h:include/erl_int_sizes_config.h.in include/$target/erl_native_features_config.h:include/erl_native_features_config.h.in)
 
 dnl ----------------------------------------------------------------------
 dnl Optional features.
@@ -1067,6 +1067,31 @@ case " $str " in
     LM_TRY_ENABLE_CFLAG([-mcx16], [CFLAGS])
     ;;
 esac
+
+dnl
+dnl see what sort of native 128-bit integer type(s) we have
+dnl
+AC_CHECK_SIZEOF(long long)
+AC_CHECK_SIZEOF(__int128)
+AC_CHECK_SIZEOF(__int128_t)
+case "$ac_cv_sizeof_long_long:$ac_cv_sizeof___int128:$ac_cv_sizeof___int128_t" in
+  16:* )
+    var='long long'
+    ;;
+  *:16:* )
+    var='__int128'
+    ;;
+  *:16 )
+    var='__int128_t'
+    ;;
+  * )
+    var=
+    ;;
+esac
+if test "x$var" != x
+then
+  AC_DEFINE_UNQUOTED([ERTS_INT128_TYPE], [$var], [type of a native 128-bit integer])
+fi
 
 dnl ---------------------------------------------------------------------
 dnl Special stuff regarding CFLAGS and details in the environment...
@@ -2398,7 +2423,7 @@ AC_CHECK_SIZEOF(time_t)
 
 BITS64=
 
-if test $ac_cv_sizeof_void_p eq 8
+if test $ac_cv_sizeof_void_p -eq 8
 then
   BITS64=yes
 fi
@@ -5395,7 +5420,7 @@ then
   for var in $cc_ld_flag_vars
   do
     eval "$var=\"\$$var -fsanitize=$sanitizers\""
-    export $var 
+    export $var
   done
 fi
 

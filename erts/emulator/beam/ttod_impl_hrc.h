@@ -49,17 +49,17 @@
 
 #if ERTS_TTOD_IMPL_CHK
 
-#if     ERTS_TTOD_USE_SAMPLE \
+#if     ERTS_TTOD_USE_HRC \
     &&  SOME_PREPROCESSOR_DEFINITIONS
-#undef  ERTS_TTOD_USE_SAMPLE
-#define ERTS_TTOD_USE_SAMPLE 1
+#undef  ERTS_TTOD_USE_HRC
+#define ERTS_TTOD_USE_HRC 1
 #define ERTS_TTOD_IMPL_NEED_GET_TTOD_FAIL 1
 #else
-#undef  ERTS_TTOD_USE_SAMPLE
-#define ERTS_TTOD_USE_SAMPLE 0
+#undef  ERTS_TTOD_USE_HRC
+#define ERTS_TTOD_USE_HRC 0
 #endif  /* requirements check */
 
-#elif   ERTS_TTOD_USE_SAMPLE
+#elif   ERTS_TTOD_USE_HRC
 
 /*
  * Allocate locally as needed
@@ -68,17 +68,17 @@ static struct
 {
     int foo;
 }
-    ttod_sample_state;
+    ttod_hrc_state;
 
 /*
  * Return the number of microseconds since 1-Jan-1970 UTC on success or
- * get_ttod_fail(get_ttod_sample) to disable this strategy.
+ * get_ttod_fail(get_ttod_hrc) to disable this strategy.
  *
  * Each implementation is responsible for figuring out when it has failed
  * permanently, but should not blindly continue trying when it's clear it's
  * just not working.
  */
-static u_microsecs_t get_ttod_sample(void)
+static u_microsecs_t get_ttod_hrc(void)
 {
     SysTimeval  tod;
 
@@ -88,7 +88,7 @@ static u_microsecs_t get_ttod_sample(void)
 
     sys_gettimeofday(& tod);
 
-    return  get_ttod_fail(get_ttod_sample);
+    return  get_ttod_fail(get_ttod_hrc);
 }
 
 /*
@@ -99,12 +99,12 @@ static u_microsecs_t get_ttod_sample(void)
  * This function should check the runtime environment to ensure support for
  * the strategy and only initialize if the necessary behavior is present.
  */
-static get_ttod_f init_ttod_sample(const char ** name)
+static get_ttod_f init_ttod_hrc(const char ** name)
 {
     /* MUST be initialized before ANY return */
-    *name = "sample";
+    *name = "hrc";
 
-    return  get_ttod_sample;
+    return  get_ttod_hrc;
 }
 
-#endif  /* ERTS_TTOD_USE_SAMPLE */
+#endif  /* ERTS_TTOD_USE_HRC */

@@ -43,12 +43,6 @@
 #define CPU_ARCH_X86                1
 #define CPU_ARCH_X86_64             1
 #define CPU_HAVE_DIRECT_ATOMIC_128  1
-/* TODO: come up with a better test for this */
-#ifdef  DEBUG
-#define CPU_USE_GCC_ATOMIC_128_ASM  1
-#else
-#define CPU_USE_GCC_ATOMIC_128_ASM  0
-#endif  /* use old GCC 128-bit intrinsics */
 #include <x86intrin.h>
 # elif  defined(__i386__)
 #define CPU_ARCH_X86                1
@@ -157,167 +151,282 @@ extern void erts_init_cpu_features(void);
  * Conceivably, this code could all be made to run on 64-bit CPUs in 32-bit
  * OSes using some combination of inline assembler and emitted machine
  * inctructions, but why bother.
+ *
+ * Some GCC-ish compilers don't translate the __atomic_xxx builtins to machine
+ * code, instead emitting calls to functions that don't actually exist,
+ * resulting in linker errors. The old-style __sync_xxx operations don't write
+ * back the 'expect' value, so we just use inline assembler throughout to get
+ * the operations and behaviors we want without worrying about what works where.
+ *
+ * The 'dest', 'src', and 'expect' pointers are aliased to macros 'd', 's',
+ * and 'x', respectively, instead of declaring transient pointer variables,
+ * because at low optimization levels the macros won't generate as much code.
  */
 #if CPU_HAVE_DIRECT_ATOMIC_OPS
 #if     defined(CPU_HAVE_GCC_INTRINSICS)
+
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_32(volatile void * dest, void * src, void * expect)
 {
-    return __atomic_compare_exchange(
-        (volatile Uint32 *) dest, (Uint32 *) expect, (Uint32 *) src,
-        0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+#define s ((Uint32 *) src)
+#define x ((Uint32 *) expect)
+    unsigned char ret;
+    __asm__ __volatile__( "lock"
+        "\n\t"  "cmpxchgl %4, (%2)"
+        "\n\t"  "setz    %0"
+        "\n\t"  "jz      equal_%="
+        "\n\t"  "movl    %%eax, %1"
+        "\nequal_%=:"
+        : "=r" (ret), "=mr" (*x)
+        : "r" (dest), "a" (*x), "r" (*s)
+        : "cc", "eax" );
+    return  ret;
+#undef x
+#undef s
 }
 static CPU_FORCE_INLINE void
 cpu_atomic_load_64(volatile void * src, void * dest)
 {
-#if (SIZEOF_VOID_P == 8)
-    *((Uint64 *) dest) = *((volatile Uint64 *) src);
-#else
-    __atomic_load((volatile Uint64 *) src, (Uint64 *) dest, __ATOMIC_RELAXED);
-#endif
+#ifdef  ARCH_64
+#define d ((Uint64 *) dest)
+#define s ((volatile Uint64 *) src)
+    *d = *s;
+#else   /* ARCH_32 */
+#define d ((Uint32 *) dest)
+    __asm__ __volatile__( "lock"
+        "\n\t"  "cmpxchg8b (%2)"
+        : "=a" (d[0]), "=d" (d[1])
+        : "r" (src), "a" (0), "d" (0), "b" (0), "c" (0)
+        : "cc" );
+#endif  /* ARCH_nn */
+#undef s
+#undef d
+}
+static CPU_FORCE_INLINE void
+cpu_atomic_store_64(volatile void * dest, void * src)
+{
+#ifdef  ARCH_64
+#define d ((volatile Uint64 *) dest)
+#define s ((Uint64 *) src)
+    *d = *s;
+#else   /* ARCH_32 */
+#define d ((volatile Uint32 *) dest)
+#define s ((Uint32 *) src)
+    __asm__ __volatile__(
+        "store_%=:"
+        "\n\t"  "lock"
+        "\n\t"  "cmpxchg8b (%0)"
+        "\n\t"  "jne     store_%="
+        : : "r" (dest), "b" (s[0]), "c" (s[1]), "a" (d[0]), "d" (d[1])
+        : "cc" );
+#endif  /* ARCH_nn */
+#undef s
+#undef d
 }
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_64(volatile void * dest, void * src, void * expect)
 {
-    return __atomic_compare_exchange(
-        (volatile Uint64 *) dest, (Uint64 *) expect, (Uint64 *) src,
-        0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+    unsigned char ret;
+#ifdef  ARCH_64
+#define s ((Uint64 *) src)
+#define x ((Uint64 *) expect)
+    __asm__ __volatile__( "lock"
+        "\n\t"  "cmpxchgq %4, (%2)"
+        "\n\t"  "setz    %0"
+        "\n\t"  "jz      equal_%="
+        "\n\t"  "movq    %%rax, %1"
+        "\nequal_%=:"
+        : "=r" (ret), "=mr" (*x)
+        : "r" (dest), "a" (*x), "r" (*s)
+        : "cc", "rax" );
+#else   /* ARCH_32 */
+#define s ((Uint32 *) src)
+#define x ((Uint32 *) expect)
+    __asm__ __volatile__( "lock"
+        "\n\t"  "cmpxchg8b (%3)"
+        "\n\t"  "setz    %0"
+        "\n\t"  "jz      equal_%="
+        "\n\t"  "movl    %%eax, %1"
+        "\n\t"  "movl    %%edx, %2"
+        "\nequal_%=:"
+        : "=r" (ret), "=mr" (x[0]), "=mr" (x[1])
+        : "r" (dest), "a" (x[0]), "d" (x[1]), "b" (s[0]), "c" (s[1])
+        : "cc", "eax", "edx" );
+#endif  /* ARCH_nn */
+    return  ret;
+#undef x
+#undef s
 }
+
 #elif   defined(CPU_HAVE_MSVC_INTRINSICS)
 #pragma intrinsic(_InterlockedCompareExchange)
 #pragma intrinsic(_InterlockedCompareExchange64)
+#ifdef  ARCH_32
+#pragma intrinsic(_InterlockedExchange64)
+#endif
+
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_32(volatile void * dest, void * src, void * expect)
 {
-    const __int32 out = _InterlockedCompareExchange(
-        (volatile __int32 *) dest, *((__int32 *) src), *((__int32 *) expect));
-    if (out == *((__int32 *) expect))
+#define d ((volatile __int32 *) dest)
+#define s ((__int32 *) src)
+#define x ((__int32 *) expect)
+    const __int32 out = _InterlockedCompareExchange(d, *s, *x);
+    if (out == *x)
         return  1;
-    *((__int32 *) expect) = out;
+    *x = out;
     return  0;
+#undef x
+#undef s
+#undef d
 }
 static CPU_FORCE_INLINE void
 cpu_atomic_load_64(volatile void * src, void * dest)
 {
-#if (SIZEOF_VOID_P == 8)
-    *((__int64 *) dest) = *((volatile __int64 *) src);
+#define d ((__int64 *) dest)
+#define s ((volatile __int64 *) src)
+#ifdef  ARCH_64
+    *d = *s;
 #else
-    *((__int64 *) dest) =
-        _InterlockedCompareExchange64((volatile __int64 *) src, 0, 0);
+    *d = _InterlockedCompareExchange64(s, 0, 0);
 #endif
+#undef s
+#undef d
+}
+static CPU_FORCE_INLINE void
+cpu_atomic_store_64(volatile void * dest, void * src)
+{
+#define d ((volatile __int64 *) dest)
+#define s ((__int64 *) src)
+#ifdef  ARCH_64
+    *d = *s;
+#else
+    _InterlockedExchange64(d, *s);
+#endif
+#undef s
+#undef d
 }
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_64(volatile void * dest, void * src, void * expect)
 {
-    const __int64 out = _InterlockedCompareExchange64(
-        (volatile __int64 *) dest, *((__int64 *) src), *((__int64 *) expect));
-    if (out == *((__int64 *) expect))
+#define d ((volatile __int64 *) dest)
+#define s ((__int64 *) src)
+#define x ((__int64 *) expect)
+    const __int64 out = _InterlockedCompareExchange64(d, *s, *x);
+    if (out == *x)
         return  1;
-    *((__int64 *) expect) = out;
+    *x = out;
     return  0;
+#undef x
+#undef s
+#undef d
 }
+
 #else
 #error  Missing intrinsics for CPU_HAVE_DIRECT_ATOMIC_OPS
 #endif  /* CPU_HAVE_xxx_INTRINSICS */
 
 #if CPU_HAVE_DIRECT_ATOMIC_128
 #if     defined(CPU_HAVE_GCC_INTRINSICS)
+
 static CPU_FORCE_INLINE void
 cpu_atomic_load_128(volatile void * src, void * dest)
 {
-#if CPU_USE_GCC_ATOMIC_128_ASM
-    do
-    {   /* yields a consistent copy at some instant */
-        ((Uint64 *) dest)[0] = ((volatile Uint64 *) src)[0];
-        ((Uint64 *) dest)[1] = ((volatile Uint64 *) src)[1];
-    }
-    while (((Uint64 *) dest)[0] != ((volatile Uint64 *) src)[0]);
-#else
-    __atomic_load(
-        (volatile __int128 *) src, (__int128 *) dest, __ATOMIC_RELAXED);
-#endif  /* CPU_USE_GCC_ATOMIC_128_ASM */
+#define d ((Uint64 *) dest)
+    __asm__ __volatile__( "lock"
+        "\n\t"  "cmpxchg16b (%2)"
+        : "=a" (d[0]), "=d" (d[1])
+        : "r" (src), "a" (0), "d" (0), "b" (0), "c" (0)
+        : "cc" );
+#undef d
+}
+static CPU_FORCE_INLINE void
+cpu_atomic_store_128(volatile void * dest, void * src)
+{
+#define d ((volatile Uint64 *) dest)
+#define s ((Uint64 *) src)
+    __asm__ __volatile__(
+        "store_%=:"
+        "\n\t"  "lock"
+        "\n\t"  "cmpxchg16b (%0)"
+        "\n\t"  "jne     store_%="
+        : : "r" (dest), "b" (s[0]), "c" (s[1]), "a" (d[0]), "d" (d[1])
+        : "cc" );
+#undef s
+#undef d
 }
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_128(volatile void * dest, void * src, void * expect)
 {
-#if CPU_USE_GCC_ATOMIC_128_ASM
-    /*
-     * Not the absolute most efficient implementation, but good enough.
-     * In particular, it always writes the value back to 'expect' even if it
-     * hasn't changed. Then again, that may not cost any more than a
-     * conditional jump.
-     * This code SHOULD only get used in debug builds, where the intrinsic
-     * isn't found by the linker.
-     */
+#define s ((Uint64 *) src)
+#define x ((Uint64 *) expect)
     unsigned char ret;
-    __asm__ __volatile__ (
-                "lock"
-        "\n\t"  "cmpxchg16b (%0)"
-        "\n\t"  "setz    %1"
-        : "+mr" (dest), "=c" (ret),
-          "+a" (((Uint64 *) expect)[0]), "+d" (((Uint64 *) expect)[1])
-        : "b" (((Uint64 *) src)[0]), "c" (((Uint64 *) src)[1])
-        : "cc" );
+    __asm__ __volatile__( "lock"
+        "\n\t"  "cmpxchg16b (%3)"
+        "\n\t"  "setz    %0"
+        "\n\t"  "jz      equal_%="
+        "\n\t"  "movq	 %%rax, %1"
+        "\n\t"  "movq	 %%rdx, %2"
+        "\nequal_%=:"
+        : "=r" (ret), "=mr" (x[0]), "=mr" (x[1])
+        : "r" (dest), "a" (x[0]), "d" (x[1]), "b" (s[0]), "c" (s[1])
+        : "cc", "rax", "rdx" );
     return  ret;
-#else
-    return __atomic_compare_exchange(
-        (volatile __int128 *) dest, (__int128 *) expect, (__int128 *) src,
-        0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
-#endif  /* CPU_USE_GCC_ATOMIC_128_ASM */
+#undef x
+#undef s
 }
+
 #elif   defined(CPU_HAVE_MSVC_INTRINSICS)
 #pragma intrinsic(_InterlockedCompareExchange128)
+
 static CPU_FORCE_INLINE void
 cpu_atomic_load_128(volatile void * src, void * dest)
 {
-    /*
-     * TODO: See what MSVC generates from this.
-     *
-     * CmpXchg16b is the instruction we want, but without additional baggage.
-     * If MSVC isn't smart enough to optimize the cruft away, use the
-     * alternative below, which is likely to be pretty fast.
-     */
-#if 1
-    _InterlockedCompareExchange128(
-        (volatile __int64 *) src,
-        ((__int64 *) dest)[1], ((__int64 *) dest)[0],
-        (__int64 *) dest);
-#else
-    do
-    {
-        /*
-         * IFF the value is ONLY ever written atomically, this will give us
-         * some consistent snapshot of it.
-         */
-        ((__int64 *) dest)[0] = ((volatile __int64 *) src)[0];
-        ((__int64 *) dest)[1] = ((volatile __int64 *) src)[1];
-    }
-    while (((__int64 *) dest)[0] != ((volatile __int64 *) src)[0]);
-#endif
+#define d ((__int64 *) dest)
+#define s ((volatile __int64 *) src)
+    _InterlockedCompareExchange128(s, d[1], d[0], d);
+#undef s
+#undef d
+}
+static CPU_FORCE_INLINE void
+cpu_atomic_store_128(volatile void * dest, void * src)
+{
+#define d ((volatile __int64 *) dest)
+#define s ((__int64 *) src)
+    __int64 x[2] = {d[0], d[1]};
+    while (! _InterlockedCompareExchange128(d, s[1], s[0], x));
+#undef s
+#undef d
 }
 static CPU_FORCE_INLINE int
 cpu_compare_and_swap_128(volatile void * dest, void * src, void * expect)
 {
-    return _InterlockedCompareExchange128(
-        (volatile __int64 *) dest,
-        ((__int64 *) src)[1], ((__int64 *) src)[0],
-        (__int64 *) expect);
+#define d ((volatile __int64 *) dest)
+#define s ((__int64 *) src)
+#define x ((__int64 *) expect)
+    return _InterlockedCompareExchange128(d, s[1], s[0], x);
+#undef x
+#undef s
+#undef d
 }
+
 #else
 #error  Missing intrinsics for CPU_HAVE_DIRECT_ATOMIC_128
 #endif  /* CPU_HAVE_xxx_INTRINSICS */
 
 #endif  /* CPU_HAVE_DIRECT_ATOMIC_128 */
 
-#if     (SIZEOF_VOID_P == 4)
+#if     defined(ARCH_32)
 #define cpu_compare_and_swap_ptr        cpu_compare_and_swap_32
 #define cpu_atomic_load_ptr_pair        cpu_atomic_load_64
+#define cpu_atomic_store_ptr_pair       cpu_atomic_store_64
 #define cpu_compare_and_swap_ptr_pair   cpu_compare_and_swap_64
 #define CPU_HAVE_ATOMIC_PTRPAIR_OPS     1
-#elif   (SIZEOF_VOID_P == 8)
+#elif   defined(ARCH_64)
 #define cpu_compare_and_swap_ptr        cpu_compare_and_swap_64
 #if     CPU_HAVE_DIRECT_ATOMIC_128
 #define cpu_atomic_load_ptr_pair        cpu_atomic_load_128
+#define cpu_atomic_store_ptr_pair       cpu_atomic_store_128
 #define cpu_compare_and_swap_ptr_pair   cpu_compare_and_swap_128
 #define CPU_HAVE_ATOMIC_PTRPAIR_OPS     1
 #endif  /* CPU_HAVE_DIRECT_ATOMIC_128 */

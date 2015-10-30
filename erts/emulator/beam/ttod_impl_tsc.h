@@ -19,42 +19,63 @@
 
 /*
  * This file implements ONE Tolerant Time Of Day (TTOD) strategy.
+ * It is included twice in erl_time_sup.c:
  *
- * It is included directly in erl_time_sup.c, and has access to static
- * declarations in that file. By convention, only static symbols are declared
- * here, and all such symbols at file scope include the moniker
- * 'ttod_<strategy>', where '<strategy>' matches 'ttod_impl_<strategy>' in
- * the file name.
- *
- * On entry, the macro HAVE_TTOD_<STRATEGY> is defined with the value '0'.
- * If the necessary resources are available to implement the strategy, this
- * macro should be defined to exactly '1' after inclusion of this file, and
- * 'init_ttod_<strategy>(char ** name)' should be a valid statement resolving
- * to a pointer to a get_ttod_f function on success or NULL if initialization
- * was not successful.
+ * First, it's included with ERTS_TTOD_IMPL_CHK defined to a non-zero value.
+ * If the macro ERTS_TTOD_USE_<STRATEGY> is defined with a non-zero value AND
+ * the necessary resources are available to implement the strategy, that macro
+ * should be defined to exactly '1' after inclusion of this file, and any of
+ * the ERTS_TTOD_IMPL_NEED_xxx macros (refer to erl_time_sup.c to see which
+ * ones are available) needed for compilation should be defined to '1'.
+ * During this inclusion, absolutely NO code should be emitted!
  *
  * If the strategy cannot (or should not) be used in the compilation
- * environment, no code should be included and the HAVE_TTOD_<STRATEGY>
- * macro should have a zero value after inclusion of this file.
+ * environment, the ERTS_TTOD_USE_<STRATEGY> macro should have a zero value
+ * after the first inclusion of this file.
+ *
+ * Second, it's included with ERTS_TTOD_IMPL_CHK undefined, and if the
+ * ERTS_TTOD_USE_<STRATEGY> macro is defined with a non-zero value then the
+ * implementation of the strategy should be included, and the code has access
+ * to the static declarations indicated by the ERTS_TTOD_IMPL_NEED_xxx macros.
+ *
+ * If any implementation code is included, 'init_ttod_<strategy>(char ** name)'
+ * MUST be a valid statement resolving to a pointer to a get_ttod_f function
+ * on success or NULL if initialization was not successful.
+ *
+ * By convention, only static symbols are declared here, and all such symbols
+ * at file scope include the moniker 'ttod_<strategy>' in their name, where
+ * '<strategy>' matches 'ttod_impl_<strategy>' in the file name.
  */
 
-#if     CPU_ARCH_X86_64 \
+#if ERTS_TTOD_IMPL_CHK
+
+#if     ERTS_TTOD_USE_TSC && CPU_ARCH_X86 \
     &&  CPU_HAVE_DIRECT_ATOMIC_OPS && CPU_HAVE_DIRECT_ATOMIC_128 \
-    &&  (CPU_HAVE_GCC_INTRINSICS || CPU_HAVE_MSVC_INTRINSICS)
-#undef  HAVE_TTOD_TSC
-#define HAVE_TTOD_TSC   1
+    &&  (CPU_HAVE_GCC_INTRINSICS || CPU_HAVE_MSVC_INTRINSICS) \
+    &&  (HAVE_MACH_ABSOLUTE_TIME || HAVE_GETHRTIME)
+#undef  ERTS_TTOD_USE_TSC
+#define ERTS_TTOD_USE_TSC   1
+#define ERTS_TTOD_IMPL_NEED_GET_TTOD_FAIL 1
+#define ERTS_TTOD_IMPL_NEED_GET_TTOD_NEXT 1
+#define ERTS_TTOD_IMPL_NEED_BOUND_US_ADJUSTMENT 1
+#else   /* requirements not met */
+#undef  ERTS_TTOD_USE_TSC
+#define ERTS_TTOD_USE_TSC   0
+#endif  /* requirements check */
+
+#elif   ERTS_TTOD_USE_TSC
+
+/*
+ * The intrinsic headers we want have have already been included, but there
+ * are still some tweaks needed for getting at the TSC.
+ */
 #if     CPU_HAVE_GCC_INTRINSICS
-#include <x86intrin.h>
 #ifndef __IA32INTRIN_H
 #define CPU_MISSING_GCC_X86_RDTSC   1
 #endif  /* ! __IA32INTRIN_H */
 #elif   CPU_HAVE_MSVC_INTRINSICS
-#include <intrin.h>
 #pragma intrinsic(__rdtsc)
 #endif  /* CPU_HAVE_xxx_INTRINSICS */
-#endif  /* requirements check */
-
-#if HAVE_TTOD_TSC
 
 /* minimum microseconds since state->init before calculating frequency  */
 #define TTOD_TSC_MIN_CALC_MICROS    ONE_MILLION
@@ -62,20 +83,24 @@
 #define TTOD_TSC_MICROS_PER_RESYNC  (ONE_THOUSAND * 750)
 
 /*
- * We're using CmpXchg16b on ttod_tsc_ts_pair_t and ttod_tsc_freq_t, which
- * requires 16-byte alignment.
+ * We're using CmpXchg16b on pairs of 64-bit values - require 16-byte alignment.
  */
+#define TTOD_TSC_REQ_CPU_FEATS  (ERTS_CPU_ARCH_X86_64 \
+    |ERTS_CPU_FEAT_X86_TSCP|ERTS_CPU_FEAT_X86_TSCS|ERTS_CPU_FEAT_X86_CX16)
+
+/* be paranoid - Intel or AMD x86_64 only! */
+#define TTOD_TSC_REQ_CPU_VENDS  (ERTS_CPU_VEND_INTEL|ERTS_CPU_VEND_AMD)
 
 /*
  * Keep the higher-frequency value (most likely to change) first, in case
- * the non-atomic load_ttod_tsc_ts_pair() implementation turns out to be faster.
+ * the non-atomic load implementation turns out to be faster.
  */
 typedef struct      /* 16 bytes */
 {
     u_ticks_t       tsc;    /* time since reset in TSC ticks    */
     u_microsecs_t   tod;    /* time since epoch in microseconds */
 }
-    ttod_tsc_ts_pair_t;
+    ttod_tsc_time_t;
 
 typedef struct      /* 16 bytes */
 {
@@ -84,15 +109,43 @@ typedef struct      /* 16 bytes */
 }
     ttod_tsc_freq_t;
 
-static volatile TIME_SUP_ALIGNED_VAR(ttod_tsc_freq_t,       ttod_tsc_freq);
-static volatile TIME_SUP_ALIGNED_VAR(ttod_tsc_ts_pair_t,    ttod_tsc_last);
-static volatile TIME_SUP_ALIGNED_VAR(ttod_tsc_ts_pair_t,    ttod_tsc_init);
-static volatile TIME_SUP_ALIGNED_VAR(u_ticks_t,             ttod_tsc_minmax);
+typedef struct      /* 16 bytes */
+{
+    u_ticks_t       lo;     /* minimum TSC frequency    */
+    u_ticks_t       hi;     /* maximum TSC frequency    */
+}
+    ttod_tsc_range_t;
 
-/* be paranoid - Intel or AMD x86_64 only! */
-#define TTOD_TSC_REQ_CPU_VENDS  (ERTS_CPU_VEND_INTEL|ERTS_CPU_VEND_AMD)
-#define TTOD_TSC_REQ_CPU_FEATS  (ERTS_CPU_ARCH_X86_64 \
-    |ERTS_CPU_FEAT_X86_TSCP|ERTS_CPU_FEAT_X86_TSCS|ERTS_CPU_FEAT_X86_CX16)
+typedef struct      /* 16 bytes */
+{
+    u_ticks_t       tsc;    /* time since reset in TSC ticks        */
+    u_ticks_t       ref;    /* time since reset in reference ticks  */
+}
+    ttod_tsc_calb_t;
+
+/*
+ * Make sure the size of this struture is a power of 2! Pad as needed.
+ * Cacje lines are almost certainly 64 bytes, and this is larger, so try to
+ * keep the stuff used on every call in one line.
+ */
+typedef struct
+{
+    ttod_tsc_time_t             init;       /* synced TSC/TOD baseline      */
+    ttod_tsc_time_t    volatile last;       /* last TSC/TOD sync            */
+    ttod_tsc_freq_t    volatile freq;       /* calculated frequency         */
+    s_microsecs_t      volatile adjust;     /* current correction bias usec */
+    u_ticks_t          volatile tsc_freq;   /* working TSC frequency in Hz  */
+    /* end of 1st cache line                                                */
+    ttod_tsc_calb_t             ref_init;   /* initial calibration point    */
+    ttod_tsc_calb_t    volatile ref_last;   /* last calibration point       */
+    ttod_tsc_range_t   volatile range;      /* min/max measured frequencies */
+    u_ticks_t                   wobble;     /* allowable TSC wobble         */
+    u_ticks_t                   ref_freq;   /* reference timer frequency    */
+    /* end of 2nd cache line                                                */
+}
+    ttod_tsc_state_t;
+
+static TIME_SUP_ALIGNED_VAR(ttod_tsc_state_t, ttod_tsc_state);
 
 static CPU_FORCE_INLINE Uint64
 ttod_tsc_read_tsc(void)
@@ -112,26 +165,39 @@ ttod_tsc_read_tsc(void)
 
 /* ensures fixed order */
 static CPU_FORCE_INLINE Uint64
-fetch_ttod_tsc_ts_pair_data(SysTimeval * tod)
+fetch_ttod_tsc_time_data(SysTimeval * tod)
 {
     sys_gettimeofday(tod);
     return  ttod_tsc_read_tsc();
 }
 
 static CPU_FORCE_INLINE void
-fetch_ttod_tsc_ts_pair(ttod_tsc_ts_pair_t * dest)
+fetch_ttod_tsc_time(ttod_tsc_time_t * dest)
 {
     SysTimeval  tod[1];
-    dest->tsc = fetch_ttod_tsc_ts_pair_data(tod);
+    dest->tsc = fetch_ttod_tsc_time_data(tod);
     dest->tod = u_get_tv_micros(tod);
+}
+
+static CPU_FORCE_INLINE void
+fetch_ttod_tsc_calb(ttod_tsc_calb_t * dest)
+{
+#if     HAVE_MACH_ABSOLUTE_TIME
+    u_ticks_t ref = (u_ticks_t) mach_absolute_time();
+#elif   HAVE_GETHRTIME
+    u_ticks_t ref = (u_ticks_t) sys_gethrtime();
+#else
+#error  Unhandled calibrartion timer
+#endif
+    dest->tsc = ttod_tsc_read_tsc();
+    dest->ref = ref;
 }
 
 /*
  * Atomic operations on 16-byte structures
  */
 static CPU_FORCE_INLINE void
-load_ttod_tsc_freq(
-    volatile ttod_tsc_freq_t * src, ttod_tsc_freq_t * dest)
+load_ttod_tsc_freq(volatile ttod_tsc_freq_t * src, ttod_tsc_freq_t * dest)
 {
     cpu_atomic_load_128(src, dest);
 }
@@ -144,28 +210,40 @@ swap_ttod_tsc_freq(volatile ttod_tsc_freq_t * dest,
 }
 
 static CPU_FORCE_INLINE void
-load_ttod_tsc_ts_pair(
-    volatile ttod_tsc_ts_pair_t * src, ttod_tsc_ts_pair_t * dest)
+load_ttod_tsc_time(volatile ttod_tsc_time_t * src, ttod_tsc_time_t * dest)
 {
     cpu_atomic_load_128(src, dest);
 }
 
 static CPU_FORCE_INLINE int
-swap_ttod_tsc_ts_pair(volatile ttod_tsc_ts_pair_t * dest,
-    ttod_tsc_ts_pair_t * src, ttod_tsc_ts_pair_t * expect)
+swap_ttod_tsc_time(volatile ttod_tsc_time_t * dest,
+    ttod_tsc_time_t * src, ttod_tsc_time_t * expect)
 {
     return cpu_compare_and_swap_128(dest, src, expect);
 }
 
 static CPU_FORCE_INLINE void
-load_ttod_tsc_minmax(volatile u_ticks_t * src, u_ticks_t * dest)
+load_ttod_tsc_calb(volatile ttod_tsc_calb_t * src, ttod_tsc_calb_t * dest)
 {
     cpu_atomic_load_128(src, dest);
 }
 
 static CPU_FORCE_INLINE int
-swap_ttod_tsc_minmax(
-    volatile u_ticks_t * dest, u_ticks_t * src, u_ticks_t * expect)
+swap_ttod_tsc_calb(volatile ttod_tsc_calb_t * dest,
+    ttod_tsc_calb_t * src, ttod_tsc_calb_t * expect)
+{
+    return cpu_compare_and_swap_128(dest, src, expect);
+}
+
+static CPU_FORCE_INLINE void
+load_ttod_tsc_range(volatile ttod_tsc_range_t * src, ttod_tsc_range_t * dest)
+{
+    cpu_atomic_load_128(src, dest);
+}
+
+static CPU_FORCE_INLINE int
+swap_ttod_tsc_range(volatile ttod_tsc_range_t * dest,
+    ttod_tsc_range_t * src, ttod_tsc_range_t * expect)
 {
     return cpu_compare_and_swap_128(dest, src, expect);
 }
@@ -190,107 +268,171 @@ swap_ttod_tsc_val(
  */
 static u_microsecs_t get_ttod_tsc(void)
 {
-    ttod_tsc_ts_pair_t  curr_tp, last_tp, init_tp;
-    u_microsecs_t       micros;
+    ttod_tsc_time_t curr, last;
+    u_ticks_t       ticks, span;
 
     /* EVERY implementation MUST do this! */
     if (erts_tolerant_timeofday.disable)
         return  gettimeofday_us();
 
-    load_ttod_tsc_ts_pair(ttod_tsc_last, & last_tp);
-    if ((ttod_tsc_init->tod + TTOD_TSC_MIN_CALC_MICROS) <= last_tp.tod)
+    if (! ttod_tsc_state->tsc_freq)
     {
-        const u_ticks_t tsc = ttod_tsc_read_tsc();
-        /* can we just calculate and return fast? */
-        if ((last_tp.tsc + ttod_tsc_freq->resync) > tsc)
+        ttod_tsc_calb_t     ref_curr, ref_last;
+        ttod_tsc_freq_t     freq, new_freq;
+        ttod_tsc_range_t    range, new_range;
+        u_ticks_t           ref_span, tsc_span, tsc_freq;
+
+        load_ttod_tsc_calb(& ttod_tsc_state->ref_last, & ref_last);
+        fetch_ttod_tsc_calb(& ref_curr);
+        swap_ttod_tsc_calb(& ttod_tsc_state->ref_last, & ref_curr, & ref_last);
+
+        ref_span = (ref_curr.ref - ttod_tsc_state->ref_init.ref);
+        /*
+         * If it's been less than a second, just punt off to the next one.
+         */
+        if (ref_span < ttod_tsc_state->ref_freq)
+            return  get_ttod_next(get_ttod_tsc);
+
+        tsc_span = (ref_curr.tsc - ttod_tsc_state->ref_init.tsc);
+        tsc_freq = ((tsc_span * ttod_tsc_state->ref_freq) / ref_span);
+
+        load_ttod_tsc_range(& ttod_tsc_state->range, & range);
+        do
         {
-            const u_ticks_t     tsc_diff  = (tsc - last_tp.tsc);
-            const u_microsecs_t us_diff   = (tsc_diff / ttod_tsc_freq->uticks);
-            return  (last_tp.tod + us_diff);
+            new_range.lo = (range.lo == 0 || tsc_freq < range.lo)
+                           ? tsc_freq : range.lo;
+            new_range.hi = (tsc_freq > range.hi) ? tsc_freq : range.hi;
+            /* very high initially, will be narrowed down over time */
+            ttod_tsc_state->wobble = (new_range.hi / ONE_HUNDRED);
         }
+        while (! swap_ttod_tsc_range(
+                & ttod_tsc_state->range, & new_range, & range));
+
+        if ((new_range.hi - new_range.lo) > ttod_tsc_state->wobble)
+        {
+#if TTOD_REPORT_IMPL_STATE
+            erts_fprintf(stderr, "Excessive TSC wobble:%u: %llu:%llu\n",
+                __LINE__, ttod_tsc_state->wobble, (new_range.hi - new_range.lo));
+#endif  /* TTOD_REPORT_IMPL_STATE */
+            return  get_ttod_fail(get_ttod_tsc);
+        }
+        tsc_freq = ((new_range.lo + new_range.hi) / 2);
+        new_freq.uticks = (tsc_freq / ONE_MILLION);
+        new_freq.resync = (new_freq.uticks * TTOD_TSC_MICROS_PER_RESYNC);
+        load_ttod_tsc_freq(& ttod_tsc_state->freq, & freq);
+
+        if (swap_ttod_tsc_freq(& ttod_tsc_state->freq, & new_freq, & freq))
+            ttod_tsc_state->tsc_freq = tsc_freq;
+    }
+    /*
+     * At this point, we have at least an initial idea of the TSC frequency ...
+     */
+    load_ttod_tsc_time(& ttod_tsc_state->last, & last);
+    ticks = ttod_tsc_read_tsc();
+
+    /* sanity check */
+    if ((ticks + ttod_tsc_state->wobble) < last.tsc)
+    {
+#if TTOD_REPORT_IMPL_STATE
+        erts_fprintf(stderr, "Excessive TSC wobble:%u: %llu:%llu\n",
+            __LINE__, ttod_tsc_state->wobble, (last.tsc - ticks));
+#endif  /* TTOD_REPORT_IMPL_STATE */
+        return  get_ttod_fail(get_ttod_tsc);
     }
 
-    /* no matter what comes next, we're going to need the system time */
-    fetch_ttod_tsc_ts_pair(& curr_tp);
-
-    /* ... and [sane] initialization time */
-    load_ttod_tsc_ts_pair(ttod_tsc_init, & init_tp);
-
-    if (curr_tp.tsc <= init_tp.tsc || curr_tp.tod <= init_tp.tod)
+    /* can we extrapolate and return fast? */
+    span = (ticks - last.tsc);
+    if (span < ttod_tsc_state->freq.resync)
+        return  (last.tod + ttod_tsc_state->adjust
+                + (span / ttod_tsc_state->freq.uticks));
+    /*
+     * Time to resync and recalibrate ...
+     * Recalculate the frequency first, if it's due, so we're always working
+     * with the most accurate info.
+     */
+    if (ticks > (ttod_tsc_state->ref_last.tsc + ttod_tsc_state->tsc_freq))
     {
-        /* something went backward, start over */
-        while (! swap_ttod_tsc_ts_pair(ttod_tsc_init, & curr_tp, & init_tp))
-        {
-            load_ttod_tsc_ts_pair(ttod_tsc_init, & init_tp);
-            if (init_tp.tsc >= curr_tp.tsc && init_tp.tod >= curr_tp.tod)
-            {
-                /* someone else initialized it */
-                break;
-            }
-        }
-    }
-    /* init time should be sane now */
+        ttod_tsc_calb_t ref_curr, ref_last;
 
-    /* long enough to recalculate? */
-    micros = (curr_tp.tod - init_tp.tod);
-    if (micros >= TTOD_TSC_MIN_CALC_MICROS)
-    {
-        ttod_tsc_freq_t freq, stored;
-        u_ticks_t       min_max[2];
-        const u_ticks_t ticks = (curr_tp.tsc - init_tp.tsc);
-        const u_ticks_t tps = ((ticks * ONE_MILLION) / micros);
-
-        load_ttod_tsc_minmax(ttod_tsc_minmax, min_max);
-        while (tps < min_max[0] || tps > min_max[1])
+        load_ttod_tsc_calb(& ttod_tsc_state->ref_last, & ref_last);
+        fetch_ttod_tsc_calb(& ref_curr);
+        /* if it's being updated on another thread, don't do it here, too */
+        if (swap_ttod_tsc_calb(& ttod_tsc_state->ref_last, & ref_curr, & ref_last))
         {
-            u_ticks_t   new_range[2];
-            new_range[0] = (min_max[0] && min_max[0] < tps) ? min_max[0] : tps;
-            new_range[1] = (min_max[1] && min_max[1] > tps) ? min_max[1] : tps;
-            if (swap_ttod_tsc_minmax(ttod_tsc_minmax, new_range, min_max))
+            ttod_tsc_range_t    range;
+            u_ticks_t           ref_span, tsc_span, tsc_freq;
+
+            ref_span = (ref_curr.ref - ttod_tsc_state->ref_init.ref);
+            tsc_span = (ref_curr.tsc - ttod_tsc_state->ref_init.tsc);
+            tsc_freq = ((tsc_span * ttod_tsc_state->ref_freq) / ref_span);
+
+            load_ttod_tsc_range(& ttod_tsc_state->range, & range);
+            if (tsc_freq < range.lo || tsc_freq > range.hi)
             {
-                /*
-                 * 1% may be too lenient, TSC is suposed to be constant, but
-                 * 0.1% might be too strict, as we're calculating against
-                 * microseconds
-                 */
-                if ((min_max[1] - min_max[0]) > (min_max[0] / ONE_HUNDRED))
+                ttod_tsc_freq_t     freq, new_freq;
+                ttod_tsc_range_t    new_range;
+                u_ticks_t           freq_span, avg_freq, avg_uticks;
+                do
+                {
+                    new_range.lo = (tsc_freq < range.lo) ? tsc_freq : range.lo;
+                    new_range.hi = (tsc_freq > range.hi) ? tsc_freq : range.hi;
+                    freq_span = (new_range.hi - new_range.lo);
+                    avg_freq = ((new_range.lo + new_range.hi) / 2);
+                    avg_uticks = (avg_freq / ONE_MILLION);
+                    ttod_tsc_state->wobble = (freq_span + avg_uticks);
+                }
+                while (! swap_ttod_tsc_range(
+                        & ttod_tsc_state->range, & new_range, & range));
+
+                if (freq_span > (avg_uticks * 2))
                 {
 #if TTOD_REPORT_IMPL_STATE
-                    erts_fprintf(stderr, "Excessive TSC wobble\n");
+                    erts_fprintf(stderr, "Excessive TSC wobble:%u: %llu:%llu\n",
+                        __LINE__, (avg_uticks * 2), freq_span);
 #endif  /* TTOD_REPORT_IMPL_STATE */
                     return  get_ttod_fail(get_ttod_tsc);
                 }
-                break;
-            }
-        }
-        freq.uticks = (ticks / micros);
-        freq.resync = ((ticks * TTOD_TSC_MICROS_PER_RESYNC) / micros);
-        load_ttod_tsc_freq(ttod_tsc_freq, & stored);
-        /* ignore the result, failure means someone else just updated */
-        swap_ttod_tsc_freq(ttod_tsc_freq, & freq, & stored);
-
-        /* only set 'last' AFTER there are valid frequencies! */
-        while (! swap_ttod_tsc_ts_pair(ttod_tsc_last, & curr_tp, & last_tp))
-        {
-            load_ttod_tsc_ts_pair(ttod_tsc_last, & last_tp);
-            if (last_tp.tsc >= curr_tp.tsc && last_tp.tod >= curr_tp.tod)
-            {
-                /*
-                 * someone else updated it, update current time as needed
-                 *
-                 * the compiler SHOULD optimize this to avoid
-                 * repeating comparisons
-                 */
-                if (last_tp.tod > curr_tp.tod)
-                    curr_tp = last_tp;
-                else if (last_tp.tsc > curr_tp.tsc)
-                    curr_tp.tsc = last_tp.tsc;
-                break;
+                new_freq.uticks = avg_uticks;
+                new_freq.resync = (avg_uticks * TTOD_TSC_MICROS_PER_RESYNC);
+                load_ttod_tsc_freq(& ttod_tsc_state->freq, & freq);
+                if (swap_ttod_tsc_freq(& ttod_tsc_state->freq, & new_freq, & freq))
+                    ttod_tsc_state->tsc_freq = avg_freq;
             }
         }
     }
+    /* now figure out the adjustment */
+    fetch_ttod_tsc_time(& curr);
+    /* if 'last' has changed, adjustment is being updated elsewhere */
+    if (swap_ttod_tsc_time(& ttod_tsc_state->last, & curr, & last))
+    {
+        u_microsecs_t   tod_diff, tod_calc;
+        u_ticks_t       tsc_diff;
+        s_microsecs_t   tod_off;
 
-    return  curr_tp.tod;
+        tod_diff = (curr.tod - ttod_tsc_state->init.tod);
+        tsc_diff = (curr.tsc - ttod_tsc_state->init.tsc);
+        /*
+         * Use the full frequency to get a more accurate result - uticks
+         * could be off by nearly a million ticks per second due to rounding.
+         */
+#if HAVE_INT128
+        tod_calc = (u_microsecs_t)
+            (((Uint128) (tsc_diff * ONE_MILLION)) / ttod_tsc_state->tsc_freq);
+#else
+        tod_calc = (u_microsecs_t)
+            ((((long double) tsc_diff) / ttod_tsc_state->tsc_freq) * ONE_MILLION);
+#endif
+        /* positive if clock has advanced, negative if it's slowed */
+        tod_off = (tod_diff - tod_calc + ttod_tsc_state->adjust);
+        if (tod_off)
+        {
+            s_microsecs_t new_adjust =
+                (bound_us_adjustment(tod_off) + ttod_tsc_state->adjust);
+            cpu_atomic_store_64(& ttod_tsc_state->adjust, & new_adjust);
+            return  (curr.tod + new_adjust);
+        }
+    }
+    return  (curr.tod + ttod_tsc_state->adjust);
 }
 
 /*
@@ -308,6 +450,8 @@ static get_ttod_f init_ttod_tsc(const char ** name)
     /* MUST be initialized before ANY return */
     *name = "TSC";
 
+    sys_memset(ttod_tsc_state, 0, sizeof(ttod_tsc_state));
+
     /* initially, only activate when set in the environment */
     if (erts_sys_getenv("ERTS_ENABLE_TTOD_TSC", NULL, & evsz) < 0 || evsz < 2)
         return  NULL;
@@ -316,16 +460,30 @@ static get_ttod_f init_ttod_tsc(const char ** name)
     if ((erts_cpu_features & TTOD_TSC_REQ_CPU_FEATS) == TTOD_TSC_REQ_CPU_FEATS
     &&  (erts_cpu_features & TTOD_TSC_REQ_CPU_VENDS) != 0)
     {
-        sys_memset((void *) ttod_tsc_freq, 0, sizeof(ttod_tsc_freq));
-        sys_memset((void *) ttod_tsc_last, 0, sizeof(ttod_tsc_last));
-        sys_memset((void *) ttod_tsc_init, 0, sizeof(ttod_tsc_init));
-        sys_memset((void *) ttod_tsc_minmax, 0, sizeof(ttod_tsc_minmax));
+#if     HAVE_MACH_ABSOLUTE_TIME
+        mach_timebase_info_data_t   freq;
 
-        fetch_ttod_tsc_ts_pair((ttod_tsc_ts_pair_t *) ttod_tsc_init);
+        if (mach_timebase_info(& freq) != KERN_SUCCESS)
+            return  NULL;
+
+        ttod_tsc_state->ref_freq  = freq.numer;
+        ttod_tsc_state->ref_freq *= ONE_BILLION;
+        ttod_tsc_state->ref_freq /= freq.denom;
+#elif   HAVE_GETHRTIME
+        ttod_tsc_state->ref_freq  = ONE_BILLION;
+#else
+#error  Uninitialized calibration timer frequency
+#endif  /* reference timer initialization */
+
+        fetch_ttod_tsc_calb(& ttod_tsc_state->ref_init);
+        fetch_ttod_tsc_time(& ttod_tsc_state->init);
+        ttod_tsc_state->ref_last = ttod_tsc_state->ref_init;
+        ttod_tsc_state->last = ttod_tsc_state->init;
 
         return  get_ttod_tsc;
     }
     return  NULL;
 }
 
-#endif  /* HAVE_TTOD_TSC */
+#endif  /* ERTS_TTOD_USE_TSC */
+

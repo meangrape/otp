@@ -105,6 +105,19 @@ typedef Uint64  u_ticks_t;
 
 typedef Sint64  ErtsEpochMicros;
 
+static CPU_FORCE_INLINE Sint64 s_abs64(Sint64 val)
+{
+#if 1   /* should be intrinsic in just about all cases */
+    return  llabs(val);
+#else
+    return  ((val < ((Sint64) 0)) ? (((Sint64) 0) - val) : val);
+#endif
+}
+static CPU_FORCE_INLINE Uint64 u_abs64(Sint64 val)
+{
+    return  (Uint64) s_abs64(val);
+}
+
 /*
  * ERTS really should have global typedefs for these
  */

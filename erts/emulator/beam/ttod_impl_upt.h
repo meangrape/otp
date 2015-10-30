@@ -20,38 +20,54 @@
 
 /*
  * This file implements ONE Tolerant Time Of Day (TTOD) strategy.
+ * It is included twice in erl_time_sup.c:
  *
- * It is included directly in erl_time_sup.c, and has access to static
- * declarations in that file. By convention, only static symbols are declared
- * here, and all such symbols at file scope include the moniker
- * 'ttod_<strategy>', where '<strategy>' matches 'ttod_impl_<strategy>' in
- * the file name.
- *
- * On entry, the macro HAVE_TTOD_<STRATEGY> is defined with the value '0'.
- * If the necessary resources are available to implement the strategy, this
- * macro should be defined to exactly '1' after inclusion of this file, and
- * 'init_ttod_<strategy>(char ** name)' should be a valid statement resolving
- * to a pointer to a get_ttod_f function on success or NULL if initialization
- * was not successful.
+ * First, it's included with ERTS_TTOD_IMPL_CHK defined to a non-zero value.
+ * If the macro ERTS_TTOD_USE_<STRATEGY> is defined with a non-zero value AND
+ * the necessary resources are available to implement the strategy, that macro
+ * should be defined to exactly '1' after inclusion of this file, and any of
+ * the ERTS_TTOD_IMPL_NEED_xxx macros (refer to erl_time_sup.c to see which
+ * ones are available) needed for compilation should be defined to '1'.
+ * During this inclusion, absolutely NO code should be emitted!
  *
  * If the strategy cannot (or should not) be used in the compilation
- * environment, no code should be included and the HAVE_TTOD_<STRATEGY>
- * macro should have a zero value after inclusion of this file.
+ * environment, the ERTS_TTOD_USE_<STRATEGY> macro should have a zero value
+ * after the first inclusion of this file.
+ *
+ * Second, it's included with ERTS_TTOD_IMPL_CHK undefined, and if the
+ * ERTS_TTOD_USE_<STRATEGY> macro is defined with a non-zero value then the
+ * implementation of the strategy should be included, and the code has access
+ * to the static declarations indicated by the ERTS_TTOD_IMPL_NEED_xxx macros.
+ *
+ * If any implementation code is included, 'init_ttod_<strategy>(char ** name)'
+ * MUST be a valid statement resolving to a pointer to a get_ttod_f function
+ * on success or NULL if initialization was not successful.
+ *
+ * By convention, only static symbols are declared here, and all such symbols
+ * at file scope include the moniker 'ttod_<strategy>' in their name, where
+ * '<strategy>' matches 'ttod_impl_<strategy>' in the file name.
  */
 
-#if     defined(CORRECT_USING_TIMES) && 0   /* disabled for now */
-#undef  HAVE_TTOD_TIMES
-#define HAVE_TTOD_TIMES 1
+#if ERTS_TTOD_IMPL_CHK
+
+#if     ERTS_TTOD_USE_UPT \
+    &&  defined(CORRECT_USING_TIMES) && 0   /* disabled for now */
+#undef  ERTS_TTOD_USE_UPT
+#define ERTS_TTOD_USE_UPT   1
+#define ERTS_TTOD_IMPL_NEED_GET_TTOD_FAIL 1
+#else
+#undef  ERTS_TTOD_USE_UPT
+#define ERTS_TTOD_USE_UPT   0
 #endif  /* requirements check */
 
-#if HAVE_TTOD_TIMES
+#elif   ERTS_TTOD_USE_UPT
 
-static clock_t          ttod_times_init_ct;
-static clock_t          ttod_times_last_ct;
-static Sint64           ttod_times_ct_wrap;
-static s_millisecs_t    ttod_times_corr_supress;
-static s_millisecs_t    ttod_times_last_ct_diff;
-static s_millisecs_t    ttod_times_last_cc;
+static clock_t          ttod_upt_init_ct;
+static clock_t          ttod_upt_last_ct;
+static Sint64           ttod_upt_ct_wrap;
+static s_millisecs_t    ttod_upt_corr_supress;
+static s_millisecs_t    ttod_upt_last_ct_diff;
+static s_millisecs_t    ttod_upt_last_cc;
 
 /*
   sys_times() might need to be wrapped and the values shifted (right)
@@ -81,7 +97,7 @@ static CPU_FORCE_INLINE clock_t sys_kernel_ticks(void)
  * permanently, but should not blindly continue trying when it's clear it's
  * just not working.
  */
-static u_microsecs_t get_ttod_times(void)
+static u_microsecs_t get_ttod_upt(void)
 {
     s_millisecs_t   ct_diff;
     s_millisecs_t   tv_diff;
@@ -109,21 +125,21 @@ static u_microsecs_t get_ttod_times(void)
     /* I dont know if uptime can move some units backwards
        on some systems, but I allow for small backward
        jumps to avoid such problems if they exist...*/
-    if (ttod_times_last_ct > 100 && curr_ct < (ttod_times_last_ct - 100))
+    if (ttod_upt_last_ct > 100 && curr_ct < (ttod_upt_last_ct - 100))
     {
-        ttod_times_ct_wrap += ((Sint64) 1) << ((sizeof(clock_t) * 8) - 1);
+        ttod_upt_ct_wrap += ((Sint64) 1) << ((sizeof(clock_t) * 8) - 1);
     }
-    ttod_times_last_ct = curr_ct;
-    ct_diff = ((ttod_times_ct_wrap + curr_ct) - ttod_times_init_ct) * TICK_MS;
+    ttod_upt_last_ct = curr_ct;
+    ct_diff = ((ttod_upt_ct_wrap + curr_ct) - ttod_upt_init_ct) * TICK_MS;
 
     /*
      * We will adjust the time in milliseconds and we allow for 1%
      * adjustments, but if this function is called more often then every 100
      * millisecond (which is obviously possible), we will never adjust, so
-     * we accumulate small times by setting ttod_times_last_ct_diff iff max_adjust > 0
+     * we accumulate small times by setting ttod_upt_last_ct_diff iff max_adjust > 0
      */
-    if ((max_adjust = (ct_diff - ttod_times_last_ct_diff) / 100) > 0)
-        ttod_times_last_ct_diff = ct_diff;
+    if ((max_adjust = (ct_diff - ttod_upt_last_ct_diff) / 100) > 0)
+        ttod_upt_last_ct_diff = ct_diff;
 
     tv_diff = (curr_ms - ts_data->init_ms);
 
@@ -135,11 +151,11 @@ static u_microsecs_t get_ttod_times(void)
      * if it hasn't changed more than one tick in either direction,
      * we will keep the old value.
      */
-    if ((ttod_times_last_cc > (cur_corr + TICK_MS))
-    ||  (ttod_times_last_cc < (cur_corr - TICK_MS)))
-        ttod_times_last_cc = cur_corr;
+    if ((ttod_upt_last_cc > (cur_corr + TICK_MS))
+    ||  (ttod_upt_last_cc < (cur_corr - TICK_MS)))
+        ttod_upt_last_cc = cur_corr;
     else
-        cur_corr = ttod_times_last_cc;
+        cur_corr = ttod_upt_last_cc;
 
     /*
      * As time goes, we try to get the actual correction to 0,
@@ -148,29 +164,29 @@ static u_microsecs_t get_ttod_times(void)
      * minus the correction suppression. The correction supression
      * will change slowly (max 1% of elapsed time) but in millisecond steps.
      */
-    act_corr = (cur_corr - ttod_times_corr_supress);
+    act_corr = (cur_corr - ttod_upt_corr_supress);
     if (max_adjust > 0)
     {
         /*
          * Here we slowly adjust erlangs time to correspond with the
-         * system time by changing the ttod_times_corr_supress variable.
+         * system time by changing the ttod_upt_corr_supress variable.
          * It can change max_adjust milliseconds which is 1% of elapsed time
          */
         if (act_corr > 0)
         {
-            if ((cur_corr - ttod_times_corr_supress) > max_adjust)
-                ttod_times_corr_supress += max_adjust;
+            if ((cur_corr - ttod_upt_corr_supress) > max_adjust)
+                ttod_upt_corr_supress += max_adjust;
             else
-                ttod_times_corr_supress = cur_corr;
-            act_corr = (cur_corr - ttod_times_corr_supress);
+                ttod_upt_corr_supress = cur_corr;
+            act_corr = (cur_corr - ttod_upt_corr_supress);
         }
         else if (act_corr < 0)
         {
-            if ((ttod_times_corr_supress - cur_corr) > max_adjust)
-                ttod_times_corr_supress -= max_adjust;
+            if ((ttod_upt_corr_supress - cur_corr) > max_adjust)
+                ttod_upt_corr_supress -= max_adjust;
             else
-                ttod_times_corr_supress = cur_corr;
-            act_corr = (cur_corr - ttod_times_corr_supress);
+                ttod_upt_corr_supress = cur_corr;
+            act_corr = (cur_corr - ttod_upt_corr_supress);
         }
     }
     /*
@@ -190,17 +206,17 @@ static u_microsecs_t get_ttod_times(void)
  * This function should check the runtime environment to ensure support for
  * the strategy and only initialize if the necessary behavior is present.
  */
-static get_ttod_f init_ttod_times(const char ** name)
+static get_ttod_f init_ttod_upt(const char ** name)
 {
     /* MUST be initialized before ANY return */
-    *name = "Times";
+    *name = "upt";
 
-    ttod_times_last_ct = ttod_times_init_ct = sys_kernel_ticks();
-    ttod_times_last_cc = 0;
-    ttod_times_ct_wrap = 0;
-    ttod_times_corr_supress = 0;
+    ttod_upt_last_ct = ttod_upt_init_ct = sys_kernel_ticks();
+    ttod_upt_last_cc = 0;
+    ttod_upt_ct_wrap = 0;
+    ttod_upt_corr_supress = 0;
 
-    return  get_ttod_times;
+    return  get_ttod_upt;
 }
 
-#endif  /* HAVE_TTOD_TIMES */
+#endif  /* ERTS_TTOD_USE_UPT */

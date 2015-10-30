@@ -20,32 +20,47 @@
 
 /*
  * This file implements ONE Tolerant Time Of Day (TTOD) strategy.
+ * It is included twice in erl_time_sup.c:
  *
- * It is included directly in erl_time_sup.c, and has access to static
- * declarations in that file. By convention, only static symbols are declared
- * here, and all such symbols at file scope include the moniker
- * 'ttod_<strategy>', where '<strategy>' matches 'ttod_impl_<strategy>' in
- * the file name.
- *
- * On entry, the macro HAVE_TTOD_<STRATEGY> is defined with the value '0'.
- * If the necessary resources are available to implement the strategy, this
- * macro should be defined to exactly '1' after inclusion of this file, and
- * 'init_ttod_<strategy>(char ** name)' should be a valid statement resolving
- * to a pointer to a get_ttod_f function on success or NULL if initialization
- * was not successful.
+ * First, it's included with ERTS_TTOD_IMPL_CHK defined to a non-zero value.
+ * If the macro ERTS_TTOD_USE_<STRATEGY> is defined with a non-zero value AND
+ * the necessary resources are available to implement the strategy, that macro
+ * should be defined to exactly '1' after inclusion of this file, and any of
+ * the ERTS_TTOD_IMPL_NEED_xxx macros (refer to erl_time_sup.c to see which
+ * ones are available) needed for compilation should be defined to '1'.
+ * During this inclusion, absolutely NO code should be emitted!
  *
  * If the strategy cannot (or should not) be used in the compilation
- * environment, no code should be included and the HAVE_TTOD_<STRATEGY>
- * macro should have a zero value after inclusion of this file.
+ * environment, the ERTS_TTOD_USE_<STRATEGY> macro should have a zero value
+ * after the first inclusion of this file.
+ *
+ * Second, it's included with ERTS_TTOD_IMPL_CHK undefined, and if the
+ * ERTS_TTOD_USE_<STRATEGY> macro is defined with a non-zero value then the
+ * implementation of the strategy should be included, and the code has access
+ * to the static declarations indicated by the ERTS_TTOD_IMPL_NEED_xxx macros.
+ *
+ * If any implementation code is included, 'init_ttod_<strategy>(char ** name)'
+ * MUST be a valid statement resolving to a pointer to a get_ttod_f function
+ * on success or NULL if initialization was not successful.
+ *
+ * By convention, only static symbols are declared here, and all such symbols
+ * at file scope include the moniker 'ttod_<strategy>' in their name, where
+ * '<strategy>' matches 'ttod_impl_<strategy>' in the file name.
  */
 
-#if defined(HAVE_GETHRTIME) \
+#if ERTS_TTOD_IMPL_CHK
+
+#if     ERTS_TTOD_USE_UPT && HAVE_GETHRTIME \
     &&  CPU_HAVE_DIRECT_ATOMIC_OPS && CPU_HAVE_DIRECT_ATOMIC_128
-#undef  HAVE_TTOD_HRT
-#define HAVE_TTOD_HRT 1
+#undef  ERTS_TTOD_USE_HRT
+#define ERTS_TTOD_USE_HRT   1
+#define ERTS_TTOD_IMPL_NEED_GET_TTOD_FAIL 1
+#else
+#undef  ERTS_TTOD_USE_HRT
+#define ERTS_TTOD_USE_HRT   0
 #endif  /* requirements check */
 
-#if HAVE_TTOD_HRT
+#elif   ERTS_TTOD_USE_HRT
 
 /*
  * We're using CmpXchg16b on ttod_tsc_ts_pair_t and ttod_tsc_freq_t, which
@@ -187,11 +202,7 @@ static u_microsecs_t get_ttod_hrt(void)
         diff_ns   = (diff_hrt + last.adj);
         diff_tod  = (s_nanosecs_t) (curr_tp.tod - init_tp.tod);
         diff_calc = (diff_ns - diff_tod);
-#if 1   /* should be intrinsic in just about all cases */
-        diff_abs  = llabs(diff_calc);
-#else
-        diff_abs  = (diff_calc < 0) ? (0 - diff_calc) : diff_calc;
-#endif
+        diff_abs  = s_abs64(diff_calc);
         /*
          * only re-calculate the correction if they differ by more than
          * 0.01 second (ten milliseconds)
@@ -277,4 +288,4 @@ static get_ttod_f init_ttod_hrt(const char ** name)
     return  get_ttod_hrt;
 }
 
-#endif  /* HAVE_TTOD_HRT */
+#endif  /* ERTS_TTOD_USE_HRT */
