@@ -140,7 +140,9 @@ static erts_lc_lock_order_t erts_lock_order[] = {
     {	"async_enq_mtx",			NULL			},
 #ifdef ERTS_SMP
     {	"atom_tab",				NULL			},
+#ifdef  ARCH_32
     {	"make_ref",				NULL			},
+#endif
     {	"misc_op_list_pre_alloc_lock",		"address"		},
     {	"message_pre_alloc_lock",		"address"		},
     {	"ptimer_pre_alloc_lock",		"address",		},
@@ -302,7 +304,7 @@ static ERTS_INLINE void lc_free(void *p)
     lc_lock();
     fb->next = free_blocks;
     free_blocks = fb;
-    lc_unlock();   
+    lc_unlock();
 }
 
 #ifdef ERTS_LC_STATIC_ALLOC
@@ -862,7 +864,7 @@ erts_lc_check(erts_lc_lock_t *have, int have_len,
     int i;
     erts_lc_locked_locks_t *l_lcks = get_my_locked_locks();
     erts_lc_locked_lock_t *l_lck;
-    
+
     if (have && have_len > 0) {
 	if (!l_lcks)
 	    lock_mismatch(NULL, 0,
@@ -1102,7 +1104,7 @@ void erts_lc_require_lock_flg(erts_lc_lock_t *lck, Uint16 op_flags,
 		l_lcks->required.last = l_lck;
 	    }
 	    l_lck->prev = l_lck2;
-	    l_lck2->next = l_lck;		
+	    l_lck2->next = l_lck;
 	}
     }
 }
@@ -1204,7 +1206,7 @@ void erts_lc_unlock_flg(erts_lc_lock_t *lck, Uint16 op_flags)
 	    return;
 	}
     }
-    
+
     unlock_of_not_locked(l_lcks, lck);
 }
 
@@ -1321,7 +1323,7 @@ erts_lc_init(void)
 	   0xdf, sizeof(erts_lc_free_block_t));
 #endif
     fbs[ERTS_LC_FB_CHUNK_SIZE-1].next = NULL;
-    free_blocks = &fbs[0]; 
+    free_blocks = &fbs[0];
 #else /* #ifdef ERTS_LC_STATIC_ALLOC */
     free_blocks = NULL;
 #endif /* #ifdef ERTS_LC_STATIC_ALLOC */
