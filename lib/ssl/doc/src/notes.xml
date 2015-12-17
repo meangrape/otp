@@ -4,8 +4,12 @@
 <chapter>
   <header>
     <copyright>
-      <year>1999</year><year>2013</year>
+      <year>1999</year><year>2015</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
+    </copyright>
+    <copyright>
+      <year>2014</year><year>2015</year>
+      <holder>Basho Technologies. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
       The contents of this file are subject to the Erlang Public License,
@@ -26,7 +30,7 @@
   </header>
   <p>This document describes the changes made to the SSL application.</p>
 
-<section><title>SSL 6.0.1-basho1</title>
+  <section><title>SSL 6.0.1.1-basho1</title>
 
     <section><title>Improvements and New Features</title>
       <list>
@@ -57,6 +61,21 @@
           </p>
         </item>
 
+      </list>
+    </section>
+
+  </section>
+
+  <section><title>SSL 6.0.1.1</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    Gracefully ignore proprietary hash_sign algorithms</p>
+          <p>
+	    Own Id: OTP-13151</p>
+        </item>
       </list>
     </section>
 
