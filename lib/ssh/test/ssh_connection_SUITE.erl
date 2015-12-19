@@ -120,20 +120,28 @@ simple_exec(Config) when is_list(Config) ->
     receive
 	{ssh_cm, ConnectionRef, {data, ChannelId0, 0, <<"testing\n">>}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
 
     %% receive close messages
     receive
 	{ssh_cm, ConnectionRef, {eof, ChannelId0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     receive
 	{ssh_cm, ConnectionRef, {exit_status, ChannelId0, 0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     receive
 	{ssh_cm, ConnectionRef,{closed, ChannelId0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 
 %%--------------------------------------------------------------------
@@ -155,20 +163,28 @@ small_cat(Config) when is_list(Config) ->
     receive
 	{ssh_cm, ConnectionRef, {data, ChannelId0, 0, Data}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
 
     %% receive close messages
     receive
 	{ssh_cm, ConnectionRef, {eof, ChannelId0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     receive
 	{ssh_cm, ConnectionRef, {exit_status, ChannelId0, 0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     receive
 	{ssh_cm, ConnectionRef,{closed, ChannelId0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 %%--------------------------------------------------------------------
 big_cat() ->
@@ -212,11 +228,15 @@ big_cat(Config) when is_list(Config) ->
     %% receive close messages (eof already consumed)
     receive
 	{ssh_cm, ConnectionRef, {exit_status, ChannelId0, 0}} ->
-	    ok
+	    ok 
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     receive
 	{ssh_cm, ConnectionRef,{closed, ChannelId0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 
 %%--------------------------------------------------------------------
@@ -235,14 +255,20 @@ send_after_exit(Config) when is_list(Config) ->
     receive
 	{ssh_cm, ConnectionRef, {eof, ChannelId0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     receive
 	{ssh_cm, ConnectionRef, {exit_status, ChannelId0, _ExitStatus}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     receive
 	{ssh_cm, ConnectionRef,{closed, ChannelId0}} ->
 	    ok
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     case ssh_connection:send(ConnectionRef, ChannelId0, Data, 2000) of
 	{error, closed} -> ok;
@@ -456,6 +482,8 @@ gracefull_invalid_version(Config) when is_list(Config) ->
 		{tcp_closed, S} ->
 		    ok
 	    end
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 
 gracefull_invalid_start(Config) when is_list(Config) ->
@@ -476,6 +504,8 @@ gracefull_invalid_start(Config) when is_list(Config) ->
 		{tcp_closed, S} ->
 		    ok
 	    end
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 
 gracefull_invalid_long_start(Config) when is_list(Config) ->
@@ -496,6 +526,8 @@ gracefull_invalid_long_start(Config) when is_list(Config) ->
 		{tcp_closed, S} ->
 		    ok
 	    end
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 
 
@@ -517,6 +549,8 @@ gracefull_invalid_long_start_no_nl(Config) when is_list(Config) ->
 		{tcp_closed, S} ->
 		    ok
 	    end
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 
 stop_listener() ->
@@ -666,6 +700,16 @@ max_channels_option(Config) when is_list(Config) ->
     %%%---- close the shell
     ok = ssh_connection:send(ConnectionRef, ChannelId0, "exit().\n", 5000),
     
+    %%%---- wait for the subsystem to terminate
+    receive
+	{ssh_cm,ConnectionRef,{closed,ChannelId0}} -> ok
+    after 5000 ->
+	    ct:log("Timeout waiting for '{ssh_cm,~p,{closed,~p}}'~n"
+		   "Message queue:~n~p",
+		   [ConnectionRef,ChannelId0,erlang:process_info(self(),messages)]),
+	    ct:fail("exit Timeout",[])
+    end,
+
     %%%---- exec #3
     success = ssh_connection:exec(ConnectionRef, ChannelId5, "testing3.\n", infinity),
     receive

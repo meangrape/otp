@@ -93,9 +93,12 @@ std_connect(Config, Host, Port, ExtraOpts) ->
 					  | ExtraOpts]).
 
 std_simple_sftp(Host, Port, Config) ->
+    std_simple_sftp(Host, Port, Config, []).
+
+std_simple_sftp(Host, Port, Config, Opts) ->
     UserDir = ?config(priv_dir, Config),
     DataFile = filename:join(UserDir, "test.data"),
-    ConnectionRef = ssh_test_lib:std_connect(Config, Host, Port, []),
+    ConnectionRef = ssh_test_lib:std_connect(Config, Host, Port, Opts),
     {ok, ChannelRef} = ssh_sftp:start_channel(ConnectionRef),
     Data = crypto:rand_bytes(proplists:get_value(std_simple_sftp_size,Config,10)),
     ok = ssh_sftp:write_file(ChannelRef, DataFile, Data),
@@ -104,7 +107,10 @@ std_simple_sftp(Host, Port, Config) ->
     Data == ReadData.
 
 std_simple_exec(Host, Port, Config) ->
-    ConnectionRef = ssh_test_lib:std_connect(Config, Host, Port, []),
+    std_simple_exec(Host, Port, Config, []).
+
+std_simple_exec(Host, Port, Config, Opts) ->
+    ConnectionRef = ssh_test_lib:std_connect(Config, Host, Port, Opts),
     {ok, ChannelId} = ssh_connection:session_channel(ConnectionRef, infinity),
     success = ssh_connection:exec(ConnectionRef, ChannelId, "23+21-2.", infinity),
     Data = {ssh_cm, ConnectionRef, {data, ChannelId, 0, <<"42\n">>}},
@@ -157,7 +163,9 @@ loop_io_server(TestCase, Buff0) ->
 	 {'EXIT',_, _} ->
 	     erlang:display('ssh_test_lib:loop_io_server/2 EXIT'),
 	     ok
-     end.
+    after 
+	30000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
+    end.
 
 io_request({put_chars, Chars}, TestCase, _, _, Buff) ->
     reply(TestCase, Chars),
@@ -206,6 +214,8 @@ receive_exec_result(Msg) ->
 	Other ->
 	    ct:log("Other ~p", [Other]),
 	    {unexpected_msg, Other}
+    after 
+	30000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.
 
 
@@ -286,6 +296,7 @@ setup_dsa(DataDir, UserDir) ->
     file:make_dir(System),
     file:copy(filename:join(DataDir, "ssh_host_dsa_key"), filename:join(System, "ssh_host_dsa_key")),
     file:copy(filename:join(DataDir, "ssh_host_dsa_key.pub"), filename:join(System, "ssh_host_dsa_key.pub")),
+ct:log("DataDir ~p:~n ~p~n~nSystDir ~p:~n ~p~n~nUserDir ~p:~n ~p",[DataDir, file:list_dir(DataDir), System, file:list_dir(System), UserDir, file:list_dir(UserDir)]),
     setup_dsa_known_host(DataDir, UserDir),
     setup_dsa_auth_keys(DataDir, UserDir).
     
@@ -294,9 +305,20 @@ setup_rsa(DataDir, UserDir) ->
     System = filename:join(UserDir, "system"),
     file:make_dir(System),
     file:copy(filename:join(DataDir, "ssh_host_rsa_key"), filename:join(System, "ssh_host_rsa_key")),
-    file:copy(filename:join(DataDir, "ssh_host_rsa_key"), filename:join(System, "ssh_host_rsa_key.pub")),
+    file:copy(filename:join(DataDir, "ssh_host_rsa_key.pub"), filename:join(System, "ssh_host_rsa_key.pub")),
+ct:log("DataDir ~p:~n ~p~n~nSystDir ~p:~n ~p~n~nUserDir ~p:~n ~p",[DataDir, file:list_dir(DataDir), System, file:list_dir(System), UserDir, file:list_dir(UserDir)]),
     setup_rsa_known_host(DataDir, UserDir),
     setup_rsa_auth_keys(DataDir, UserDir).
+
+setup_ecdsa(Size, DataDir, UserDir) ->
+    file:copy(filename:join(DataDir, "id_ecdsa"++Size), filename:join(UserDir, "id_ecdsa")),
+    System = filename:join(UserDir, "system"),
+    file:make_dir(System),
+    file:copy(filename:join(DataDir, "ssh_host_ecdsa_key"++Size), filename:join(System, "ssh_host_ecdsa_key")),
+    file:copy(filename:join(DataDir, "ssh_host_ecdsa_key"++Size++".pub"), filename:join(System, "ssh_host_ecdsa_key.pub")),
+ct:log("DataDir ~p:~n ~p~n~nSystDir ~p:~n ~p~n~nUserDir ~p:~n ~p",[DataDir, file:list_dir(DataDir), System, file:list_dir(System), UserDir, file:list_dir(UserDir)]),
+    setup_ecdsa_known_host(Size, System, UserDir),
+    setup_ecdsa_auth_keys(Size, UserDir, UserDir).
 
 clean_dsa(UserDir) ->
     del_dirs(filename:join(UserDir, "system")),
@@ -349,6 +371,11 @@ setup_rsa_known_host(SystemDir, UserDir) ->
     [{Key, _}] = public_key:ssh_decode(SshBin, public_key),
     setup_known_hosts(Key, UserDir).
 
+setup_ecdsa_known_host(_Size, SystemDir, UserDir) ->
+    {ok, SshBin} = file:read_file(filename:join(SystemDir, "ssh_host_ecdsa_key.pub")),
+    [{Key, _}] = public_key:ssh_decode(SshBin, public_key),
+    setup_known_hosts(Key, UserDir).
+
 setup_known_hosts(Key, UserDir) ->
     {ok, Hostname} = inet:gethostname(),
     {ok, {A, B, C, D}} = inet:getaddr(Hostname, inet),
@@ -375,6 +402,14 @@ setup_rsa_auth_keys(Dir, UserDir) ->
     #'RSAPrivateKey'{publicExponent = E, modulus = N} = RSA,
     PKey = #'RSAPublicKey'{publicExponent = E, modulus = N},
     setup_auth_keys([{ PKey, [{comment, "Test"}]}], UserDir).
+
+setup_ecdsa_auth_keys(_Size, Dir, UserDir) ->
+    {ok, Pem} = file:read_file(filename:join(Dir, "id_ecdsa")),
+    ECDSA = public_key:pem_entry_decode(hd(public_key:pem_decode(Pem))),
+    #'ECPrivateKey'{publicKey = Q,
+		    parameters = Param = {namedCurve,_Id0}} = ECDSA,
+    PKey = #'ECPoint'{point = Q},
+    setup_auth_keys([{ {PKey,Param}, [{comment, "Test"}]}], UserDir).
 
 setup_auth_keys(Keys, Dir) ->
     AuthKeys = public_key:ssh_encode(Keys, auth_keys),
@@ -424,6 +459,14 @@ openssh_sanity_check(Config) ->
 	    {skip, Str}
     end.
 
+openssh_supports(ClientOrServer, Tag, Alg) when ClientOrServer == sshc ;
+						ClientOrServer == sshd ->
+    SSH_algos = ssh_test_lib:default_algorithms(ClientOrServer),
+    L = proplists:get_value(Tag, SSH_algos, []),
+    lists:member(Alg, L) orelse 
+	lists:member(Alg, proplists:get_value(client2server, L, [])) orelse
+	lists:member(Alg, proplists:get_value(server2client, L, [])).
+
 %%--------------------------------------------------------------------
 %% Check if we have a "newer" ssh client that supports these test cases
 
@@ -443,7 +486,63 @@ check_ssh_client_support2(P) ->
 	    -1
     end.
 
-default_algorithms(Host, Port) ->
+%%%--------------------------------------------------------------------
+%%% Probe a server or a client about algorithm support
+
+default_algorithms(sshd) ->
+    default_algorithms(sshd, "localhost", 22);
+
+default_algorithms(sshc) ->
+    default_algorithms(sshc, []).
+
+default_algorithms(sshd, Host, Port) ->
+    try run_fake_ssh(
+	  ssh_trpt_test_lib:exec(
+	    [{connect,Host,Port, [{silently_accept_hosts, true},
+				  {user_interaction, false}]}]))
+    catch
+	_C:_E ->
+	    ct:log("***~p:~p: ~p:~p",[?MODULE,?LINE,_C,_E]),
+	    []
+    end.
+
+default_algorithms(sshc, DaemonOptions) ->
+    Parent = self(),
+    %% Start a process handling one connection on the server side:
+    Srvr =
+	spawn_link(
+	  fun() ->
+		  Parent ! 
+		      {result, self(),
+		       try
+			   {ok,InitialState} = ssh_trpt_test_lib:exec(listen),
+			   Parent ! {hostport,self(),ssh_trpt_test_lib:server_host_port(InitialState)},
+			   run_fake_ssh(
+			     ssh_trpt_test_lib:exec([{accept, DaemonOptions}],
+						    InitialState))
+		       catch
+			   _C:_E ->
+			       ct:log("***~p:~p: ~p:~p",[?MODULE,?LINE,_C,_E]),
+			       []
+		       end}
+	  end),
+   
+    receive
+	{hostport,Srvr,{_Host,Port}} ->
+	    spawn(fun()-> os:cmd(lists:concat(["ssh -o \"StrictHostKeyChecking no\" -p ",Port," localhost"])) end)
+    after ?TIMEOUT ->
+	    ct:fail("No server respons 1")
+    end,
+
+    receive
+	{result,Srvr,L} ->
+	    L
+    after ?TIMEOUT ->
+	    ct:fail("No server respons 2")
+    end.
+
+
+run_fake_ssh({ok,InitialState}) ->
     KexInitPattern =
 	#ssh_msg_kexinit{
 	   kex_algorithms = '$kex_algorithms',
@@ -456,61 +555,35 @@ default_algorithms(Host, Port) ->
 	   compression_algorithms_server_to_client = '$compression_algorithms_server_to_client',
 	   _ = '_'
 	  },
+    {ok,E} = ssh_trpt_test_lib:exec([{set_options,[silent]},
+				     {send, hello},
+				     receive_hello,
+				     {send, ssh_msg_kexinit},
+				     {match, KexInitPattern, receive_msg},
+				     close_socket
+				    ],
+				    InitialState),
+     [Kex, PubKey, EncC2S, EncS2C, MacC2S, MacS2C, CompC2S, CompS2C] =
+	ssh_trpt_test_lib:instantiate(['$kex_algorithms',
+				       '$server_host_key_algorithms',
+				       '$encryption_algorithms_client_to_server',
+				       '$encryption_algorithms_server_to_client',
+				       '$mac_algorithms_client_to_server',
+				       '$mac_algorithms_server_to_client',
+				       '$compression_algorithms_client_to_server',
+				       '$compression_algorithms_server_to_client'
+				      ], E),
+    [{kex, to_atoms(Kex)},
+     {public_key, to_atoms(PubKey)},
+     {cipher, [{client2server, to_atoms(EncC2S)},
+	       {server2client, to_atoms(EncS2C)}]},
+     {mac, [{client2server, to_atoms(MacC2S)},
+	    {server2client, to_atoms(MacS2C)}]},
+     {compression, [{client2server, to_atoms(CompC2S)},
+		    {server2client, to_atoms(CompS2C)}]}].
+    
 
-    try ssh_trpt_test_lib:exec(
-	   [{connect,Host,Port, [{silently_accept_hosts, true},
-				 {user_interaction, false}]},
-	    {send,hello},
-	    receive_hello, 
-	    {send, ssh_msg_kexinit},
-	    {match, KexInitPattern, receive_msg},
-	    close_socket])
-    of
-	{ok,E} ->
-	    [Kex, PubKey, EncC2S, EncS2C, MacC2S, MacS2C, CompC2S, CompS2C] =
-		ssh_trpt_test_lib:instantiate(['$kex_algorithms',
-					       '$server_host_key_algorithms',
-					       '$encryption_algorithms_client_to_server',
-					       '$encryption_algorithms_server_to_client',
-					       '$mac_algorithms_client_to_server',
-					       '$mac_algorithms_server_to_client',
-					       '$compression_algorithms_client_to_server',
-					       '$compression_algorithms_server_to_client'
-					      ], E),
-	    [{kex, to_atoms(Kex)},
-	     {public_key, to_atoms(PubKey)},
-	     {cipher, [{client2server, to_atoms(EncC2S)},
-		       {server2client, to_atoms(EncS2C)}]},
-	     {mac, [{client2server, to_atoms(MacC2S)},
-		    {server2client, to_atoms(MacS2C)}]},
-	     {compression, [{client2server, to_atoms(CompC2S)},
-			    {server2client, to_atoms(CompS2C)}]}];
-	_ ->
-	    []
-    catch
-	_:_ ->
-	    []
-    end.
-
-
-default_algorithms(sshd) ->
-    default_algorithms("localhost", 22);
-default_algorithms(sshc) ->
-    case os:find_executable("ssh") of
-	false -> 
-	    [];
-	_ ->
-	    Cipher = sshc(cipher),
-	    Mac = sshc(mac),
-	    [{kex, sshc(kex)},
-	     {public_key, sshc(key)},
-	     {cipher, [{client2server, Cipher},
-		       {server2client, Cipher}]},
-	     {mac, [{client2server, Mac},
-		    {server2client, Mac}]}
-	    ]
-    end.
-
+%%--------------------------------------------------------------------
 sshc(Tag) -> 
     to_atoms(
       string:tokens(os:cmd(lists:concat(["ssh -Q ",Tag])), "\n")
@@ -552,4 +625,36 @@ algo_intersection(_, _) ->
 
 to_atoms(L) -> lists:map(fun erlang:list_to_atom/1, L).
     
-    
+%%%----------------------------------------------------------------    
+ssh_supports(Alg, SshDefaultAlg_tag) ->
+    SupAlgs = 
+	case proplists:get_value(SshDefaultAlg_tag,
+				 ssh:default_algorithms()) of
+	    [{_K1,L1}, {_K2,L2}] ->
+		lists:usort(L1++L2);
+	    L ->
+		L
+	end,
+    if 
+	is_atom(Alg) ->
+	    lists:member(Alg, SupAlgs);
+	is_list(Alg) ->
+	    case Alg--SupAlgs of
+		[] ->
+		    true;
+		UnSup ->
+		    {false,UnSup}
+	    end
+    end.
+
+%%%----------------------------------------------------------------
+has_inet6_address() ->
+    try 
+	[throw(6) || {ok,L} <- [inet:getifaddrs()],
+		     {_,L1} <- L,
+		     {addr,{_,_,_,_,_,_,_,_}} <- L1]
+    of
+	[] -> false
+    catch
+	throw:6 -> true
+    end.

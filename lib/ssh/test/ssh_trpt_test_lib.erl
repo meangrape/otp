@@ -73,7 +73,10 @@ exec(Op, S0=#s{}) ->
 	  op(Op, S1))
     of
 	S = #s{} ->
-	    print_traces(S),
+	    case proplists:get_value(silent,S#s.opts) of
+		true -> ok;
+		_ -> print_traces(S)
+	    end,
 	    {ok,S}
     catch
 	{fail,Reason,Se} ->
@@ -383,7 +386,14 @@ send(S0, Line) when is_binary(Line) ->
 	    fun(X) when X==true;X==detail -> {"Send line~n~p~n",[Line]} end),
     send_bytes(Line, S#s{return_value = Line});
 
-%%% Msg = #ssh_msg_*{}
+send(S0, {special,Msg,PacketFun}) when is_tuple(Msg),
+				       is_function(PacketFun,2) ->
+    S = opt(print_messages, S0,
+	    fun(X) when X==true;X==detail -> {"Send~n~s~n",[format_msg(Msg)]} end),
+    {Packet, C} = PacketFun(Msg, S#s.ssh),
+    send_bytes(Packet, S#s{ssh = C, %%inc_send_seq_num(C),
+			   return_value = Msg});
+
 send(S0, Msg) when is_tuple(Msg) ->
     S = opt(print_messages, S0,
 	    fun(X) when X==true;X==detail -> {"Send~n~s~n",[format_msg(Msg)]} end),
@@ -743,7 +753,7 @@ print_traces(S) ->
 		      [case Len-length(Acc)-1 of
 			   0 ->
 			       io_lib:format(Fmt,Args);
-			   N ->
+			   _N ->
 			       io_lib:format(lists:concat(['~p --------~n',Fmt]),
 					     [Len-length(Acc)-1|Args])
 		       end | Acc]

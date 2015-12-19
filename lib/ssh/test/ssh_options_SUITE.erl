@@ -45,6 +45,9 @@
 	 max_sessions_ssh_connect_sequential/1, 
 	 server_password_option/1, 
 	 server_userpassword_option/1, 
+	 server_pwdfun_option/1,
+	 server_pwdfun_4_option/1,
+	 server_pwdfun_4_option_repeat/1,
 	 ssh_connect_arg4_timeout/1, 
 	 ssh_connect_negtimeout_parallel/1, 
 	 ssh_connect_negtimeout_sequential/1, 
@@ -83,6 +86,9 @@ all() ->
      connectfun_disconnectfun_client,
      server_password_option,
      server_userpassword_option,
+     server_pwdfun_option,
+     server_pwdfun_4_option,
+     server_pwdfun_4_option_repeat,
      {group, dir_options},
      ssh_connect_timeout,
      ssh_connect_arg4_timeout,
@@ -188,7 +194,9 @@ init_per_testcase(_TestCase, Config) ->
     Config.
 
 end_per_testcase(TestCase, Config) when TestCase == server_password_option;
-					TestCase == server_userpassword_option ->
+					TestCase == server_userpassword_option;
+					TestCase == server_pwdfun_option;
+					TestCase == server_pwdfun_4_option ->
     UserDir = filename:join(?config(priv_dir, Config), nopubkey),
     ssh_test_lib:del_dirs(UserDir),
     end_per_testcase(Config);
@@ -271,6 +279,157 @@ server_userpassword_option(Config) when is_list(Config) ->
 				 {user_dir, UserDir}]),
     ssh:stop_daemon(Pid).
 
+%%--------------------------------------------------------------------
+%%% validate to server that uses the 'pwdfun' option
+server_pwdfun_option(Config) ->
+    PrivDir = ?config(priv_dir, Config),
+    UserDir = filename:join(PrivDir, nopubkey), % to make sure we don't use public-key-auth
+    file:make_dir(UserDir),
+    SysDir = ?config(data_dir, Config),	  
+    CHKPWD = fun("foo",Pwd) -> Pwd=="bar";
+		(_,_) -> false
+	     end,
+    {Pid, Host, Port} = ssh_test_lib:daemon([{system_dir, SysDir},
+					     {user_dir, PrivDir},
+					     {pwdfun,CHKPWD}]),
+    ConnectionRef =
+	ssh_test_lib:connect(Host, Port, [{silently_accept_hosts, true},
+					  {user, "foo"},
+					  {password, "bar"},
+					  {user_interaction, false},
+					  {user_dir, UserDir}]),
+    ssh:close(ConnectionRef),
+
+    Reason = "Unable to connect using the available authentication methods",
+    
+    {error, Reason} =
+	ssh:connect(Host, Port, [{silently_accept_hosts, true},
+				 {user, "foo"},
+				 {password, "morot"},
+				 {user_interaction, false},
+				 {user_dir, UserDir}]),
+    {error, Reason} =
+	ssh:connect(Host, Port, [{silently_accept_hosts, true},
+				 {user, "vego"},
+				 {password, "foo"},
+				 {user_interaction, false},
+				 {user_dir, UserDir}]),
+    ssh:stop_daemon(Pid).
+
+    
+%%--------------------------------------------------------------------
+%%% validate to server that uses the 'pwdfun/4' option
+server_pwdfun_4_option(Config) ->
+    PrivDir = ?config(priv_dir, Config),
+    UserDir = filename:join(PrivDir, nopubkey), % to make sure we don't use public-key-auth
+    file:make_dir(UserDir),
+    SysDir = ?config(data_dir, Config),	  
+    PWDFUN = fun("foo",Pwd,{_,_},undefined) -> Pwd=="bar";
+		("fie",Pwd,{_,_},undefined) -> {Pwd=="bar",new_state};
+		("bandit",_,_,_) -> disconnect;
+		(_,_,_,_) -> false
+	     end,
+    {Pid, Host, Port} = ssh_test_lib:daemon([{system_dir, SysDir},
+					     {user_dir, PrivDir},
+					     {pwdfun,PWDFUN}]),
+    ConnectionRef1 =
+	ssh_test_lib:connect(Host, Port, [{silently_accept_hosts, true},
+					  {user, "foo"},
+					  {password, "bar"},
+					  {user_interaction, false},
+					  {user_dir, UserDir}]),
+    ssh:close(ConnectionRef1),
+
+    ConnectionRef2 =
+	ssh_test_lib:connect(Host, Port, [{silently_accept_hosts, true},
+					  {user, "fie"},
+					  {password, "bar"},
+					  {user_interaction, false},
+					  {user_dir, UserDir}]),
+    ssh:close(ConnectionRef2),
+
+    Reason = "Unable to connect using the available authentication methods",
+    
+    {error, Reason} =
+	ssh:connect(Host, Port, [{silently_accept_hosts, true},
+				 {user, "foo"},
+				 {password, "morot"},
+				 {user_interaction, false},
+				 {user_dir, UserDir}]),
+    {error, Reason} =
+	ssh:connect(Host, Port, [{silently_accept_hosts, true},
+				 {user, "fie"},
+				 {password, "morot"},
+				 {user_interaction, false},
+				 {user_dir, UserDir}]),
+    {error, Reason} =
+	ssh:connect(Host, Port, [{silently_accept_hosts, true},
+				 {user, "vego"},
+				 {password, "foo"},
+				 {user_interaction, false},
+				 {user_dir, UserDir}]),
+
+    {error, Reason} =
+	ssh:connect(Host, Port, [{silently_accept_hosts, true},
+				 {user, "bandit"},
+				 {password, "pwd breaking"},
+				 {user_interaction, false},
+				 {user_dir, UserDir}]),
+    ssh:stop_daemon(Pid).
+
+    
+%%--------------------------------------------------------------------
+server_pwdfun_4_option_repeat(Config) ->
+    PrivDir = ?config(priv_dir, Config),
+    UserDir = filename:join(PrivDir, nopubkey), % to make sure we don't use public-key-auth
+    file:make_dir(UserDir),
+    SysDir = ?config(data_dir, Config),	  
+    %% Test that the state works
+    Parent = self(),
+    PWDFUN = fun("foo",P="bar",_,S) -> Parent!{P,S},true; 
+		(_,P,_,S=undefined) -> Parent!{P,S},{false,1}; 
+		(_,P,_,S) -> Parent!{P,S},          {false,S+1}
+	     end,
+    {Pid, Host, Port} = ssh_test_lib:daemon([{system_dir, SysDir},
+					     {user_dir, PrivDir},
+					     {auth_methods,"keyboard-interactive"},
+					     {pwdfun,PWDFUN}]),
+
+    %% Try with passwords "incorrect", "Bad again" and finally "bar"
+    KIFFUN = fun(_,_,_) -> 
+		     K={k,self()},
+		     case get(K) of 
+			 undefined -> 
+			     put(K,1),
+			     ["incorrect"]; 
+			 2 ->
+			     put(K,3),
+			     ["bar"];
+			 S->
+			     put(K,S+1),
+			     ["Bad again"]
+		     end
+	     end,
+    
+    ConnectionRef2 = 
+	ssh_test_lib:connect(Host, Port, [{silently_accept_hosts, true},
+					  {user, "foo"},
+					  {keyboard_interact_fun, KIFFUN},
+					  {user_dir, UserDir}]),
+    ssh:close(ConnectionRef2),
+    ssh:stop_daemon(Pid),
+
+    lists:foreach(fun(Expect) ->
+			  receive
+			      Expect -> ok;
+			      Other -> ct:fail("Expect: ~p~nReceived ~p",[Expect,Other])
+			  after
+			      2000 -> ct:fail("Timeout expecting ~p",[Expect])
+			  end
+		  end, [{"incorrect",undefined},
+			{"Bad again",1},
+			{"bar",2}]).
+			
 %%--------------------------------------------------------------------
 system_dir_option(Config) ->
     DirUnread = proplists:get_value(unreadable_dir,Config),
@@ -656,6 +815,8 @@ ssh_connect_arg4_timeout(_Config) ->
     %% Get listening port
     Port = receive
 	       {port,Server,ServerPort} -> ServerPort
+	   after 
+	       10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
 	   end,
 
     %% try to connect with a timeout, but "supervise" it
@@ -861,6 +1022,8 @@ ssh_connect_nonegtimeout_connected(Config, Parallel) ->
 	    ct:sleep(round(Factor * NegTimeOut)),
     
 	    one_shell_op(IO, NegTimeOut)
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end,
     exit(Shell, kill).
 
@@ -869,13 +1032,13 @@ one_shell_op(IO, TimeOut) ->
     ct:log("One shell op: Waiting for prompter"),
     receive
 	ErlPrompt0 -> ct:log("Erlang prompt: ~p~n", [ErlPrompt0])
-	after TimeOut -> ct:fail("Timeout waiting for promter")
+    after TimeOut -> ct:fail("Timeout waiting for promter")
     end,
 
     IO ! {input, self(), "2*3*7.\r\n"},
     receive
 	Echo0 -> ct:log("Echo: ~p ~n", [Echo0])
-	after TimeOut -> ct:fail("Timeout waiting for echo")
+    after TimeOut -> ct:fail("Timeout waiting for echo")
     end,
 
     receive
@@ -888,7 +1051,7 @@ one_shell_op(IO, TimeOut) ->
 
     receive
 	Result0 -> ct:log("Result: ~p~n", [Result0])
-	after TimeOut ->  ct:fail("Timeout waiting for result")
+    after TimeOut ->  ct:fail("Timeout waiting for result")
     end.
 
 %%--------------------------------------------------------------------
@@ -1016,9 +1179,13 @@ fake_daemon(_Config) ->
 			   {ok,S} = Rsa,
 			   receive
 			       {tcp, S, Id} -> Parent ! {id,self(),Id}
+			   after 
+			       10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
 			   end
 		   end),
     %% Get listening host and port
     receive
 	{sockname,Server,ServerHost,ServerPort} -> {Server, ServerHost, ServerPort}
+    after 
+	10000 -> ct:fail("timeout ~p:~p",[?MODULE,?LINE])
     end.

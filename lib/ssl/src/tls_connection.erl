@@ -168,9 +168,10 @@ hello(start, #state{host = Host, port = Port, role = client,
 				       Cache, CacheCb, Renegotiation, Cert),
     
     Version = Hello#client_hello.client_version,
+    HelloVersion = tls_record:lowest_protocol_version(SslOpts#ssl_options.versions),
     Handshake0 = ssl_handshake:init_handshake_history(),
     {BinMsg, ConnectionStates, Handshake} =
-        encode_handshake(Hello, Version, ConnectionStates0, Handshake0),
+        encode_handshake(Hello,  HelloVersion, ConnectionStates0, Handshake0),
     Transport:send(Socket, BinMsg),
     State1 = State0#state{connection_states = ConnectionStates,
 			  negotiated_version = Version, %% Requested version
@@ -211,7 +212,7 @@ hello(Hello = #client_hello{client_version = ClientVersion,
 					     client_ecc = {EllipticCurves, EcPointFormats},
 					     negotiated_protocol = Protocol}, ?MODULE)
     end;
-hello(Hello,
+hello(Hello = #server_hello{},
       #state{connection_states = ConnectionStates0,
 	     negotiated_version = ReqVersion,
 	     role = client,

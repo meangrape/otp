@@ -23,6 +23,7 @@
 -module(ssh_algorithms_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("ssh/src/ssh_transport.hrl").
 
 %% Note: This directive should only be used in test suites.
 -compile(export_all).
@@ -57,7 +58,7 @@ groups() ->
 	],
 
     AlgoTcSet =
-	[{Alg, [], specific_test_cases(Tag,Alg,SshcAlgos,SshdAlgos)}
+	[{Alg, [parallel], specific_test_cases(Tag,Alg,SshcAlgos,SshdAlgos)}
 	 || {Tag,Algs} <- ErlAlgos ++ DoubleAlgos,
 	    Alg <- Algs],
 
@@ -68,15 +69,26 @@ two_way_tags() -> [cipher,mac,compression].
     
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
+    ct:log("os:getenv(\"HOME\") = ~p~n"
+	   "init:get_argument(home) = ~p",
+	   [os:getenv("HOME"), init:get_argument(home)]),
     ct:log("~n~n"
 	   "OS ssh:~n=======~n~p~n~n~n"
 	   "Erl ssh:~n========~n~p~n~n~n"
 	   "Installed ssh client:~n=====================~n~p~n~n~n"
-	   "Installed ssh server:~n=====================~n~p~n~n~n",
-	   [os:cmd("ssh -V"),
+	   "Installed ssh server:~n=====================~n~p~n~n~n"
+	   "Misc values:~n============~n"
+	   " -- Default dh group exchange parameters ({min,def,max}): ~p~n"
+	   " -- dh_default_groups: ~p~n"
+	   " -- Max num algorithms: ~p~n"
+	  ,[os:cmd("ssh -V"),
 	    ssh:default_algorithms(),
 	    ssh_test_lib:default_algorithms(sshc),
-	    ssh_test_lib:default_algorithms(sshd)]),
+	    ssh_test_lib:default_algorithms(sshd),
+	    {?DEFAULT_DH_GROUP_MIN,?DEFAULT_DH_GROUP_NBITS,?DEFAULT_DH_GROUP_MAX},
+	    public_key:dh_gex_group_sizes(),
+	    ?MAX_NUM_ALGORITHMS
+	    ]),
     ct:log("all() ->~n    ~p.~n~ngroups()->~n    ~p.~n",[all(),groups()]),
     catch crypto:stop(),
     case catch crypto:start() of
@@ -101,7 +113,8 @@ init_per_group(Group, Config) ->
 	    Config;
 	false ->
 	    %% An algorithm group
-	    [[{name,Tag}]|_] = ?config(tc_group_path, Config),
+	    Tag = proplists:get_value(name,
+				      hd(?config(tc_group_path, Config))),
 	    Alg = Group,
 	    PA =
 		case split(Alg) of
@@ -160,6 +173,52 @@ simple_sftp(Config) ->
 simple_exec(Config) ->
     {Host,Port} = ?config(srvr_addr, Config),
     ssh_test_lib:std_simple_exec(Host, Port, Config).
+
+%%--------------------------------------------------------------------
+%% Testing if no group matches
+simple_exec_groups_no_match_too_small(Config) ->
+    try simple_exec_group({400,500,600}, Config)
+    of
+	_ -> ct:fail("Exec though no group available")
+    catch
+	error:{badmatch,{error,"No possible diffie-hellman-group-exchange group found"}} ->
+	    ok
+    end.
+
+simple_exec_groups_no_match_too_large(Config) ->
+    try simple_exec_group({9200,9500,9700}, Config)
+    of
+	_ -> ct:fail("Exec though no group available")
+    catch
+	error:{badmatch,{error,"No possible diffie-hellman-group-exchange group found"}} ->
+	    ok
+    end.
+
+%%--------------------------------------------------------------------
+%% Testing all default groups
+simple_exec_groups(Config) ->
+    Sizes = interpolate( public_key:dh_gex_group_sizes() ),
+    lists:foreach(
+      fun(Sz) ->
+	      ct:log("Try size ~p",[Sz]),
+	      ct:comment(Sz),
+	      case simple_exec_group(Sz, Config) of
+		  expected -> ct:log("Size ~p ok",[Sz]);
+		  _ -> ct:log("Size ~p not ok",[Sz])
+	      end
+      end, Sizes),
+    ct:comment("~p",[lists:map(fun({_,I,_}) -> I;
+				  (I) -> I
+			       end,Sizes)]).
+
+
+interpolate([I1,I2|Is]) ->
+    OneThird = (I2-I1) div 3,
+    [I1,
+     {I1, I1 + OneThird, I2},
+     {I1, I1 + 2*OneThird, I2} | interpolate([I2|Is])];
+interpolate(Is) ->
+    Is.
 
 %%--------------------------------------------------------------------
 %% Use the ssh client of the OS to connect
@@ -254,6 +313,16 @@ specific_test_cases(Tag, Alg, SshcAlgos, SshdAlgos) ->
 		[sshd_simple_exec];
 	    _ ->
 		[]
+	end ++
+	case {Tag,Alg} of
+	    {kex,_} when Alg == 'diffie-hellman-group-exchange-sha1' ;
+			 Alg == 'diffie-hellman-group-exchange-sha256' ->
+		[simple_exec_groups,
+		 simple_exec_groups_no_match_too_large,
+		 simple_exec_groups_no_match_too_small
+		];
+	    _ ->
+		[]
 	end.
 
 supports(Tag, Alg, Algos) ->
@@ -292,6 +361,16 @@ start_pubkey_daemon(Opts, Config) ->
 setup_pubkey(Config) ->
     DataDir = ?config(data_dir, Config),
     UserDir = ?config(priv_dir, Config),
-    ssh_test_lib:setup_dsa_known_host(DataDir, UserDir),
+    ssh_test_lib:setup_dsa(DataDir, UserDir),
+    ssh_test_lib:setup_rsa(DataDir, UserDir),
+    ssh_test_lib:setup_ecdsa("256", DataDir, UserDir),
     Config.
+
+
+simple_exec_group(I, Config) when is_integer(I) ->
+    simple_exec_group({I,I,I}, Config);
+simple_exec_group({Min,I,Max}, Config) ->
+    {Host,Port} = ?config(srvr_addr, Config),
+    ssh_test_lib:std_simple_exec(Host, Port, Config,
+				 [{dh_gex_limits,{Min,I,Max}}]).
 

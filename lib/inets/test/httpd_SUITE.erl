@@ -117,7 +117,7 @@ groups() ->
      {htaccess, [], [htaccess_1_1, htaccess_1_0, htaccess_0_9]},
      {security, [], [security_1_1, security_1_0]}, %% Skip 0.9 as causes timing issus in test code
      {http_1_1, [], [host, chunked, expect, cgi, cgi_chunked_encoding_test,
-		     trace, range, if_modified_since] ++ http_head() ++ http_get() ++ load()},
+		     trace, range, if_modified_since, mod_esi_chunk_timeout] ++ http_head() ++ http_get() ++ load()},
      {http_1_0, [], [host, cgi, trace] ++ http_head() ++ http_get() ++ load()},
      {http_0_9, [], http_head() ++ http_get() ++ load()}
     ].
@@ -756,6 +756,13 @@ esi(Config) when is_list(Config) ->
     ok = http_status("GET /cgi-bin/erl/httpd_example:get ",
 		     Config, [{statuscode, 200},
 		      {no_header, "cache-control"}]).
+%%-------------------------------------------------------------------------
+mod_esi_chunk_timeout(Config) when is_list(Config) -> 
+    ok = httpd_1_1:mod_esi_chunk_timeout(?config(type, Config), 
+					 ?config(port, Config),
+					 ?config(host, Config),
+					 ?config(node, Config)).
+
 %%-------------------------------------------------------------------------
 cgi() ->
     [{doc, "Test mod_cgi"}].
@@ -1434,9 +1441,11 @@ server_config(http_reload, Config) ->
 server_config(https_reload, Config) ->
     [{keep_alive_timeout, 2}]  ++ server_config(https, Config);
 server_config(http_limit, Config) ->
-    [{max_clients, 1},
-     %% Make sure option checking code is run
-     {max_content_length, 100000002}]  ++ server_config(http, Config);
+    Conf = [{max_clients, 1},
+	    %% Make sure option checking code is run
+	    {max_content_length, 100000002}]  ++ server_config(http, Config),
+    ct:pal("Received message ~p~n", [Conf]),
+    Conf;
 server_config(http_custom, Config) ->
     [{customize, ?MODULE}]  ++ server_config(http, Config);
 server_config(https_custom, Config) ->
@@ -1486,6 +1495,7 @@ server_config(http_mime_types, Config0) ->
 server_config(http, Config) ->
     ServerRoot = ?config(server_root, Config),
     [{port, 0},
+     {socket_type, {ip_comm, [{nodelay, true}]}},
      {server_name,"httpd_test"},
      {server_root, ServerRoot},
      {document_root, ?config(doc_root, Config)},
@@ -1507,13 +1517,14 @@ server_config(http, Config) ->
 server_config(https, Config) ->
     PrivDir = ?config(priv_dir, Config),
     [{socket_type, {essl,
-		  [{cacertfile, 
-		    filename:join(PrivDir, "public_key_cacert.pem")},
-		   {certfile, 
-		    filename:join(PrivDir, "public_key_cert.pem")},
-		   {keyfile,
-		    filename:join(PrivDir, "public_key_cert_key.pem")}
-		  ]}}] ++ server_config(http, Config).
+		    [{nodelay, true},
+		     {cacertfile, 
+		      filename:join(PrivDir, "public_key_cacert.pem")},
+		     {certfile, 
+		      filename:join(PrivDir, "public_key_cert.pem")},
+		     {keyfile,
+		      filename:join(PrivDir, "public_key_cert_key.pem")}
+		    ]}}] ++ proplists:delete(socket_type, server_config(http, Config)).
 
 init_httpd(Group, Config0) ->
     Config1 = proplists:delete(port, Config0),

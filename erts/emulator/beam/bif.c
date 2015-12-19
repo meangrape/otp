@@ -616,7 +616,7 @@ erts_queue_monitor_message(Process *p,
 }
 
 static BIF_RETTYPE
-local_pid_monitor(Process *p, Eterm target, Eterm mon_ref, int bool)
+local_pid_monitor(Process *p, Eterm target, Eterm mon_ref, int boolean)
 {
     BIF_RETTYPE ret;
     Process *rp;
@@ -634,7 +634,7 @@ local_pid_monitor(Process *p, Eterm target, Eterm mon_ref, int bool)
     if (!rp) {
 	erts_smp_proc_unlock(p, ERTS_PROC_LOCK_LINK);
 	p_locks &= ~ERTS_PROC_LOCK_LINK;
-	if (bool)
+	if (boolean)
 	    ret = am_false;
 	else
 	    erts_queue_monitor_message(p, &p_locks,
@@ -643,7 +643,7 @@ local_pid_monitor(Process *p, Eterm target, Eterm mon_ref, int bool)
     else {
 	ASSERT(rp != p);
 
-	if (bool)
+	if (boolean)
 	    ret = am_true;
 
 	erts_add_monitor(&ERTS_P_MONITORS(p), MON_ORIGIN, mon_ref, target, NIL);
@@ -4231,6 +4231,7 @@ BIF_RETTYPE list_to_pid_1(BIF_ALIST_1)
 	  goto bad;
       
       enp = erts_find_or_insert_node(dep->sysname, dep->creation);
+      ASSERT(enp != erts_this_node);
 
       etp = (ExternalThing *) HAlloc(BIF_P, EXTERNAL_THING_HEAD_SIZE + 1);
       etp->header = make_external_pid_header(1);

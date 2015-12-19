@@ -73,6 +73,7 @@ static const char plusM_au_allocs[]= {
     'R',	/* driver_alloc		*/
     'S',	/* sl_alloc		*/
     'T',	/* temp_alloc		*/
+    'Z',        /* test_alloc           */
     '\0'
 };
 
@@ -718,7 +719,7 @@ int main(int argc, char **argv)
 		     * on itself here.  We'll avoid doing that.
 		     */
 		    if (strcmp(argv[i], "-make") == 0) {
-			add_args("-noshell", "-noinput", "-s", "make", "all", NULL);
+			add_args("-noshell", "-noinput", "-s", "make", "all_or_nothing", NULL);
 			add_Eargs("-B");
 			haltAfterwards = 1;
 			i = argc; /* Skip rest of command line */

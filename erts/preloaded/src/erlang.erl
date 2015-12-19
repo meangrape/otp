@@ -1974,6 +1974,7 @@ localtime_to_universaltime(_Localtime, _IsDst) ->
 %% CHECK! Why the strange very thorough specification of the error
 %% condition with disallowed arity in erl_bif_types?
 %% Not documented
+%% Shadowed by erl_bif_types: erlang:make_fun/3
 -spec erlang:make_fun(Module, Function, Arity) -> function() when
       Module :: atom(),
       Function :: atom(),
@@ -2423,7 +2424,7 @@ tuple_to_list(_Tuple) ->
                                   MinBinVHeapSize :: pos_integer()};
          (modified_timing_level) -> integer() | undefined;
          (multi_scheduling) -> disabled | blocked | enabled;
-         (multi_scheduling_blockers) -> [PID :: pid()];
+         (multi_scheduling_blockers) -> [Pid :: pid()];
          (nif_version) -> string();
          (otp_release) -> string();
          (os_monotonic_time_source) -> [{atom(),term()}];
