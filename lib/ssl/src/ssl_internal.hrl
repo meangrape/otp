@@ -2,6 +2,7 @@
 %% %CopyrightBegin%
 %%
 %% Copyright Ericsson AB 2007-2015. All Rights Reserved.
+%% Copyright (c) 2015 Basho Technologies, Inc.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
