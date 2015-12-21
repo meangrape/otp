@@ -2,6 +2,7 @@
 %% %CopyrightBegin%
 %%
 %% Copyright Ericsson AB 2007-2014. All Rights Reserved.
+%% Copyright (c) 2015 Basho Technologies, Inc.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -144,7 +145,7 @@
 %% 	 }).
 
 %% Effectively, we're prohibiting anything below TLS v1
-%% LOWEST_MINOR_SUPPORTED_VERSION is only relevany if
+%% LOWEST_MINOR_SUPPORTED_VERSION is only relevant if
 %% LOWEST_MAJOR_SUPPORTED_VERSION is an exact match.
 %% Keep these in sync with the xxx_SUPPORTED_VERSION macros
 %% defined in ssl_internal.hrl.

@@ -7,6 +7,10 @@
       <year>1999</year><year>2013</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
+    <copyright>
+      <year>2015</year>
+      <holder>Basho Technologies, Inc.</holder>
+    </copyright>
     <legalnotice>
       The contents of this file are subject to the Erlang Public License,
       Version 1.1, (the "License"); you may not use this file except in
