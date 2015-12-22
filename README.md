@@ -1,7 +1,7 @@
 ####Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Retired      | R15    | [`basho-otp-15`](http://github.com/basho/otp/tree/basho-otp-15) | [`basho_OTP_R15B01p`](http://github.com/basho/otp/tree/basho_OTP_R15B01p) | [`OTP_R15B01_basho1`](http://github.com/basho/otp/tree/OTP_R15B01_basho1) |
+| Retired      | R15    | [`basho-otp-15`](http://github.com/basho/otp/tree/basho-otp-15) | [`basho_OTP_R15B01p`](http://github.com/basho/otp/tree/basho_OTP_R15B01p) | [`basho-otp-15`](http://github.com/basho/otp/tree/basho-otp-15) |
 
 ##Basho Erlang/OTP
 
@@ -34,6 +34,7 @@ listed for our products, but our focus is on particular versions of:
 * FreeBSD
 * Linux
 * OS X
+* SmartOS
 * Solaris
 
 #####Interoperability
