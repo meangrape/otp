@@ -143,7 +143,7 @@ clean clean_docs:
 
 jdoc:$(JAVA_SRC_FILES)
 	(cd ../../java_src;$(JAVADOC) -sourcepath . -d $(JAVADOC_DEST) \
-		-windowtitle $(JAVADOC_TITLE) $(JAVADOC_PKGS))
+		-windowtitle $(JAVADOC_TITLE) $(JAVADOC_PKGS) || true)
 
 man: 
 
