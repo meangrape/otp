@@ -30,6 +30,26 @@
   </header>
   <p>This document describes the changes made to the ERTS application.</p>
 
+<section><title>Erts 5.10.3-basho10</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Backport closefrom() patch from ERTS 6.3.1 (OTP-17).
+          </p>
+          <p>
+            Use OS <c>closefrom</c> if available when closing all file
+            descriptors.
+          </p>
+          <p>Own Id: OTP-12446</p>
+          <p>Own Id: OTP-11809</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
 <section><title>Erts 5.10.3</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
