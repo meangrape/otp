@@ -21,7 +21,7 @@ include $(ERL_TOP)/make/output.mk
 include $(ERL_TOP)/make/target.mk
 include ../include/internal/$(TARGET)/ethread.mk
 
-OMIT_OMIT_FP=yes
+OMIT_OMIT_FP=no
 
 
 CC=@CC@
@@ -43,6 +43,7 @@ CFLAGS=$(subst O2,O3, @CFLAGS@)
 ifeq ($(TYPE),debug)
 CFLAGS=@DEBUG_CFLAGS@ -DDEBUG
 TYPE_SUFFIX=.debug
+OMIT_OMIT_FP=yes
 ifeq ($(USING_VC),yes)
 LD_FLAGS += -g
 endif
