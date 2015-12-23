@@ -26,7 +26,7 @@
   </header>
   <p>This document describes the changes made to the SSL application.</p>
 
-  <section><title>SSL 5.3.1-basho9</title>
+<section><title>SSL 5.3.1-basho9</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
       <list>
@@ -40,6 +40,101 @@
           </p>
           <p>Basho Id: OTP-12</p>
           <p>Own Id: OTP-11733</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>SSL 5.3.1-basho8</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Disallow SSLv3 to mitigate POODLE attack.
+          </p>
+          <p>Basho Id: RIAK-1485</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>SSL 5.3.1-basho7</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Avoid SSL deadlock.
+          </p>
+          <p>
+            This patch works around deadlocks that occur when sending data
+            bidirectionally using Erlang SSL sockets. It is possible that both
+            sides send enough data to fill up the buffers and block, without
+            either side being able to read data to empty the other side's buffer.
+            This is typically avoided by having different processes handle the
+            reading and writing duties, but the SSL library uses a single gen_fsm
+            for both.
+          </p>
+          <p>Basho Id: RIAK-1329</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>SSL 5.3.1-basho3</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Amend <c>5.3.1-basho1</c> CRL patch to correct handling of
+            missing Authority Key Identifier.
+          </p>
+          <p>Basho Id: <c>9823a92abd4bb702d4edf7797db9d1c35c9dd0bc</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>SSL 5.3.1-basho1</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Gracefully handle certificates with no extensions.
+          </p>
+          <p>Basho Id: <c>ab6991c09fc3f50e60fd46ad8e9d193256ad1740</c></p>
+        </item>
+        <item>
+          <p>
+            Fix comparison of uniformResourceIdentifiers to not compare
+            just the hostname to a whole URL.
+          </p>
+          <p>Basho Id: <c>ab6991c09fc3f50e60fd46ad8e9d193256ad1740</c></p>
+        </item>
+      </list>
+    </section>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+            Implement <c>honor_cipher_order</c> SSL server-side option.
+          </p>
+          <p>
+            HonorCipherOrder as implemented in Apache, nginx, lighttpd, etc.
+            This instructs the server to prefer its own cipher ordering
+            rather than the client's and can help protect against things
+            like BEAST while maintaining compatability with clients which
+            only support older ciphers.
+          </p>
+          <p>Basho Id: <c>d0adea231bc82a5d75025a9de663f2ec26909a70</c></p>
         </item>
       </list>
     </section>

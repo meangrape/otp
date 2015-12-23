@@ -31,7 +31,22 @@
   <p>This document describes the changes made to the odbc application.
   </p>
 
-  <section><title>ODBC 2.10.17</title>
+<section><title>ODBC 2.10.17-basho8</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Fix odbcserver so it compiles as C99.
+          </p>
+          <p>Basho Id: <c>a3c61e1fac220f0bff0fca5afbfc1063bc463343</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>ODBC 2.10.17</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
       <list>

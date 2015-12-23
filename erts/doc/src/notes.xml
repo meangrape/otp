@@ -9,7 +9,7 @@
     </copyright>
     <copyright>
       <year>2015</year>
-      <holder>Basho Technologies. All Rights Reserved.</holder>
+      <holder>Basho Technologies, Inc.</holder>
     </copyright>
     <legalnotice>
       The contents of this file are subject to the Erlang Public License,
@@ -36,6 +36,19 @@
 
 <section><title>Erts 5.10.3-basho10</title>
 
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Don't attempt to use fdatasync() on Mac OS X, where it does not
+            conform to the POSIX specification.
+          </p><p>
+            Basho Id: OTP-14
+          </p>
+        </item>
+      </list>
+    </section>
+
     <section><title>Improvements and New Features</title>
       <list>
         <item>
@@ -55,6 +68,94 @@
           </p>
           <p>Own Id: OTP-12446</p>
           <p>Own Id: OTP-11809</p>
+        </item>
+        <item>
+          <p>
+            Amend <c>5.10.3-basho6</c> patch to allow omission of frame
+            pointers in non-debug builds.
+          </p>
+          <p>Basho Id: <c>16ac7a976ff0926ab926d2b4ebdaa883f82a4735</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Erts 5.10.3-basho8</title>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+            Change to multiple timer wheels and reduce lock contention in
+            time support operations.
+          </p>
+          <p>
+            Thanks to Rick Reed (WhatsApp).
+          </p>
+          <p>Basho Id: RIAK-1533</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Erts 5.10.3-basho6</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Disable omitting frame pointer to aid with debugging.
+          </p>
+          <p>Basho Id: <c>e579a8bf94ff91474c55948f0cfdd0c867873438</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Erts 5.10.3-basho5</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+           Repair the alphabetical order of <c>system_info/1</c> argument
+           descriptions in the documentation and in the erlang.erl clauses.
+           Ensure all clauses are represented in the source documentation.
+          </p>
+          <p>Basho Id: <c>e327799ed999802f8ea9ece639644377accf76eb</c></p>
+        </item>
+      </list>
+    </section>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+            Add system_info(ets_limit).
+          </p>
+          <p>
+            Add <c>system_info(ets_limit)</c> to provide a way to retrieve
+            the runtime's maximum number of ETS tables.
+          </p>
+          <p>Basho Id: <c>e327799ed999802f8ea9ece639644377accf76eb</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Erts 5.10.3-basho4</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Fix DTrace build on Illumos.
+          </p>
+          <p>Basho Id: <c>c65e821538c76c26473d908baa030e5f5ed3c4e4</c></p>
         </item>
       </list>
     </section>

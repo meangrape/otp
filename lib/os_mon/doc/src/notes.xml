@@ -30,6 +30,26 @@
   </header>
   <p>This document describes the changes made to the OS_Mon application.</p>
 
+<section><title>Os_Mon 2.2.13-basho1</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Fix incorrect reporting of memory on OS X via memsup.
+          </p>
+          <p>
+            Application memsup should be calculating free memory using the
+            speculative pages, in the same manner that the Activity Monitor
+            and top programs on OS X do. Also corrects page size to 4096.
+          </p>
+          <p>Basho Id: <c>c115f67e0d4a86e5acd39974d8c89617213552c6</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
 <section><title>Os_Mon 2.2.13</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>

@@ -32,6 +32,26 @@
     <file>notes.xml</file>
   </header>
 
+<section><title>SNMP Development Toolkit 4.24.2-basho2</title>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+            Enable SNMP to create missing database directories.
+          </p>
+          <p>
+            Add <c>{db_init_error, create_db_and_dir}</c> option to SNMP
+            manager and agent. This allows them to create any missing parent
+            directories for <c>db_dir</c>, rather than treating any missing
+            directories as a fatal error.
+          </p>
+          <p>Basho Id: <c>aacd99f7efe660ed0721d27a36cb9498e1dbf502</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
 
   <section>
     <title>SNMP Development Toolkit 4.24.2</title>

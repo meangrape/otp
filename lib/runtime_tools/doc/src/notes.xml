@@ -31,6 +31,21 @@
   <p>This document describes the changes made to the Runtime_Tools
     application.</p>
 
+<section><title>Runtime_Tools 1.8.12-basho4</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+            Fix DTrace build on Illumos.
+          </p>
+          <p>Basho Id: <c>c65e821538c76c26473d908baa030e5f5ed3c4e4</c></p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
 <section><title>Runtime_Tools 1.8.12</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
