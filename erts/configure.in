@@ -2,6 +2,7 @@ dnl Process this file with autoconf to produce a configure script. -*-m4-*-
 
 dnl %CopyrightBegin%
 dnl
+dnl Copyright (c) 2015 Basho Technologies, Inc.
 dnl Copyright Ericsson AB 1997-2013. All Rights Reserved.
 dnl
 dnl The contents of this file are subject to the Erlang Public License,
@@ -1826,15 +1827,23 @@ esac
 AC_C_BIGENDIAN
 AC_C_DOUBLE_MIDDLE_ENDIAN
 
+dnl
 dnl fdatasync syscall (Unix only)
-AC_CHECK_FUNCS([fdatasync])
-
-dnl Find which C libraries are required to use fdatasync
-dnl TODO: Remove check once SunOS >= 5.11 is required by erts.
-dnl       fdatasync requires linking against -lrt on SunOS <= 5.10.
-dnl       OpenSolaris 2009.06 is SunOS 5.11 and does not require -lrt.
-AC_SEARCH_LIBS(fdatasync, [rt])
-
+dnl this function exists in Darwin, but it doesn't do what you expect,
+dnl so we exclude the check there (and on windows, because why bother)
+dnl
+case "$target_os" in
+  win32|win64|darwin* )
+    ;;
+  * )
+    AC_CHECK_FUNCS([fdatasync])
+    dnl Find which C libraries are required to use fdatasync
+    dnl TODO: Remove check once SunOS >= 5.11 is required by erts.
+    dnl       fdatasync requires linking against -lrt on SunOS <= 5.10.
+    dnl       OpenSolaris 2009.06 is SunOS 5.11 and does not require -lrt.
+    AC_SEARCH_LIBS(fdatasync, [rt])
+    ;;
+esac
 
 dnl sendfile syscall
 case $host_os in
