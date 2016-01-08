@@ -40,11 +40,28 @@
       <list>
         <item>
           <p>
-            Don't attempt to use fdatasync() on Mac OS X, where it does not
-            conform to the POSIX specification.
-          </p><p>
-            Basho Id: OTP-14
+            Don't attempt to use fdatasync() on Mac OS X, where it doesn't do
+            what's expected, or may not do anything at all.
+            Based on mumblings from Apple, it is at least not recommended that
+            the function be used.
           </p>
+          <p>Basho Id: OTP-14</p>
+        </item>
+        <item>
+          <p>
+            The <c>5.10.3-basho6</c> patch relating to omission of frame
+            pointers didn't really do what it was supposed to, so the handling
+            of the <c>OMIT_OMIT_FP</c> build variable has been fixed to do
+            what is expected.
+          </p><p>
+            Frame pointer optimization is enabled in most optimized,
+            non-instrumented builds where <c>CFLAGS</c> contains the <c>-O2</c>
+            or <c>-O3</c> switch, or no <c>-O...</c> switch is specified.
+          </p><p>
+            Frame pointer optimization can be explicitly disabled by setting
+            <c>OMIT_OMIT_FP=yes</c> in the build environment.
+          </p>
+          <p>Basho Id: <c>2aeed86f0b05de9fbffb502f5aef293d31477dc6</c></p>
         </item>
       </list>
     </section>
@@ -68,13 +85,6 @@
           </p>
           <p>Own Id: OTP-12446</p>
           <p>Own Id: OTP-11809</p>
-        </item>
-        <item>
-          <p>
-            Amend <c>5.10.3-basho6</c> patch to allow omission of frame
-            pointers in non-debug builds.
-          </p>
-          <p>Basho Id: <c>16ac7a976ff0926ab926d2b4ebdaa883f82a4735</c></p>
         </item>
       </list>
     </section>
