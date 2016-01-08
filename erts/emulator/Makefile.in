@@ -33,8 +33,27 @@ Z_LIB=@Z_LIB@
 NO_INLINE_FUNCTIONS=false
 OPCODE_TABLES = $(ERL_TOP)/lib/compiler/src/genop.tab beam/ops.tab
 
-DEBUG_CFLAGS = @DEBUG_CFLAGS@
-CONFIGURE_CFLAGS = @CFLAGS@
+ifneq ($(filter tile-%,$(TARGET)), )
+# -O2 generally produces faster for tile-cc, because the code is smaller.
+# Since tile-cc looks like gcc, we need to override the normal gcc -O3 setting.
+OPT_LEVEL = -O2
+OPT_SUBST = -O3
+else
+OPT_LEVEL = -O3
+OPT_SUBST = -O2
+endif
+
+OPT_CFLAGS := @CFLAGS@
+ifeq ($(filter -O%,$(OPT_CFLAGS)),)
+OPT_CFLAGS += $(OPT_LEVEL)
+else
+OPT_CFLAGS := $(subst $(OPT_SUBST),$(OPT_LEVEL),$(OPT_CFLAGS))
+endif
+
+DEBUG_CFLAGS := @DEBUG_CFLAGS@
+ifeq ($(GCC)$(filter -O%,$(DEBUG_CFLAGS)),yes)
+DEBUG_CFLAGS := $(DEBUG_CFLAGS) -Og
+endif
 
 #
 # Run this make file with TYPE set to the type of emulator you want.
@@ -48,7 +67,9 @@ CREATE_DIRS=
 
 LDFLAGS=@LDFLAGS@
 ARFLAGS=rc
+ifeq ($(OMIT_OMIT_FP),)
 OMIT_OMIT_FP=no
+endif
 
 ifeq ($(TYPE),debug)
 PURIFY =
@@ -73,7 +94,7 @@ ifeq ($(TYPE),quantify)
 PURIFY = quantify $(QUANTIFY_BUILD_OPTIONS)
 TYPEMARKER = .quantify
 ENABLE_ALLOC_TYPE_VARS += quantify
-  TYPE_FLAGS = @CFLAGS@ -g -O2 -DQUANTIFY -DNO_JUMP_TABLE
+TYPE_FLAGS = $(OPT_CFLAGS) -g -O2 -DQUANTIFY -DNO_JUMP_TABLE
 else
 
 ifeq ($(TYPE),purecov)
@@ -103,7 +124,7 @@ else
 ifeq ($(TYPE),gprof)
 PURIFY = 
 TYPEMARKER = .gprof
-TYPE_FLAGS = @CFLAGS@ -DGPROF -pg -DERTS_CAN_INLINE=0 -DERTS_INLINE=
+TYPE_FLAGS = $(OPT_CFLAGS) -DGPROF -pg -DERTS_CAN_INLINE=0 -DERTS_INLINE=
 LDFLAGS += -pg
 ENABLE_ALLOC_TYPE_VARS += gprof
 NO_INLINE_FUNCTIONS=true
@@ -112,21 +133,21 @@ else
 ifeq ($(TYPE),lcnt)
 PURIFY = 
 TYPEMARKER = .lcnt
-TYPE_FLAGS = @CFLAGS@ -DERTS_ENABLE_LOCK_COUNT
+TYPE_FLAGS = $(OPT_CFLAGS) -DERTS_ENABLE_LOCK_COUNT
 else
 
 ifeq ($(TYPE),frmptr)
 PURIFY = 
 OMIT_OMIT_FP=yes
 TYPEMARKER = .frmptr
-TYPE_FLAGS = @CFLAGS@ -DERTS_FRMPTR
+TYPE_FLAGS = $(OPT_CFLAGS) -DERTS_FRMPTR
 else
 
 # If type isn't one of the above, it *is* opt type...
 override TYPE=opt
 PURIFY =
 TYPEMARKER =
-TYPE_FLAGS = @CFLAGS@
+TYPE_FLAGS = $(OPT_CFLAGS)
 endif
 endif
 endif
@@ -233,28 +254,22 @@ ifeq (@EMU_LOCK_CHECKING@,yes)
 NO_INLINE_FUNCTIONS=true
 endif
 
-ifneq ($(filter tile-%,$(TARGET)), )
-# -O2 generally produces faster for tile-cc, because the code is smaller.
-# Since tile-cc looks like gcc, we need to override the normal gcc -O3 setting.
-OPT_LEVEL = -O2
-else
-OPT_LEVEL = -O3
-endif
-
+GEN_OPT_FLGS :=
 ifeq ($(GCC),yes)
 ifeq ($(NO_INLINE_FUNCTIONS),true)
-GEN_OPT_FLGS = $(OPT_LEVEL) -fno-inline-functions
-else
+GEN_OPT_FLGS += -fno-inline-functions
+endif
 ifeq ($(OMIT_OMIT_FP),yes)
-GEN_OPT_FLGS = $(OPT_LEVEL) -fno-omit-frame-pointer
+GEN_OPT_FLGS += -fno-omit-frame-pointer
 else
-GEN_OPT_FLGS = $(OPT_LEVEL) -fomit-frame-pointer
+ifeq ($(filter -fomit-frame-pointer -fno-omit-frame-pointer,$(TYPE_FLAGS)),)
+GEN_OPT_FLGS += -fomit-frame-pointer
 endif
 endif
 UNROLL_FLG = -funroll-loops
 else
 ifeq ($(TARGET), win32)
-GEN_OPT_FLGS = $(OPT_LEVEL)
+GEN_OPT_FLGS += $(OPT_LEVEL)
 UNROLL_FLG = 
 RC=rc.sh
 ifeq ($(MIXED_MSYS), yes)
@@ -267,7 +282,6 @@ else
 RES_EXT=res
 endif
 else
-GEN_OPT_FLGS = 
 UNROLL_FLG = 
 RC=false
 endif
@@ -284,7 +298,7 @@ CS_TYPE_FLAGS = $(subst QUANTIFY,FAKE_QUANTIFY, \
 endif
 CS_CFLAGS_ = $(CS_TYPE_FLAGS) $(DEFS) $(WFLAGS)
 ifeq ($(GCC),yes)
-CS_CFLAGS = $(subst -O2, $(GEN_OPT_FLGS) $(UNROLL_FLG), $(CS_CFLAGS_))
+CS_CFLAGS = $(CS_CFLAGS_) $(GEN_OPT_FLGS) $(UNROLL_FLG)
 else
 CS_CFLAGS = $(CS_CFLAGS_)
 endif
@@ -643,18 +657,18 @@ endif
 
 ifneq ($(filter tile-%,$(TARGET)),)
 $(OBJDIR)/beam_emu.o: beam/beam_emu.c
-	$(V_CC) $(subst -O2, $(GEN_OPT_FLGS), $(CFLAGS)) \
+	$(V_CC) $(CFLAGS) $(GEN_OPT_FLGS) \
          -OPT:Olimit=0 -WOPT:lpre=off:spre=off:epre=off \
          $(INCLUDES) -c $< -o $@
 else
 # Usually the same as the default rule, but certain platforms (e.g. win32) mix
 # different compilers
 $(OBJDIR)/beam_emu.o: beam/beam_emu.c
-	$(V_EMU_CC) $(subst -O2, $(GEN_OPT_FLGS), $(CFLAGS)) $(INCLUDES) -c $< -o $@
+	$(V_EMU_CC) $(CFLAGS) $(GEN_OPT_FLGS) $(INCLUDES) -c $< -o $@
 endif
 
 $(OBJDIR)/%.o: beam/%.c
-	$(V_CC) $(subst -O2, $(GEN_OPT_FLGS), $(CFLAGS)) $(INCLUDES) -c $< -o $@
+	$(V_CC) $(CFLAGS) $(GEN_OPT_FLGS) $(INCLUDES) -c $< -o $@
 
 $(OBJDIR)/%.o: $(TARGET)/%.c
 	$(V_CC) $(CFLAGS) $(INCLUDES) -Idrivers/common -c $< -o $@
@@ -666,7 +680,7 @@ $(OBJDIR)/%.o: sys/$(ERLANG_OSTYPE)/%.c
 	$(V_CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(OBJDIR)/%.o: sys/common/%.c
-	$(V_CC) $(subst -O2, $(GEN_OPT_FLGS), $(CFLAGS)) $(INCLUDES) -c $< -o $@
+	$(V_CC) $(CFLAGS) $(GEN_OPT_FLGS) $(INCLUDES) -c $< -o $@
 
 $(OBJDIR)/%.o: drivers/common/%.c
 	$(V_CC) $(CFLAGS) -DLIBSCTP=$(LIBSCTP) $(INCLUDES) -Idrivers/common -Idrivers/$(ERLANG_OSTYPE) -c $< -o $@
@@ -684,15 +698,15 @@ $(BINDIR)/$(CS_EXECUTABLE): $(TTF_DIR)/GENERATED $(PRELOAD_SRC) $(CS_SRC) $(ERTS
                $(CS_CFLAGS) $(COMMON_INCLUDES) $(CS_SRC) $(CS_LIBS)
 
 $(OBJDIR)/%.kp.o: sys/common/%.c
-	$(V_CC) -DERTS_KERNEL_POLL_VERSION $(subst -O2, $(GEN_OPT_FLGS), $(CFLAGS)) $(INCLUDES) -c $< -o $@
+	$(V_CC) -DERTS_KERNEL_POLL_VERSION $(CFLAGS) $(GEN_OPT_FLGS) $(INCLUDES) -c $< -o $@
 
 $(OBJDIR)/%.nkp.o: sys/common/%.c
-	$(V_CC) -DERTS_NO_KERNEL_POLL_VERSION $(subst -O2, $(GEN_OPT_FLGS), $(CFLAGS)) $(INCLUDES) -c $< -o $@
+	$(V_CC) -DERTS_NO_KERNEL_POLL_VERSION $(CFLAGS) $(GEN_OPT_FLGS) $(INCLUDES) -c $< -o $@
 
 ifeq ($(GCC),yes)
 
 $(OBJDIR)/erl_goodfit_alloc.o: beam/erl_goodfit_alloc.c
-	$(V_CC) $(subst -O2, $(GEN_OPT_FLGS) $(UNROLL_FLG), $(CFLAGS)) $(INCLUDES) -c $< -o $@
+	$(V_CC) $(CFLAGS) $(GEN_OPT_FLGS) $(UNROLL_FLG) $(INCLUDES) -c $< -o $@
 endif
 
 # ----------------------------------------------------------------------

@@ -1832,7 +1832,7 @@ dnl fdatasync syscall (Unix only)
 dnl this function exists in Darwin, but it doesn't do what you expect,
 dnl so we exclude the check there (and on windows, because why bother)
 dnl
-case "$target_os" in
+case "$host_os" in
   win32|win64|darwin* )
     ;;
   * )

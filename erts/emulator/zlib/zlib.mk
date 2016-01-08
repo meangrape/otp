@@ -48,12 +48,12 @@ endif
 
 
 ifeq ($(TYPE),gcov)
-ZLIB_CFLAGS = -O0 -fprofile-arcs -ftest-coverage $(DEBUG_CFLAGS) $(DEFS) $(THR_DEFS)
+ZLIB_CFLAGS = $(DEBUG_CFLAGS) -O0 -fprofile-arcs -ftest-coverage $(DEFS) $(THR_DEFS)
 else  # gcov
 ifeq ($(TYPE),debug)
 ZLIB_CFLAGS = $(DEBUG_CFLAGS) $(DEFS) $(THR_DEFS)
 else # debug
-ZLIB_CFLAGS = $(subst -O2, -O3, $(CONFIGURE_CFLAGS) $(DEFS) $(THR_DEFS))
+ZLIB_CFLAGS = $(OPT_CFLAGS) $(DEFS) $(THR_DEFS)
 #ZLIB_CFLAGS=-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7
 #ZLIB_CFLAGS=-g -DDEBUG
 #ZLIB_CFLAGS=-O3 -Wall -Wwrite-strings -Wpointer-arith -Wconversion \
