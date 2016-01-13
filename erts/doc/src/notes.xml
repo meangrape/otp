@@ -45,7 +45,7 @@
             Based on mumblings from Apple, it is at least not recommended that
             the function be used.
           </p>
-          <p>Basho Id: OTP-14</p>
+          <p>Basho Id: OTP-55</p>
         </item>
         <item>
           <p>
@@ -54,14 +54,13 @@
             of the <c>OMIT_OMIT_FP</c> build variable has been fixed to do
             what is expected.
           </p><p>
-            Frame pointer optimization is enabled in most optimized,
-            non-instrumented builds where <c>CFLAGS</c> contains the <c>-O2</c>
-            or <c>-O3</c> switch, or no <c>-O...</c> switch is specified.
-          </p><p>
-            Frame pointer optimization can be explicitly disabled by setting
-            <c>OMIT_OMIT_FP=yes</c> in the build environment.
+            Frame pointer optimization is disabled by default, but can be
+            enabled in most optimized, non-instrumented builds where
+            <c>CFLAGS</c> contains the <c>-O2</c> or <c>-O3</c> switch, or
+            does not contain any <c>-O...</c> switch at all, by setting
+            <c>OMIT_OMIT_FP=no</c> in the build environment.
           </p>
-          <p>Basho Id: <c>2aeed86f0b05de9fbffb502f5aef293d31477dc6</c></p>
+          <p>Basho Id: OTP-56</p>
         </item>
       </list>
     </section>

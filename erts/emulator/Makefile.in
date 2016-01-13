@@ -68,7 +68,7 @@ CREATE_DIRS=
 LDFLAGS=@LDFLAGS@
 ARFLAGS=rc
 ifeq ($(OMIT_OMIT_FP),)
-OMIT_OMIT_FP=no
+OMIT_OMIT_FP=yes
 endif
 
 ifeq ($(TYPE),debug)
@@ -260,7 +260,7 @@ ifeq ($(NO_INLINE_FUNCTIONS),true)
 GEN_OPT_FLGS += -fno-inline-functions
 endif
 ifeq ($(OMIT_OMIT_FP),yes)
-GEN_OPT_FLGS += -fno-omit-frame-pointer
+GEN_OPT_FLGS += -fno-omit-frame-pointer -DERTS_FRMPTR
 else
 ifeq ($(filter -fomit-frame-pointer -fno-omit-frame-pointer,$(TYPE_FLAGS)),)
 GEN_OPT_FLGS += -fomit-frame-pointer

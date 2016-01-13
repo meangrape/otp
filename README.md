@@ -1,7 +1,7 @@
 ####Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Production   | R16    | [`basho-otp-16`](http://github.com/basho/otp/tree/basho-otp-16) | [`OTP_R16B02_basho8`](http://github.com/basho/otp/tree/OTP_R16B02_basho8) | [`OTP_R16B02_basho9`](http://github.com/basho/otp/tree/OTP_R16B02_basho9) |
+| Production   | R16    | [`basho-otp-16`](http://github.com/basho/otp/tree/basho-otp-16) | [`OTP_R16B02_basho9`](http://github.com/basho/otp/tree/OTP_R16B02_basho9) | [`OTP_R16B02_basho10`](http://github.com/basho/otp/tree/basho-otp-16) |
 
 ##Basho Erlang/OTP
 
