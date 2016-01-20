@@ -34,11 +34,8 @@ INSTALL_PROGRAM=@INSTALL_PROGRAM@
 
 ERLANG_OSTYPE=@ERLANG_OSTYPE@
 
-ifeq ($(OMIT_OMIT_FP),)
-OMIT_OMIT_FP=yes
-endif
-ifeq ($(OMIT_FP),)
-OMIT_FP=false
+ifeq ($(OMIT_OMIT_FP),yes)
+OPTIMIZE_FP=no
 endif
 
 CFLAGS := @CFLAGS@
@@ -56,7 +53,7 @@ endif
 ifeq ($(TYPE),debug)
 CFLAGS := $(DEBUG_CFLAGS) -DDEBUG
 TYPE_SUFFIX=.debug
-OMIT_OMIT_FP=yes
+OPTIMIZE_FP=no
 ifeq ($(USING_VC),yes)
 LD_FLAGS += -g
 endif
@@ -97,17 +94,15 @@ else
 ifeq ($(TYPE),lcnt)
 TYPE_SUFFIX = .lcnt
 CFLAGS += -DERTS_ENABLE_LOCK_COUNT
-OMIT_FP=true
 PRE_LD=
 else
 ifeq ($(TYPE),frmptr)
 TYPE_SUFFIX = .frmptr
 CFLAGS += -DERTS_FRMPTR
-OMIT_OMIT_FP=yes
+OPTIMIZE_FP=no
 PRE_LD=
 else
 override TYPE=opt
-OMIT_FP=true
 TYPE_SUFFIX=
 PRE_LD=
 endif
@@ -133,26 +128,38 @@ ARCHCFLAGS=$($(ARCH)CFLAGS)
 CREATE_DIRS=
 
 #
-# By default, don't do anything with omit-frame-pointer options, but recognize
-# OMIT_OMIT_FP=yes and OMIT_FP=true, giving higher precedence to OMIT_OMIT_FP.
-# IFF frame pointers are being forced on or off:
+# If frame pointers are being forced on or off:
 # - filter out the opposing option, if present
 # - if the relevant switch is present, don't change its position, on the
 #   assumption that it was positioned deliberately.
 # - if the relevant switch is not present AND the compiler is GCC-ish,
 #   append it at the end of CFLAGS to ensure it has precedence.
 #
-ifeq ($(OMIT_OMIT_FP),yes)
-OMIT_FP=false
+ifeq ($(OPTIMIZE_FP),)
+ifneq ($(filter -fno-omit-frame-pointer,$(CFLAGS)),)
+OPTIMIZE_FP=no
+else
+ifneq ($(filter -fomit-frame-pointer,$(CFLAGS)),)
+OPTIMIZE_FP=yes
+else
+OPTIMIZE_FP=no
+endif
+endif
+endif
+ifeq ($(OPTIMIZE_FP),no)
 CFLAGS := $(filter-out -fomit-frame-pointer,$(CFLAGS))
 ifeq ($(GCC)$(filter -fno-omit-frame-pointer,$(CFLAGS)),yes)
 CFLAGS += -fno-omit-frame-pointer
 endif
+ifeq ($(filter -DERTS_FRMPTR,$(CFLAGS)),)
+CFLAGS += -DERTS_FRMPTR
 endif
-ifeq ($(OMIT_FP),true)
-CFLAGS := $(filter-out -fno-omit-frame-pointer,$(CFLAGS))
+else
+ifeq ($(OPTIMIZE_FP),yes)
+CFLAGS := $(filter-out -fno-omit-frame-pointer -DERTS_FRMPTR,$(CFLAGS))
 ifeq ($(GCC)$(filter -fomit-frame-pointer,$(CFLAGS)),yes)
 CFLAGS += -fomit-frame-pointer
+endif
 endif
 endif
 

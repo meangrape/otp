@@ -22,7 +22,6 @@ include ../vsn.mk
 include $(ERL_TOP)/make/$(TARGET)/otp.mk
 -include $(TARGET)/gen_git_version.mk
 
-
 ENABLE_ALLOC_TYPE_VARS = @ENABLE_ALLOC_TYPE_VARS@
 HIPE_ENABLED=@HIPE_ENABLED@
 DTRACE_ENABLED=@DTRACE_ENABLED@
@@ -41,6 +40,10 @@ OPT_SUBST = -O3
 else
 OPT_LEVEL = -O3
 OPT_SUBST = -O2
+endif
+
+ifeq ($(OMIT_OMIT_FP),yes)
+OPTIMIZE_FP=no
 endif
 
 OPT_CFLAGS := @CFLAGS@
@@ -67,16 +70,13 @@ CREATE_DIRS=
 
 LDFLAGS=@LDFLAGS@
 ARFLAGS=rc
-ifeq ($(OMIT_OMIT_FP),)
-OMIT_OMIT_FP=yes
-endif
 
 ifeq ($(TYPE),debug)
 PURIFY =
 TYPEMARKER = .debug
-TYPE_FLAGS = $(DEBUG_CFLAGS) -DDEBUG
+TYPE_FLAGS := $(DEBUG_CFLAGS) -DDEBUG
 ENABLE_ALLOC_TYPE_VARS += debug
-OMIT_OMIT_FP=yes
+OPTIMIZE_FP=no
 ifeq ($(TARGET),win32)
 TYPE_FLAGS += -DNO_JUMP_TABLE
 LDFLAGS += -g
@@ -86,7 +86,7 @@ else
 ifeq ($(TYPE),purify)
 PURIFY = purify $(PURIFY_BUILD_OPTIONS)
 TYPEMARKER = .purify
-TYPE_FLAGS = $(DEBUG_CFLAGS) -DPURIFY -DNO_JUMP_TABLE
+TYPE_FLAGS := $(DEBUG_CFLAGS) -DPURIFY -DNO_JUMP_TABLE
 ENABLE_ALLOC_TYPE_VARS += purify
 else
 
@@ -94,20 +94,20 @@ ifeq ($(TYPE),quantify)
 PURIFY = quantify $(QUANTIFY_BUILD_OPTIONS)
 TYPEMARKER = .quantify
 ENABLE_ALLOC_TYPE_VARS += quantify
-TYPE_FLAGS = $(OPT_CFLAGS) -g -O2 -DQUANTIFY -DNO_JUMP_TABLE
+TYPE_FLAGS := $(OPT_CFLAGS) -g -O2 -DQUANTIFY -DNO_JUMP_TABLE
 else
 
 ifeq ($(TYPE),purecov)
 PURIFY = purecov --follow-child-processes=yes $(PURECOV_BUILD_OPTIONS)
 TYPEMARKER = .purecov
-TYPE_FLAGS = $(DEBUG_CFLAGS) -DPURECOV -DNO_JUMP_TABLE
+TYPE_FLAGS := $(DEBUG_CFLAGS) -DPURECOV -DNO_JUMP_TABLE
 ENABLE_ALLOC_TYPE_VARS += purecov
 else
 
 ifeq ($(TYPE),gcov)
 PURIFY = 
 TYPEMARKER = .gcov
-TYPE_FLAGS = $(DEBUG_CFLAGS) -DERTS_GCOV -DNO_JUMP_TABLE -fprofile-arcs -ftest-coverage -O0 -DERTS_CAN_INLINE=0 -DERTS_INLINE=
+TYPE_FLAGS := $(DEBUG_CFLAGS) -DERTS_GCOV -DNO_JUMP_TABLE -fprofile-arcs -ftest-coverage -O0 -DERTS_CAN_INLINE=0 -DERTS_INLINE=
 ifneq ($(findstring solaris,$(TARGET)),solaris)
 LIBS += -lgcov
 endif
@@ -117,14 +117,14 @@ else
 ifeq ($(TYPE),valgrind)
 PURIFY = 
 TYPEMARKER = .valgrind
-TYPE_FLAGS = $(DEBUG_CFLAGS) -DVALGRIND -DNO_JUMP_TABLE
+TYPE_FLAGS := $(DEBUG_CFLAGS) -DVALGRIND -DNO_JUMP_TABLE
 ENABLE_ALLOC_TYPE_VARS += valgrind
 else
 
 ifeq ($(TYPE),gprof)
 PURIFY = 
 TYPEMARKER = .gprof
-TYPE_FLAGS = $(OPT_CFLAGS) -DGPROF -pg -DERTS_CAN_INLINE=0 -DERTS_INLINE=
+TYPE_FLAGS := $(OPT_CFLAGS) -DGPROF -pg -DERTS_CAN_INLINE=0 -DERTS_INLINE=
 LDFLAGS += -pg
 ENABLE_ALLOC_TYPE_VARS += gprof
 NO_INLINE_FUNCTIONS=true
@@ -133,21 +133,21 @@ else
 ifeq ($(TYPE),lcnt)
 PURIFY = 
 TYPEMARKER = .lcnt
-TYPE_FLAGS = $(OPT_CFLAGS) -DERTS_ENABLE_LOCK_COUNT
+TYPE_FLAGS := $(OPT_CFLAGS) -DERTS_ENABLE_LOCK_COUNT
 else
 
 ifeq ($(TYPE),frmptr)
 PURIFY = 
-OMIT_OMIT_FP=yes
+OPTIMIZE_FP=no
 TYPEMARKER = .frmptr
-TYPE_FLAGS = $(OPT_CFLAGS) -DERTS_FRMPTR
+TYPE_FLAGS := $(OPT_CFLAGS)
 else
 
 # If type isn't one of the above, it *is* opt type...
 override TYPE=opt
 PURIFY =
 TYPEMARKER =
-TYPE_FLAGS = $(OPT_CFLAGS)
+TYPE_FLAGS := $(OPT_CFLAGS)
 endif
 endif
 endif
@@ -176,6 +176,42 @@ FLAVOR_FLAGS=
 ENABLE_ALLOC_TYPE_VARS += nofrag
 M4FLAGS +=
 
+endif
+
+#
+# If frame pointers are being forced on or off:
+# - filter out the opposing option, if present
+# - if the relevant switch is present, don't change its position, on the
+#   assumption that it was positioned deliberately.
+# - if the relevant switch is not present AND the compiler is GCC-ish,
+#   append it at the end of TYPE_FLAGS to ensure it has precedence.
+#
+ifeq ($(OPTIMIZE_FP),)
+ifneq ($(filter -fno-omit-frame-pointer,$(TYPE_FLAGS)),)
+OPTIMIZE_FP=no
+else
+ifneq ($(filter -fomit-frame-pointer,$(TYPE_FLAGS)),)
+OPTIMIZE_FP=yes
+else
+OPTIMIZE_FP=no
+endif
+endif
+endif
+ifeq ($(OPTIMIZE_FP),no)
+TYPE_FLAGS := $(filter-out -fomit-frame-pointer,$(TYPE_FLAGS))
+ifeq ($(GCC)$(filter -fno-omit-frame-pointer,$(TYPE_FLAGS)),yes)
+TYPE_FLAGS += -fno-omit-frame-pointer
+endif
+ifeq ($(filter -DERTS_FRMPTR,$(TYPE_FLAGS)),)
+TYPE_FLAGS += -DERTS_FRMPTR
+endif
+else
+ifeq ($(OPTIMIZE_FP),yes)
+TYPE_FLAGS := $(filter-out -fno-omit-frame-pointer -DERTS_FRMPTR,$(TYPE_FLAGS))
+ifeq ($(GCC)$(filter -fomit-frame-pointer,$(TYPE_FLAGS)),yes)
+TYPE_FLAGS += -fomit-frame-pointer
+endif
+endif
 endif
 
 TF_MARKER=$(TYPEMARKER)$(FLAVOR_MARKER)
@@ -259,13 +295,6 @@ ifeq ($(GCC),yes)
 ifeq ($(NO_INLINE_FUNCTIONS),true)
 GEN_OPT_FLGS += -fno-inline-functions
 endif
-ifeq ($(OMIT_OMIT_FP),yes)
-GEN_OPT_FLGS += -fno-omit-frame-pointer -DERTS_FRMPTR
-else
-ifeq ($(filter -fomit-frame-pointer -fno-omit-frame-pointer,$(TYPE_FLAGS)),)
-GEN_OPT_FLGS += -fomit-frame-pointer
-endif
-endif
 UNROLL_FLG = -funroll-loops
 else
 ifeq ($(TARGET), win32)
@@ -290,10 +319,10 @@ endif
 
 ifdef PURIFY_CHILD_SETUP
 CS_PURIFY = $(PURIFY)
-CS_TYPE_FLAGS = $(TYPE_FLAGS)
+CS_TYPE_FLAGS := $(TYPE_FLAGS)
 else
 CS_PURIFY = 
-CS_TYPE_FLAGS = $(subst QUANTIFY,FAKE_QUANTIFY, \
+CS_TYPE_FLAGS := $(subst QUANTIFY,FAKE_QUANTIFY, \
 		$(subst PURIFY,FAKE_PURIFY, $(TYPE_FLAGS)))
 endif
 CS_CFLAGS_ = $(CS_TYPE_FLAGS) $(DEFS) $(WFLAGS)
