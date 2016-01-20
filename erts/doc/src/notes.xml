@@ -52,13 +52,20 @@
             The <c>5.10.3-basho6</c> patch relating to omission of frame
             pointers didn't really do what it was supposed to, so the handling
             of the <c>OMIT_OMIT_FP</c> build variable has been fixed to do
-            what is expected.
+            what is expected. If <c>OMIT_OMIT_FP=yes</c> is set in the
+            environment, ERTS functions will be compiled with frame pointers
+            even if explicit options (such as <c>-fomit-frame-pointer</c> in
+            <c>CFLAGS</c>) would otherwise optimize them.
+          </p><p>
+            The default behavior if neither <c>OMIT_OMIT_FP=yes</c> is set,
+            nor does <c>CFLAGS</c> contain <c>-fomit-frame-pointer</c>, is to
+            forcibly pass <c>-fno-omit-frame-pointer</c> to the C compiler for
+            all ERTS components.
           </p><p>
             Frame pointer optimization is disabled by default, but can be
-            enabled in most optimized, non-instrumented builds where
-            <c>CFLAGS</c> contains the <c>-O2</c> or <c>-O3</c> switch, or
-            does not contain any <c>-O...</c> switch at all, by setting
-            <c>OMIT_OMIT_FP=no</c> in the build environment.
+            enabled in most optimized, non-instrumented builds by explicitly
+            including the <c>-fomit-frame-pointer</c> compiler option in the
+            <c>CFLAGS</c> environment variable when the system is configured.
           </p>
           <p>Basho Id: OTP-56</p>
         </item>
