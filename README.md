@@ -34,6 +34,7 @@ listed for our products, but our focus is on particular versions of:
 * FreeBSD
 * Linux
 * OS X
+* SmartOS
 * Solaris
 
 #####Interoperability
@@ -52,8 +53,30 @@ our products suport.
 
 ###Building and Installing
 
-Information on building and installing Erlang/OTP can be found
+General information on building and installing Erlang/OTP can be found
 in the [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) document.
+
+Basho recommends building using the `otp_build` script found in the
+distribution's base directory with the following options:
+
+On non-OS X systems:
+
+```
+export CFLAGS='-g -O3'
+./otp_build <mode> --prefix=/your/install/dir --enable-64bit --with-ssl --disable-hipe
+```
+
+On OS X:
+
+```
+export CFLAGS='-g -O3'
+./otp_build <mode> --prefix=/your/install/dir --enable-darwin-64bit --with-cocoa --with-ssl --disable-hipe
+```
+
+Run `./otp_build --help` to determine the `mode` you want to use.
+
+* If you'll be running Erlang/OTP on the system you're building it on, adding `-m64 -march=native` to `CFLAGS` may improve performance.
+* Unless you plan to use ODBC (and have an appropriate SDK installed) you may want to add `--without-odbc` to your `otp_build` options.
 
 ####Versions
 
