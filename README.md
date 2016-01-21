@@ -56,27 +56,126 @@ our products suport.
 General information on building and installing Erlang/OTP can be found
 in the [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) document.
 
-Basho recommends building using the `otp_build` script found in the
-distribution's base directory with the following options:
+Basho recommends configuring and building using the `otp_build` script found
+in the distribution's base directory. This script supports every reasonable
+option you'd use in production, and ensures that all components are
+configured, built, and installed properly.
 
-On non-OS X systems:
+#####Example Paths
 
+In the examples below, the top of the Erlang/OTP source tree is
+`$HOME/basho/otp-16` and the installation location is `/opt/basho/otp-16`.
+These can be anywhere you want them to be, and if you'll only have one
+version of Erlang/OTP on the machine you probably want to install it in the
+default location `/usr/local`.
+
+####Getting the Source
+
+To build from our GitHub repository, clone the source as follows:
+
+```bash
+$ cd $HOME/basho
+$ git clone -b 'basho-otp-16' 'https://github.com/basho/otp.git' 'otp-16'
+$ cd otp-16
 ```
-export CFLAGS='-g -O3'
-./otp_build <mode> --prefix=/your/install/dir --enable-64bit --with-ssl --disable-hipe
+
+####Environment
+
+A couple of environment variables are relevant to the configuration. To build
+a Basho production release, set the following:
+
+* `ERL_TOP` - The base of the source tree.
+* `CFLAGS` - We recommend `-g -O3`.
+  * If you'll *only* be running this build on the system you're building it
+    on (or identical hardware), adding `-march=native` to `CFLAGS` may improve
+    performance.
+* `LDFLAGS` - Either unset, or generally the same as `CFLAGS`.
+
+Note that the `-g` flag is used to add symbols that may be helpful in
+diagnosing errors, it does ***not*** create a *"debug"* build - refer to the
+detailed installation documentation if that's what you want.
+
+####Configuring
+
+Whether you configure the system using `./otp_build` or `./configure`, the
+following options are recommended:
+
+#####Platform
+
+We only support 64-bit platforms, so use `--enable-darwin-64bit` on OS X or
+`--enable-m64-build` on anything else.
+
+#####Standard Options
+
+Use `--prefix=/your/install/dir` if you're installing anywhere other than
+the default location of `/usr/local`.
+
+We use crypto, so include `--with-ssl` to force a build failure if the
+necessary files aren't found.
+
+Unless you need ODBC ***and*** have installed an appropriate SDK, include
+`--without-odbc`.
+
+Basho recommends against using HiPE on *any* 64-bit platform, so we
+explicitly disable it with `--disable-hipe`.
+
+#####Additional Options
+
+The following options should be enabled by default on supported platforms,
+but you can safely add them to make it obvious:
+
+* `--enable-smp-support`
+* `--enable-threads`
+* `--enable-kernel-poll`
+
+####Building
+
+`otp_build` supports a variety of separate and combined configuration, build,
+and packaging operations. Refer to the output of `./otp_build --help` or
+[INSTALL.md](HOWTO/INSTALL.md) for details.
+
+The following will build, test, and install a Basho production build on the
+local machine. Be sure to start with a clean source tree, such as you'd have
+from the `clone` example above.
+
+```bash
+$ cd $HOME/basho/otp-16
+$ export ERL_TOP="$(pwd)"
+$ export CFLAGS='-g -O3'
+$ export LDFLAGS="$CFLAGS"
+$ ./otp_build setup -a --prefix=/opt/basho/otp-16 --enable-m64-build --with-ssl --without-odbc --disable-hipe
 ```
 
-On OS X:
+Assuming success, you should have a runnable system. If you want to test it:
 
+```bash
+$ export PATH="$ERL_TOP/bin:$PATH"
+$ make tests
+$ cd release/tests/test_server
+$ TZ=MET $ERL_TOP/bin/erl -s ts install -s ts smoke_test batch -s init stop
+$ cd $ERL_TOP
+$ open release/tests/test_server/index.html
 ```
-export CFLAGS='-g -O3'
-./otp_build <mode> --prefix=/your/install/dir --enable-darwin-64bit --with-cocoa --with-ssl --disable-hipe
+
+Depending on your system's configuration, a small number of tests may show
+failures. Common failures include:
+
+* A `CPU` test failure due to a feature being unavailable on your platform.
+* An `Inet` failure if you have a VPN configured.
+
+Once you're satisfied with your build, install it ***to the directory
+specified with --prefix*** with:
+
+```bash
+$ make install
 ```
 
-Run `./otp_build --help` to determine the `mode` you want to use.
+If you want to install the system documentation, do so with:
 
-* If you'll be running Erlang/OTP on the system you're building it on, adding `-m64 -march=native` to `CFLAGS` may improve performance.
-* Unless you plan to use ODBC (and have an appropriate SDK installed) you may want to add `--without-odbc` to your `otp_build` options.
+```bash
+$ make docs
+$ make install-docs
+```
 
 ####Versions
 
