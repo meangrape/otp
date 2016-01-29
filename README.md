@@ -5,7 +5,7 @@
 ####Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Experimental | OTP-18 | [`basho-otp-18`](http://github.com/basho/otp/tree/basho-otp-18) | _n/a_ | [`OTP-18.2.1`](http://github.com/basho/otp/tree/OTP-18.2.1) |
+| Experimental | OTP-18 | [`basho-otp-18`](http://github.com/basho/otp/tree/basho-otp-18) | _n/a_ | [`OTP-18.2.2`](http://github.com/basho/otp/tree/OTP-18.2.2) |
 
 ##Basho Erlang/OTP
 
