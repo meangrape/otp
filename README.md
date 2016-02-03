@@ -105,13 +105,37 @@ following options are recommended:
 We only support 64-bit platforms, so use `--enable-darwin-64bit` on OS X or
 `--enable-m64-build` on anything else.
 
+######OS X El Capitan Specific
+
+Starting with OS X 10.11, Apple no longer includes the OpenSSL headers in
+their standard location under `/usr/include`.  The supporting runtime
+libraries *are* present, so Erlang/OTP built on OS X 10.10 or earlier will
+run on 10.11, but if you want to build on 10.11, and you haven't already
+taken steps for the OpenSSL headers to be found at `/usr/include/openssl`,
+then the following is the least intrusive approach.
+
+As of this writing, OTP crypto support can be built with a standard Xcode
+7.2 installation on OS X 10.11 by adding the following `./otp_build` or
+`./configure` option:
+
+```
+--with-ssl=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-migrator/sdk/MacOSX.sdk/usr
+```
+
+_**Note:** Apple has deprecated OpenSSL in OS X, so it is unclear whether
+this is a stable strategy or location.  We'll attempt to stay on top of the
+specifics as they evolve, and future Basho releases may include more
+transparent support._ 
+
+
 #####Standard Options
 
 Use `--prefix=/your/install/dir` if you're installing anywhere other than
 the default location of `/usr/local`.
 
 We use crypto, so include `--with-ssl` to force a build failure if the
-necessary files aren't found.
+necessary files aren't found. _Note the specific instructions relating to
+OS X 10.11 (El Capitan) above if you are building on that platform._
 
 Unless you need ODBC ***and*** have installed an appropriate SDK, include
 `--without-odbc`.
