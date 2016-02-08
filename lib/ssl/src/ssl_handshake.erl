@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2013-2013. All Rights Reserved.
+%% Copyright Ericsson AB 2009-2014. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -875,7 +875,7 @@ cipher_suites(Suites, false) ->
 cipher_suites(Suites, true) ->
     Suites.
 
-select_session(SuggestedSessionId, CipherSuites, Compressions, Port, #session{ecc = ECCCurve} = 
+select_session(SuggestedSessionId, CipherSuites, Compressions, Port, #session{ecc = ECCCurve} =
 		   Session, Version,
 	       #ssl_options{ciphers = UserSuites, honor_cipher_order = HCO} = SslOpts,
 	       Cache, CacheCb, Cert) ->
@@ -957,7 +957,7 @@ handle_client_hello_extensions(RecordCB, Random,
 						      Random, CipherSuite, Compression,
 						      ConnectionStates0, Renegotiation, SecureRenegotation),
     ProtocolsToAdvertise = handle_next_protocol_extension(NextProtocolNegotiation, Renegotiation, Opts),
-   
+
     ServerHelloExtensions =  #hello_extensions{
 				renegotiation_info = renegotiation_info(RecordCB, server,
 									ConnectionStates, Renegotiation),
@@ -1136,11 +1136,11 @@ advertises_ec_ciphers([{ecdh_anon, _,_,_} | _]) ->
     true;
 advertises_ec_ciphers([_| Rest]) ->
     advertises_ec_ciphers(Rest).
-select_curve(#elliptic_curves{elliptic_curve_list = ClientCurves}, 
-	     #elliptic_curves{elliptic_curve_list = ServerCurves}) -> 
+select_curve(#elliptic_curves{elliptic_curve_list = ClientCurves},
+	     #elliptic_curves{elliptic_curve_list = ServerCurves}) ->
     select_curve(ClientCurves, ServerCurves);
 select_curve(undefined, _) ->
-    %% Client did not send ECC extension use default curve if 
+    %% Client did not send ECC extension use default curve if
     %% ECC cipher is negotiated
     {namedCurve, ?secp256k1};
 select_curve(_, []) ->
@@ -1492,10 +1492,10 @@ dec_hello_extensions(<<?UINT16(?SIGNATURE_ALGORITHMS_EXT), ?UINT16(Len),
 dec_hello_extensions(<<?UINT16(?ELLIPTIC_CURVES_EXT), ?UINT16(Len),
 		       ExtData:Len/binary, Rest/binary>>, Acc) ->
     <<?UINT16(_), EllipticCurveList/binary>> = ExtData,
-    EllipticCurves = [tls_v1:enum_to_oid(X) || <<X:16>> <= EllipticCurveList],
+    %% Ignore unknown curves
+    EllipticCurves = known_ec_extensions([ECC || <<ECC:16>> <= EllipticCurveList]),
     dec_hello_extensions(Rest, Acc#hello_extensions{elliptic_curves =
-							#elliptic_curves{elliptic_curve_list =
-									     EllipticCurves}});
+	#elliptic_curves{elliptic_curve_list = EllipticCurves}});
 dec_hello_extensions(<<?UINT16(?EC_POINT_FORMATS_EXT), ?UINT16(Len),
 		       ExtData:Len/binary, Rest/binary>>, Acc) ->
     <<?BYTE(_), ECPointFormatList/binary>> = ExtData,
@@ -1511,6 +1511,17 @@ dec_hello_extensions(<<?UINT16(_), ?UINT16(Len), _Unknown:Len/binary, Rest/binar
 %% This theoretically should not happen if the protocol is followed, but if it does it is ignored.
 dec_hello_extensions(_, Acc) ->
     Acc.
+
+%% lits:filtermap/1 without the intermediate fun
+known_ec_extensions([Enum|Enums]) ->
+    case tls_v1:enum_to_oid(Enum) of
+	undefined ->
+	    known_ec_extensions(Enums);
+	Oid ->
+	    [Oid|known_ec_extensions(Enums)]
+    end;
+known_ec_extensions([]) ->
+    [].
 
 dec_hashsign(<<?BYTE(HashAlgo), ?BYTE(SignAlgo)>>) ->
     {ssl_cipher:hash_algorithm(HashAlgo), ssl_cipher:sign_algorithm(SignAlgo)}.
