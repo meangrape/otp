@@ -56,6 +56,9 @@ our products suport.
 General information on building and installing Erlang/OTP can be found
 in the [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) document.
 
+***These instructions are specific to the Basho R16 release they are included
+with.  Be sure to use the instructions for the release you are building!***
+
 Basho recommends configuring and building using the `otp_build` script found
 in the distribution's base directory. This script supports every reasonable
 option you'd use in production, and ensures that all components are
@@ -87,8 +90,9 @@ a Basho production release, set the following:
 * `ERL_TOP` - The base of the source tree.
 * `CFLAGS` - We recommend `-g -O3`.
   * If you'll *only* be running this build on the system you're building it
-    on (or identical hardware), adding `-march=native` to `CFLAGS` may improve
-    performance.
+    on (or identical hardware), adding `-march=native` to `CFLAGS` _may_
+    improve performance, in some cases significantly.
+* `CXXFLAGS` - Either unset, or generally the same as `CFLAGS`.
 * `LDFLAGS` - Either unset, or generally the same as `CFLAGS`.
 
 Note that the `-g` flag is used to add symbols that may be helpful in
@@ -133,9 +137,12 @@ transparent support._
 Use `--prefix=/your/install/dir` if you're installing anywhere other than
 the default location of `/usr/local`.
 
-We use crypto, so include `--with-ssl` to force a build failure if the
-necessary files aren't found. _Note the specific instructions relating to
-OS X 10.11 (El Capitan) above if you are building on that platform._
+We use crypto, so include `--with-ssl` and confirm that "No usable OpenSSL
+found" does NOT appear in the output of the `configure` stage.
+If it does, refer to [$ERL_TOP/HOWTO/INSTALL.md](HOWTO/INSTALL.md) and/or
+`./configure --help` to provide an appropriate `--with-ssl=PATH` option.
+_Note the specific instructions relating to OS X 10.11 (El Capitan) above
+if you are building on that platform._
 
 Unless you need ODBC ***and*** have installed an appropriate SDK, include
 `--without-odbc`.
@@ -166,6 +173,7 @@ from the `clone` example above.
 $ cd $HOME/basho/otp-16
 $ export ERL_TOP="$(pwd)"
 $ export CFLAGS='-g -O3'
+$ export CXXFLAGS="$CFLAGS"
 $ export LDFLAGS="$CFLAGS"
 $ ./otp_build setup -a --prefix=/opt/basho/otp-16 --enable-m64-build --with-ssl --without-odbc --disable-hipe
 ```
