@@ -118,6 +118,9 @@ run on 10.11, but if you want to build on 10.11, and you haven't already
 taken steps for the OpenSSL headers to be found at `/usr/include/openssl`,
 then the following is the least intrusive approach.
 
+To read more about Apple's rationale for removing the OpenSSL headers
+look [here](https://developer.apple.com/library/mac/documentation/Security/Conceptual/cryptoservices/GeneralPurposeCrypto/GeneralPurposeCrypto.html).
+
 As of this writing, OTP crypto support can be built with a standard Xcode
 7.2 installation on OS X 10.11 by adding the following `./otp_build` or
 `./configure` option:
