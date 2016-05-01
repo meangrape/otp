@@ -1,1 +1,1 @@
-SSL_VSN = 6.0.1.1-basho-1
+SSL_VSN = 6.0.1.2-basho-1
