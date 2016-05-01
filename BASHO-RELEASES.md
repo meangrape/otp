@@ -1,6 +1,6 @@
 # Basho Erlang/OTP Release Notes
 
-These notes include ***only*** Basho's changes to the underlying Erlan/OTP release upon which our release is based.  Refer to the complete Erlang/OTP release notes in the documentation for original release history.
+These notes include ***only*** Basho's changes to the underlying Erlang/OTP release upon which our release is based.  Refer to the complete Erlang/OTP release notes in the documentation for original release history.
 
 _**Note:** The 'Released' date is the date the version was made publicly available, it is not the date it first appeared in a Basho product._
 
@@ -11,13 +11,13 @@ _**Note:** The 'Released' date is the date the version was made publicly availab
 
 * **Fixed Bugs and Malfunctions**
 
-  * Don't attempt to use `fdatasync()` on Mac OS X, where it doesn't do what's expected, or may not do anything at all. Based on mumblings from Apple, it is at least not recommended that the function be used.
+  * Don't attempt to use `fdatasync()` on Mac OS X, where it doesn't do what's expected or may not do anything at all. Based on mumblings from Apple, it is at least not recommended that the function be used.
 
     Basho Id: OTP-55
 
-  * The 5.10.3-basho6 patch relating to omission of frame pointers didn't really do what it was supposed to, so the handling of the `OMIT_OMIT_FP` build variable has been fixed to do what is expected. If `OMIT_OMIT_FP=yes` is set in the environment, ERTS functions will be compiled with frame pointers even if explicit options (such as `-fomit-frame-pointer` in `CFLAGS`) would otherwise optimize them.
+  * The 5.10.3-basho6 patch relating to omission of frame pointers didn't really do what it was supposed to, so the handling of the `OMIT_OMIT_FP` build variable has been fixed to do what is expected. If `OMIT_OMIT_FP=yes` is set in the environment, ERTS functions will be compiled with frame pointers, even if explicit options (such as `-fomit-frame-pointer` in `CFLAGS`) would otherwise optimize them.
 
-    The default behavior if neither `OMIT_OMIT_FP=yes` is set, nor does `CFLAGS` contain `-fomit-frame-pointer`, is to forcibly pass `-fno-omit-frame-pointer` to the C compiler for all ERTS components.
+    The default behavior if neither `OMIT_OMIT_FP=yes` is set nor does `CFLAGS` contain `-fomit-frame-pointer`, is to forcibly pass `-fno-omit-frame-pointer` to the C compiler for all ERTS components.
 
     Frame pointer optimization is disabled by default, but can be enabled in most optimized, non-instrumented builds by explicitly including the `-fomit-frame-pointer` compiler option in the CFLAGS environment variable when the system is configured.
 
