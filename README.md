@@ -1,99 +1,205 @@
-Erlang/OTP
-==========
+##!!! WARNING !!!
 
-**Erlang** is a programming language used to build massively scalable soft
-real-time systems with requirements on high availability. Some of its
-uses are in telecom, banking, e-commerce, computer telephony and
-instant messaging. Erlang's runtime system has built-in support for
-concurrency, distribution and fault tolerance.
+***This is an experimental branch of an unreleased OTP version - its use is NOT supported by Basho. You have been warned!***
 
-**OTP** is set of Erlang libraries and design principles providing
-middle-ware to develop these systems. It includes its own distributed
-database, applications to interface towards other languages, debugging
-and release handling tools.
+####Branch Information
+|Status|Base|Branch|Release Tag|Stable B/T|
+|:-----|:---|:-----|:----------|:---------|
+| Run Away!    | OTP-19 | [`basho-otp-19`](http://github.com/basho/otp/tree/basho-otp-19) | _n/a_ | _n/a_ |
 
-ERTS and BEAM
--------------
-**BEAM** is the name of the virtual machine where all Erlang code is executed.
-Every compiled Erlang file has the suffix .beam. The virtual machine
-is sometimes referred to as the emulator.
+##Basho Erlang/OTP
 
-**ERTS** is the Erlang Runtime System where the BEAM, kernel and
-standard libraries amongst others are included.
+This is the home of [Basho's][basho] version of [Erlang/OTP][erlang], forked from Ericsson's [repository][otp_repo].
+You can _(and should!)_ read their [README][otp_readme] file for information on the language and applications.
 
-More information can be found at [erlang.org] [1].
+###What's Here
 
-Building and Installing
------------------------
+Our modifications of the original distribution generally fall into one or more of the following categories:
 
-Information on building and installing Erlang/OTP can be found
-in the [$ERL_TOP/HOWTO/INSTALL.md] [5] document.
+* Performance<br />
+  Our users care a lot about performance, and we do what we can to get the best out of our products running on Erlang/OTP.
+* Security<br />
+  In general, we tighten up security in our releases where it makes sense for us to do so.
+* Stability & Scalability
+  Erlang/OTP is pretty stable and scalable, but when we find an area where we can improve it for running our applications, we do.
 
-Contributing to Erlang/OTP
---------------------------
+####Where it Works
 
-Here are the [instructions for submitting patches] [2].
+Erlang/OTP is designed to run on a wide array of platforms, while our products are not.
+As such, we only qualify our releases on 64-bit operating systems running on x86_64 processors.
+Specific versions are listed for our products, but our focus is on particular versions of:
 
-In short:
+* FreeBSD
+* Linux
+* OS X
+* SmartOS
+* Solaris
 
-*   Go to the JIRA issue tracker at [bugs.erlang.org] [7] to see reported issues which you can contribute to. Search for issues with the status *Contribution Needed*.
+#####Interoperability
 
-*   We prefer to receive proposed updates via email on the
-    [`erlang-patches`] [3] mailing list or through a pull request.
+Our releases should be fully interoperable with unmodified Erlang/OTP distributions, but not necessarily in their default configurations.
+We _DO_ change a few default settings, but generally accept the same configuration options to set them explicitly.
 
-*   Pull requests will be handled once everyday and there will be 
-    essential testing before we will take a decision on the outcome
-    of the request. If the essential testings fails, the pull request
-    will be closed and you will have to fix the problem and submit another
-    pull request when this is done.
+#####YMMV
 
-*   We merge all proposed updates to the `pu` (*proposed updates*) branch,
-    typically within one working day.
+No, we don't do Windows, and we don't even do all available versions of the systems listed above.
+While we do try to keep our changes as portable as the original distributions they're based on, we don't test beyond what our products support.
 
-*   At least once a day, the contents of the `pu` branch will be built on
-    several platforms (Linux, Solaris, Mac OS X, Windows, and so on) and
-    automatic test suites will be run. We will email you if any problems are
-    found.
+###Building and Installing
 
-*   If a proposed change builds and passes the tests, it will be reviewed
-    by one or more members of the Erlang/OTP team at Ericsson. The reviewer
-    may suggest improvements that are needed before the change can be accepted
-    and merged.
+General information on building and installing Erlang/OTP can be found in the [$ERL_TOP/HOWTO/INSTALL.md][install] document.
+
+***These instructions are specific to the Basho OTP-19 sources they are included with.  Be sure to use the instructions for the release you are building!***
+
+Basho recommends configuring and building using the `otp_build` script found in the distribution's base directory.
+This script supports every reasonable option you'd use in production, and ensures that all components are configured, built, and installed properly.
+
+#####Example Paths
+
+In the examples below, the top of the Erlang/OTP source tree is `$HOME/basho/otp-19` and the installation location is `/opt/basho/otp-19`.
+These can be anywhere you want them to be, and if you'll only have one version of Erlang/OTP on the machine you probably want to install it in the default location `/usr/local`.
+
+####Getting the Source
+
+To build from our GitHub repository, clone the source as follows:
+
+```bash
+$ cd $HOME/basho
+$ git clone -b 'basho-otp-19' 'https://github.com/basho/otp.git' 'otp-19'
+$ cd otp-19
+```
+
+####Environment
+
+A couple of environment variables are relevant to the configuration. A Basho production release would be built with the following environment:
+
+* `ERL_TOP` - The base of the source tree.
+* `CFLAGS` - We recommend `-g -O3`.
+  * If you'll *only* be running this build on the system you're building it on (or identical hardware), adding `-march=native` to `CFLAGS` _will_ improve performance, in some cases significantly.
+* `CXXFLAGS` - Either unset, or generally the same as `CFLAGS`.
+* `LDFLAGS` - Either unset, or generally the same as `CFLAGS`.
+
+Note that the `-g` flag is used in `CFLAGS` to add symbols that may be helpful in diagnosing errors, it does ***not*** create a *"debug"* build - refer to the detailed installation documentation if that's what you want.
+
+####Configuring
+
+Whether you configure the system using `./otp_build` or `./configure`, the following options are recommended:
+
+#####Platform
+
+We only support 64-bit platforms, so use `--enable-m64-build`.
+_Note that the separate switch for OS X has been removed._
+
+######OS X El Capitan Specific
+
+Starting with OS X 10.11, Apple no longer includes the OpenSSL headers in their standard location under `/usr/include`.
+The supporting runtime libraries *are* present, so Erlang/OTP built on OS X 10.10 or earlier will run on 10.11, but if you want to build on 10.11, and you haven't already taken steps for the OpenSSL headers to be found at `/usr/include/openssl`, then the following is the least intrusive approach.
+
+As of this writing, OTP crypto support can be built with a standard Xcode 7.x installation on OS X 10.11 by adding the following `./otp_build` or `./configure` option:
+
+```
+--with-ssl=/usr --with-ssl-incl=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-migrator/sdk/MacOSX.sdk/usr
+```
+
+_**Note:** Apple has deprecated OpenSSL in OS X, so it is unclear whether this is a stable strategy or location. We'll attempt to stay on top of the specifics as they evolve, and future Basho releases may include more transparent support._
 
 
-Bug Reports
---------------------------
+#####Standard Options
 
-Please look at the [instructions for submitting bugs reports] [6].
+Use `--prefix=/your/install/dir` if you're installing anywhere other than the default location of `/usr/local`.
+
+We use crypto, so include `--with-ssl` and confirm that "No usable OpenSSL found" does NOT appear in the output of the `configure` stage.
+If it does, refer to [$ERL_TOP/HOWTO/INSTALL.md][install] and/or `./configure --help` to provide an appropriate `--with-ssl/ssl-incl/ssl-rpath=PATH` option.
+_Note the specific instructions relating to OS X 10.11 (El Capitan) above if you are building on that platform._
+
+Our products use dirty schedulers, so `--enable-dirty-schedulers` is required if you're building this release to run them on.
+
+Unless you need ODBC ***and*** have installed an appropriate SDK, include `--without-odbc`.
+
+######HiPE
+
+Basho has long recommended against using HiPE on 64-bit platforms, but HiPE support has steadily improved and we are considering changing that recommendation.
+If you want to be conservative, disable HiPE with `--disable-hipe`.
+On the other hand, since you're playing with bleeding-edge code, you may want to try letting the build decide for your platform and see what happens.
+
+#####Additional Options
+
+The following options should be enabled by default on supported platforms, but you can safely add them to make it obvious:
+
+* `--enable-smp-support`
+* `--enable-threads`
+* `--enable-kernel-poll`
+
+####Building
+
+`otp_build` supports a variety of separate and combined configuration, build, and packaging operations.
+Refer to the output of `./otp_build --help` or [$ERL_TOP/HOWTO/INSTALL.md][install] for details.
+
+The following will build, test, and install a Basho production build on the local machine.
+Be sure to start with a clean source tree, such as you'd have from the `clone` example above.
+
+```bash
+$ cd $HOME/basho/otp-19
+$ export ERL_TOP="$(pwd)"
+$ export CFLAGS='-g -O3'
+$ export CXXFLAGS="$CFLAGS"
+$ export LDFLAGS="$CFLAGS"
+$ ./otp_build setup -a --prefix=/opt/basho/otp-19 --enable-m64-build --enable-dirty-schedulers --with-ssl --without-odbc
+```
+
+Assuming success, you should have a runnable system. If you want to test it:
+
+```bash
+$ export PATH="$ERL_TOP/bin:$PATH"
+$ make tests
+$ cd release/tests/test_server
+$ TZ=MET $ERL_TOP/bin/erl -s ts install -s ts smoke_test batch -s init stop
+$ cd $ERL_TOP
+$ open release/tests/test_server/index.html
+```
+
+Depending on your system's configuration, a small number of tests may show failures.
+Common failures include:
+
+* A `CPU` test failure due to a feature being unavailable on your platform.
+* An `Inet` failure if you have a VPN configured.
+
+Once you're satisfied with your build, install it ***to the directory specified with --prefix*** with:
+
+```bash
+$ make install
+```
+
+If you want to install the system documentation, do so with:
+
+```bash
+$ make docs
+$ make install-docs
+```
+
+####Versions
+
+Our version identifiers correlate to the Erlang/OTP release without the _-basho-N_ suffix.
+Our releases are intended to be used as a single cohesive installation, we do _NOT_ support mixing components between our releases and the original distributions.
+
+###Contributing to Erlang/OTP
+
+Unless you want to suggest a patch to our specific Erlang/OTP changes, if you find something you think needs to be changed you'll want to refer to the Erlang instructions for submitting [bug reports][otp_bugs] or [patches][otp_patching].
+
+If your patch pertains specifically to our version, forking and creating a pull request on GitHub is the best way to get us to consider it.
+Bear in mind, however, that our releases are tailored to our needs, so if it's not directly pertinent to how our users deploy Erlang/OTP, it may not be of interest to us.
+
+####Copyright and License
+
+Everything in Erlang/OTP, whether part of the original distribution or a contribution of ours, is subject to the terms of the [Apache License, Version 2.0][license].
 
 
-Copyright and License
----------------------
+  [basho]: http://www.basho.com
+  [erlang]: http://www.erlang.org
+  [license]: LICENSE.txt
+  [install]: HOWTO/INSTALL.md
+  [otp_repo]: http://github.com/erlang/otp
+  [otp_readme]: http://github.com/erlang/otp/blob/README.md
+  [otp_bugs]: https://github.com/erlang/otp/wiki/Bug-reports
+  [otp_patching]: http://wiki.github.com/erlang/otp/contribution-guidelines
 
-> %CopyrightBegin%
->
-> Copyright Ericsson AB 2010-2014. All Rights Reserved.
->
-> Licensed under the Apache License, Version 2.0 (the "License");
-> you may not use this file except in compliance with the License.
-> You may obtain a copy of the License at
->
->     http://www.apache.org/licenses/LICENSE-2.0
->
-> Unless required by applicable law or agreed to in writing, software
-> distributed under the License is distributed on an "AS IS" BASIS,
-> WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-> See the License for the specific language governing permissions and
-> limitations under the License.
->
-> %CopyrightEnd%
-
-
-
-   [1]: http://www.erlang.org
-   [2]: http://wiki.github.com/erlang/otp/contribution-guidelines
-   [3]: http://www.erlang.org/static/doc/mailinglist.html
-   [4]: http://erlang.github.com/otp/
-   [5]: HOWTO/INSTALL.md
-   [6]: https://github.com/erlang/otp/wiki/Bug-reports
-   [7]: http://bugs.erlang.org
