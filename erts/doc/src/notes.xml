@@ -41,7 +41,7 @@
         <item>
           <p>
             Don't attempt to use fdatasync() on Mac OS X, where it doesn't do
-            what's expected, or may not do anything at all.
+            what's expected or may not do anything at all.
             Based on mumblings from Apple, it is at least not recommended that
             the function be used.
           </p>
@@ -53,11 +53,11 @@
             pointers didn't really do what it was supposed to, so the handling
             of the <c>OMIT_OMIT_FP</c> build variable has been fixed to do
             what is expected. If <c>OMIT_OMIT_FP=yes</c> is set in the
-            environment, ERTS functions will be compiled with frame pointers
+            environment, ERTS functions will be compiled with frame pointers,
             even if explicit options (such as <c>-fomit-frame-pointer</c> in
             <c>CFLAGS</c>) would otherwise optimize them.
           </p><p>
-            The default behavior if neither <c>OMIT_OMIT_FP=yes</c> is set,
+            The default behavior if neither <c>OMIT_OMIT_FP=yes</c> is set
             nor does <c>CFLAGS</c> contain <c>-fomit-frame-pointer</c>, is to
             forcibly pass <c>-fno-omit-frame-pointer</c> to the C compiler for
             all ERTS components.
