@@ -86,7 +86,7 @@ Our modifications of the original distribution generally fall into one or more o
   Our users care a lot about performance, and we do what we can to get the best out of our products running on Erlang/OTP.
 * Security<br />
   In general, we tighten up security in our releases where it makes sense for us to do so.
-* Stability & Scalability
+* Stability & Scalability<br />
   Erlang/OTP is pretty stable and scalable, but when we find an area where we can improve it for running our applications, we do.
 
 ####Release Notes
@@ -277,6 +277,6 @@ Everything in Erlang/OTP, whether part of the original distribution or a contrib
   [license]:        LICENSE.txt
   [otp_bugs]:       https://github.com/erlang/otp/wiki/Bug-reports
   [otp_patching]:   http://wiki.github.com/erlang/otp/contribution-guidelines
-  [otp_readme]:     https://github.com/erlang/otp/blob/master/README.md
+  [otp_readme]:     https://github.com/erlang/otp/blob/basho-otp-18/README.md
   [otp_repo]:       http://github.com/erlang/otp
   [rel_notes]:      BASHO-RELEASES.md
