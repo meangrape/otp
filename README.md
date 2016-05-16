@@ -277,6 +277,6 @@ Everything in Erlang/OTP, whether part of the original distribution or a contrib
   [license]:        LICENSE.txt
   [otp_bugs]:       https://github.com/erlang/otp/wiki/Bug-reports
   [otp_patching]:   http://wiki.github.com/erlang/otp/contribution-guidelines
-  [otp_readme]:     https://github.com/erlang/otp/blob/basho-otp-18/README.md
+  [otp_readme]:     https://github.com/erlang/otp/blob/maint-18/README.md
   [otp_repo]:       http://github.com/erlang/otp
   [rel_notes]:      BASHO-RELEASES.md
