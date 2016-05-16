@@ -278,11 +278,13 @@ handle_server_hello_extensions(Version, SessionId, Random, CipherSuite,
 	    {Version, SessionId, ConnectionStates, ProtoExt, Protocol}
     end.
 
-available_signature_algs(undefined, SupportedHashSigns, _, {Major, Minor}) when (Major < 3) andalso (Minor < 3) ->
+available_signature_algs(undefined, SupportedHashSigns, _, {Major, Minor}) when 
+      (Major >= 3) andalso (Minor >= 3) ->
     SupportedHashSigns;
 available_signature_algs(#hash_sign_algos{hash_sign_algos = ClientHashSigns}, SupportedHashSigns, 
-		     _, {Major, Minor}) when (Major < 3) andalso (Minor < 3) ->
-    ordsets:intersection(ClientHashSigns, SupportedHashSigns);
+		     _, {Major, Minor}) when (Major >= 3) andalso (Minor >= 3) ->
+    sets:to_list(sets:intersection(sets:from_list(ClientHashSigns), 
+				   sets:from_list(SupportedHashSigns)));
 available_signature_algs(_, _, _, _) -> 
     undefined.
 

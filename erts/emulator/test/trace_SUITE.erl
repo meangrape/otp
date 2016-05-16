@@ -27,11 +27,12 @@
 -export([all/0, suite/0, link_receive_call_correlation/0,
          receive_trace/1, link_receive_call_correlation/1, self_send/1,
 	 timeout_trace/1, send_trace/1,
-	 procs_trace/1, dist_procs_trace/1,
+	 procs_trace/1, dist_procs_trace/1, procs_new_trace/1,
 	 suspend/1, mutual_suspend/1, suspend_exit/1, suspender_exit/1,
 	 suspend_system_limit/1, suspend_opts/1, suspend_waiting/1,
 	 new_clear/1, existing_clear/1,
 	 set_on_spawn/1, set_on_first_spawn/1, cpu_timestamp/1,
+	 set_on_link/1, set_on_first_link/1,
 	 system_monitor_args/1, more_system_monitor_args/1,
 	 system_monitor_long_gc_1/1, system_monitor_long_gc_2/1, 
 	 system_monitor_large_heap_1/1, system_monitor_large_heap_2/1,
@@ -54,7 +55,8 @@ all() ->
      mutual_suspend, suspend_exit, suspender_exit,
      suspend_system_limit, suspend_opts, suspend_waiting,
      new_clear, existing_clear, set_on_spawn,
-     set_on_first_spawn, system_monitor_args,
+     set_on_first_spawn, set_on_link, set_on_first_link,
+     system_monitor_args,
      more_system_monitor_args, system_monitor_long_gc_1,
      system_monitor_long_gc_2, system_monitor_large_heap_1,
      system_monitor_long_schedule,
@@ -82,7 +84,6 @@ cpu_timestamp(Config) when is_list(Config) ->
 
 receive_trace(Config) when is_list(Config) ->
     Receiver = fun_spawn(fun receiver/0),
-    process_flag(trap_exit, true),
 
     %% Trace the process; make sure that we receive the trace messages.
     1 = erlang:trace(Receiver, true, ['receive']),
@@ -94,15 +95,116 @@ receive_trace(Config) when is_list(Config) ->
     {trace, Receiver, 'receive', Hello2} = receive_first_trace(),
     receive_nothing(),
 
+    %% Test 'receive' with matchspec
+    F1 = fun ({Pat, IsMatching}) ->
+		 set_trace_pattern('receive', Pat, []),
+		 Receiver ! Hello,
+		 case IsMatching of
+		     true ->
+			 {trace, Receiver, 'receive', Hello} = receive_first_trace();
+		     false ->
+			 ok
+		 end,
+		 receive_nothing()
+	 end,
+    From = self(),
+    Node = node(),
+    lists:foreach(F1, [{no, true},
+		       {[{[Node, undefined,"Unexpected"],[],[]}], false},
+		       {[{[Node, From,'_'],[],[]}], true},
+		       {[{[Node, '$1','_'],[{'=/=','$1',From}],[]}], false},
+		       {[{['$1', '_','_'],[{'=:=','$1',Node}],[]}], true},
+		       {false, false},
+		       {true, true}]),
+
+    %% Remote messages
+    OtherName = atom_to_list(?MODULE)++"_receive_trace",
+    {ok, OtherNode} = start_node(OtherName),
+    RemoteProc = spawn_link(OtherNode, ?MODULE, process, [self()]),
+    io:format("RemoteProc = ~p ~n", [RemoteProc]),
+
+    RemoteProc ! {send_please, Receiver, Hello},
+    {trace, Receiver, 'receive', Hello} = receive_first_trace(),
+    RemoteProc ! {send_please, Receiver, 99},
+    {trace, Receiver, 'receive', 99} = receive_first_trace(),
+
+    %% Remote with matchspec
+    F2 = fun (To, {Pat, IsMatching}) ->
+		 set_trace_pattern('receive', Pat, []),
+		 RemoteProc ! {send_please, To, Hello},
+		 case IsMatching of
+		     true ->
+			 {trace, Receiver, 'receive', Hello} = receive_first_trace();
+		     false ->
+			 ok
+		 end,
+		 receive_nothing()
+	 end,
+    F2(Receiver, {no, true}),
+    F2(Receiver, {[{[OtherNode, undefined,"Unexpected"],[],[]}], false}),
+    F2(Receiver, {[{[OtherNode, RemoteProc,'_'],[],[]},
+		   {[OtherNode, undefined,'_'],[],[]}], true}),
+    F2(Receiver, {[{[OtherNode, '$1','_'],
+		    [{'orelse',{'=:=','$1',undefined},{'=/=',{node,'$1'},{node}}}],
+		    []}], true}),
+    F2(Receiver, {[{['$1', '_','_'], [{'=:=','$1',OtherNode}], []}], true}),
+    F2(Receiver, {false, false}),
+    F2(Receiver, {true, true}),
+
+    %% Remote to named with matchspec
+    Name = trace_SUITE_receiver,
+    register(Name, Receiver),
+    NN = {Name, node()},
+    F2(NN, {no, true}),
+    F2(NN, {[{[OtherNode, undefined,"Unexpected"],[],[]}], false}),
+    F2(NN, {[{[OtherNode, RemoteProc,'_'],[],[]},
+	     {[OtherNode, undefined,'_'],[],[]}], true}),
+    F2(NN, {[{[OtherNode, '$1','_'],
+	      [{'orelse',{'=:=','$1',undefined},{'=/=',{node,'$1'},{node}}}],
+	      []}], true}),
+    F2(NN, {[{['$1', '_','_'], [{'==','$1',OtherNode}], []}], true}),
+    F2(NN, {false, false}),
+    F2(NN, {true, true}),
+
+    unlink(RemoteProc),
+    true = stop_node(OtherNode),
+
+    %% Timeout
+    Receiver ! {set_timeout, 10},
+    {trace, Receiver, 'receive', {set_timeout, 10}} = receive_first_trace(),
+    {trace, Receiver, 'receive', timeout} = receive_first_trace(),
+    erlang:trace_pattern('receive', [{[clock_service,undefined,timeout], [], []}], []),
+    Receiver ! {set_timeout, 7},
+    {trace, Receiver, 'receive', timeout} = receive_first_trace(),
+    erlang:trace_pattern('receive', true, []),
+
     %% Another process should not be able to trace Receiver.
+    process_flag(trap_exit, true),
     Intruder = fun_spawn(fun() -> erlang:trace(Receiver, true, ['receive']) end),
     {'EXIT', Intruder, {badarg, _}} = receive_first(),
 
     %% Untrace the process; we should not receive anything.
-    1 = erlang:trace(Receiver, false, ['receive']),
-    Receiver ! {hello, there},
-    Receiver ! any_garbage,
-    receive_nothing(),
+    ?line 1 = erlang:trace(Receiver, false, ['receive']),
+    ?line Receiver ! {hello, there},
+    ?line Receiver ! any_garbage,
+    ?line receive_nothing(),
+
+    %% Verify restrictions in matchspec for 'receive'
+    F3 = fun (Pat) -> {'EXIT', {badarg,_}} = (catch erlang:trace_pattern('receive', Pat, [])) end,
+    WC = ['_','_','_'],
+    F3([{WC,[],[{message, {process_dump}}]}]),
+    F3([{WC,[{is_seq_trace}],[]}]),
+    F3([{WC,[],[{set_seq_token,label,4711}]}]),
+    F3([{WC,[],[{get_seq_token}]}]),
+    F3([{WC,[],[{enable_trace,call}]}]),
+    F3([{WC,[],[{enable_trace,self(),call}]}]),
+    F3([{WC,[],[{disable_trace,call}]}]),
+    F3([{WC,[],[{disable_trace,self(),call}]}]),
+    F3([{WC,[],[{trace,[call],[]}]}]),
+    F3([{WC,[],[{trace,self(),[],[call]}]}]),
+    F3([{WC,[],[{caller}]}]),
+    F3([{WC,[],[{silent,true}]}]),
+
     ok.
 
 %% Tests that receive of a message always happens before a call with
@@ -255,30 +357,111 @@ send_trace(Config) when is_list(Config) ->
 
     %% Check that a message sent to another process is traced.
     1 = erlang:trace(Sender, true, [send]),
+    F1 = fun (Pat) ->
+		 set_trace_pattern(send, Pat, []),
+		 Sender ! {send_please, Receiver, to_receiver},
+		 {trace, Sender, send, to_receiver, Receiver} = receive_first_trace(),
+		 receive_nothing()
+	 end,
+    lists:foreach(F1, [no,
+		       [{[Receiver,to_receiver],[],[]}],
+		       [{['_','_'],[],[]}],
+		       [{['$1','_'],[{is_pid,'$1'}],[]}],
+		       [{['_','$1'],[{is_atom,'$1'}],[]}],
+		       true]),
+
+    %% Test {message, Msg}
+    F1m = fun ({Pat, Msg}) ->
+		 set_trace_pattern(send, Pat, []),
+		 Sender ! {send_please, Receiver, to_receiver},
+		 {trace, Sender, send, to_receiver, Receiver, Msg} = receive_first_trace(),
+		 receive_nothing()
+	 end,
+    lists:foreach(F1m, [{[{['_','_'],[],[{message, 4711}]}], 4711},
+			{[{['_','_'],[],[{message, "4711"}]}], "4711"}
+		       ]),
+
+    %% Test {message, {process_dump}}
+    set_trace_pattern(send, [{['_','_'],[],[{message, {process_dump}}]}], []),
     Sender ! {send_please, Receiver, to_receiver},
-    {trace, Sender, send, to_receiver, Receiver} = receive_first_trace(),
+    {trace, Sender, send, to_receiver, Receiver, ProcDump} = receive_first_trace(),
+    true = is_binary(ProcDump),
     receive_nothing(),
+
+    %% Same test with false match spec
+    F2 = fun (Pat) ->
+		 set_trace_pattern(send, Pat, []),
+		 Sender ! {send_please, Receiver, to_receiver},
+		 receive_nothing()
+	 end,
+    lists:foreach(F2, [[{[Sender,to_receiver],[],[]}],
+		       [{[Receiver,nomatch],[],[]}],
+		       [{['$1','_'],[{is_atom,'$1'}],[]}],
+		       [{['_','$1'],[{is_pid,'$1'}],[]}],
+		       false,
+		       [{['_','_'],[],[{message,false}]}],
+		       [{['_','_'],[],[{silent,true}]}]]),
+    erlang:trace_pattern(send, true, []),
+    erlang:trace(Sender, false, [silent]),
 
     %% Check that a message sent to another registered process is traced.
     register(?MODULE,Receiver),
-    Sender ! {send_please, ?MODULE, to_receiver},
-    {trace, Sender, send, to_receiver, ?MODULE} = receive_first_trace(),
-    receive_nothing(),
+    F3 = fun (Pat) ->
+		 set_trace_pattern(send, Pat, []),
+		 Sender ! {send_please, ?MODULE, to_receiver},
+		 {trace, Sender, send, to_receiver, ?MODULE} = receive_first_trace(),
+		 receive_nothing()
+	 end,
+    lists:foreach(F3, [no,
+		       [{[?MODULE,to_receiver],[],[]}],
+		       [{['_','_'],[],[]}],
+		       [{['$1','_'],[{is_atom,'$1'}],[]}],
+		       [{['_','$1'],[{is_atom,'$1'}],[]}],
+		       true]),
+    %% Again with false match spec
+    F4 = fun (Pat) ->
+		 set_trace_pattern(send, Pat, []),
+		 Sender ! {send_please, ?MODULE, to_receiver},
+		 receive_nothing()
+	 end,
+    lists:foreach(F4, [[{[nomatch,to_receiver],[],[]}],
+		       [{[?MODULE,nomatch],[],[]}],
+		       [{['$1','_'],[{is_pid,'$1'}],[]}],
+		       [{['_','$1'],[{is_pid,'$1'}],[]}],
+		       [{['_','_'],[],[{message,false}]}],
+		       [{['_','_'],[],[{silent,true}]}]
+		      ]),
     unregister(?MODULE),
+    erlang:trace_pattern(send, true, []),
+    erlang:trace(Sender, false, [silent]),
 
     %% Check that a message sent to this process is traced.
-    Sender ! {send_please, self(), to_myself},
-    receive to_myself -> ok end,
-    Self = self(),
-    {trace, Sender, send, to_myself, Self} = receive_first_trace(),
-    receive_nothing(),
+    F5 = fun (Pat) ->
+		 set_trace_pattern(send, Pat, []),
+		 Sender ! {send_please, self(), to_myself},
+		 receive to_myself -> ok end,
+		 Self = self(),
+		 {trace, Sender, send, to_myself, Self} = receive_first_trace(),
+		 receive_nothing()
+	 end,
+    lists:foreach(F5, [no,
+		       [{[self(),to_myself],[],[]}],
+		       [{['_','_'],[],[]}],
+		       true]),
 
     %% Check that a message sent to dead process is traced.
     {Pid,Ref} = spawn_monitor(fun() -> ok end),
     receive {'DOWN',Ref,_,_,_} -> ok end,
-    Sender ! {send_please, Pid, to_dead},
-    {trace, Sender, send_to_non_existing_process, to_dead, Pid} = receive_first_trace(),
-    receive_nothing(),
+    F6 = fun (Pat) ->
+		 set_trace_pattern(send, Pat, []),
+		 Sender ! {send_please, Pid, to_dead},
+		 {trace, Sender, send_to_non_existing_process, to_dead, Pid} = receive_first_trace(),
+		 receive_nothing()
+	 end,
+    lists:foreach(F6, [no,
+		       [{[Pid,to_dead],[],[]}],
+		       [{['_','_'],[],[]}],
+		       true]),
 
     %% Check that a message sent to unknown registrated process is traced.
     BadargSender = fun_spawn(fun sender/0),
@@ -299,7 +482,25 @@ send_trace(Config) when is_list(Config) ->
     Sender ! {send_please, self(), to_myself_again},
     receive to_myself_again -> ok end,
     receive_nothing(),
+    
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, true, [global])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, true, [local])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, true, [meta])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, true, [{meta,self()}])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, true, [call_count])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, true, [call_time])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, restart, [])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, pause, [])),
+    {'EXIT',{badarg,_}} = (catch erlang:trace_pattern(send, [{['_','_'],[],[{caller}]}], [])),
+
+    %% Done.
     ok.
+
+set_trace_pattern(_, no, _) -> 0;
+set_trace_pattern(MFA, Pat, Flg) ->
+    R = erlang:trace_pattern(MFA, Pat, Flg),
+    {match_spec, Pat} = erlang:trace_info(MFA, match_spec),
+    R.
 
 %% Test trace(Pid, How, [procs]).
 procs_trace(Config) when is_list(Config) ->
@@ -436,6 +637,7 @@ dist_procs_trace(Config) when is_list(Config) ->
     Proc2 ! {unlink_please, Proc1},
     {trace, Proc1, getting_unlinked, Proc2} = receive_first_trace(),
     receive_nothing(),
+
     %%
     %% exit (with registered name, due to link)
     Name = list_to_atom(OtherName),
@@ -454,6 +656,34 @@ dist_procs_trace(Config) when is_list(Config) ->
     true = stop_node(OtherNode),
     ok.
 
+%% Test trace(new, How, [procs]).
+procs_new_trace(Config) when is_list(Config) ->
+    Self = self(),
+    process_flag(trap_exit, true),
+    %%
+    Proc1 = spawn_link(?MODULE, process, [Self]),
+    io:format("Proc1 = ~p ~n", [Proc1]),
+    %%
+    0 = erlang:trace(new, true, [procs]),
+
+    MFA = {?MODULE, process, [Self]},
+    %%
+    %% spawn, link
+    Proc1 ! {spawn_link_please, Self, MFA},
+    Proc3 = receive {spawned, Proc1, P3} -> P3 end,
+    receive {trace, Proc3, spawned, Proc1, MFA} -> ok end,
+    receive {trace, Proc3, getting_linked, Proc1} -> ok end,
+    io:format("Proc3 = ~p ~n", [Proc3]),
+    receive_nothing(),
+    %%
+    %%
+    %% exit (not linked to tracing process)
+    Reason1 = make_ref(),
+    Proc1 ! {exit_please, Reason1},
+    receive {'EXIT', Proc1, Reason1} -> ok end,
+    {trace, Proc3, exit, Reason1} = receive_first_trace(),
+    receive_nothing(),
+    ok.
 
 
 
@@ -500,6 +730,51 @@ set_on_first_spawn(Config) when is_list(Config) ->
     false = is_send_traced(Child3, Listener, child3),
     receive_nothing(),
     ok.
+
+%% Tests trace(Pid, How, [set_on_link]).
+
+set_on_link(Config) ->
+    Listener = fun_spawn(fun process/0),
+
+    %% Create and trace a process with the set_on_link flag.
+    %% Make sure it is traced.
+    Father_SOL = fun_spawn(fun process/0),
+    1 = erlang:trace(Father_SOL, true, [send, set_on_link]),
+    true = is_send_traced(Father_SOL, Listener, sol_father),
+
+    %% Have the process spawn of two children and test that they
+    %% are traced.
+    [Child1, Child2] = spawn_children(Father_SOL, 2),
+    true = is_send_traced(Child1, Listener, child1),
+    true = is_send_traced(Child2, Listener, child2),
+
+    %% Second generation.
+    [Child11, Child12] = spawn_children(Child1, 2),
+    true = is_send_traced(Child11, Listener, child11),
+    true = is_send_traced(Child12, Listener, child12),
+    ok.
+
+%% Tests trace(Pid, How, [set_on_first_spawn]).
+
+set_on_first_link(Config) ->
+    ct:timetrap({seconds, 10}),
+    Listener = fun_spawn(fun process/0),
+
+    %% Create and trace a process with the set_on_first_spawn flag.
+    %% Make sure it is traced.
+    Parent = fun_spawn(fun process/0),
+    1 = erlang:trace(Parent, true, [send, set_on_first_link]),
+    is_send_traced(Parent, Listener, sol_father),
+
+    %% Have the process spawn off three children and test that the
+    %% first is traced.
+    [Child1, Child2, Child3] = spawn_children(Parent, 3),
+    true = is_send_traced(Child1, Listener, child1),
+    false = is_send_traced(Child2, Listener, child2),
+    false = is_send_traced(Child3, Listener, child3),
+    receive_nothing(),
+    ok.
+
 
 
 %% Tests arguments to erlang:system_monitor/0,1,2
@@ -1441,8 +1716,8 @@ receive_nothing() ->
     receive
         Any ->
             ct:fail({unexpected_message, Any})
-    after 200 ->
-              ok
+    after 100 ->
+	    ok
     end.
 
 
@@ -1517,9 +1792,14 @@ sender() ->
 %% Just consumes messages from its message queue.
 
 receiver() ->
-    receive
-        _Any -> receiver()
-    end.
+    receiver(infinity).
+
+receiver(Timeout) ->
+    receiver(receive
+		 {set_timeout, NewTimeout} -> NewTimeout;
+		 _Any -> Timeout
+	     after Timeout -> infinity  %% reset
+	     end).
 
 %% Works as long as it receives CPU time.  Will always be RUNNABLE.
 

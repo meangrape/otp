@@ -1749,16 +1749,16 @@ trace_delivered(_Tracee) ->
     erlang:nif_error(undefined).
 
 %% trace_info/2
--spec erlang:trace_info(PidPortOrFunc, Item) -> Res when
-      PidPortOrFunc :: pid() | port() | new | new_processes | new_ports
-                     | {Module, Function, Arity} | on_load,
+-spec erlang:trace_info(PidPortFuncEvent, Item) -> Res when
+      PidPortFuncEvent :: pid() | port() | new | new_processes | new_ports
+                     | {Module, Function, Arity} | on_load | send | 'receive',
       Module :: module(),
       Function :: atom(),
       Arity :: arity(),
       Item :: flags | tracer | traced | match_spec
             | meta | meta_match_spec | call_count | call_time | all,
       Res :: trace_info_return().
-trace_info(_PidPortOrFunc, _Item) ->
+trace_info(_PidPortFuncEvent, _Item) ->
     erlang:nif_error(undefined).
 
 %% trunc/1
@@ -2073,6 +2073,9 @@ open_port(PortName, PortSettings) ->
                   (min_bin_vheap_size, MinBinVHeapSize) -> OldMinBinVHeapSize when
       MinBinVHeapSize :: non_neg_integer(),
       OldMinBinVHeapSize :: non_neg_integer();
+                  (max_heap_size, MaxHeapSize) -> OldMaxHeapSize when
+      MaxHeapSize :: max_heap_size(),
+      OldMaxHeapSize :: max_heap_size();
                   (message_queue_data, MQD) -> OldMQD when
       MQD :: message_queue_data(),
       OldMQD :: message_queue_data();
@@ -2154,6 +2157,7 @@ process_flag(_Flag, _Value) ->
       {messages, MessageQueue :: [term()]} |
       {min_heap_size, MinHeapSize :: non_neg_integer()} |
       {min_bin_vheap_size, MinBinVHeapSize :: non_neg_integer()} |
+      {max_heap_size, MaxHeapSize :: max_heap_size()} |
       {monitored_by, Pids :: [pid()]} |
       {monitors,
        Monitors :: [{process, Pid :: pid() |
@@ -2238,6 +2242,7 @@ setelement(_Index, _Tuple1, _Value) ->
               | {priority, Level :: priority_level()}
               | {fullsweep_after, Number :: non_neg_integer()}
               | {min_heap_size, Size :: non_neg_integer()}
+              | {max_heap_size, Size :: max_heap_size()}
               | {min_bin_vheap_size, VSize :: non_neg_integer()}.
 spawn_opt(_Tuple) ->
    erlang:nif_error(undefined).
@@ -2330,6 +2335,9 @@ subtract(_,_) ->
                                 OldMinBinVHeapSize when
       MinBinVHeapSize :: non_neg_integer(),
       OldMinBinVHeapSize :: non_neg_integer();
+                        (max_heap_size, MaxHeapSize) -> OldMaxHeapSize when
+      MaxHeapSize :: max_heap_size(),
+      OldMaxHeapSize :: max_heap_size();
                         (multi_scheduling, BlockState) -> OldBlockState when
       BlockState :: block | unblock | block_normal | unblock_normal,
       OldBlockState :: blocked | disabled | enabled;
@@ -2381,7 +2389,7 @@ tl(_List) ->
       [{[term()] | '_' ,[term()],[term()]}].
 
 -spec erlang:trace_pattern(MFA, MatchSpec) -> non_neg_integer() when
-      MFA :: trace_pattern_mfa(),
+      MFA :: trace_pattern_mfa() | send | 'receive',
       MatchSpec :: (MatchSpecList :: trace_match_spec())
                  | boolean()
                  | restart
@@ -2403,7 +2411,13 @@ trace_pattern(MFA, MatchSpec) ->
       call_count |
       call_time.
 
--spec erlang:trace_pattern(MFA, MatchSpec, FlagList) -> non_neg_integer() when
+-spec erlang:trace_pattern(send, MatchSpec, []) -> non_neg_integer() when
+      MatchSpec :: (MatchSpecList :: trace_match_spec())
+                 | boolean();
+			  ('receive', MatchSpec, []) -> non_neg_integer() when
+      MatchSpec :: (MatchSpecList :: trace_match_spec())
+                 | boolean();
+			  (MFA, MatchSpec, FlagList) -> non_neg_integer() when
       MFA :: trace_pattern_mfa(),
       MatchSpec :: (MatchSpecList :: trace_match_spec())
                  | boolean()
@@ -2505,6 +2519,7 @@ tuple_to_list(_Tuple) ->
           logical_processors_available |
           logical_processors_online) -> unknown | pos_integer();
          (machine) -> string();
+         (max_heap_size) -> {max_heap_size, MaxHeapSize :: max_heap_size()};
          (message_queue_data) -> message_queue_data();
          (min_heap_size) -> {min_heap_size, MinHeapSize :: pos_integer()};
          (min_bin_vheap_size) -> {min_bin_vheap_size,
@@ -2642,6 +2657,13 @@ spawn_monitor(M, F, A) ->
     erlang:error(badarg, [M,F,A]).
 
 
+-type max_heap_size() ::
+        Size :: non_neg_integer()
+        %% TODO change size => to := when -type maps support is finalized
+      | #{ size => non_neg_integer(),
+           kill => boolean(),
+           error_logger => boolean() }.
+
 -type spawn_opt_option() ::
 	link
       | monitor
@@ -2649,6 +2671,7 @@ spawn_monitor(M, F, A) ->
       | {fullsweep_after, Number :: non_neg_integer()}
       | {min_heap_size, Size :: non_neg_integer()}
       | {min_bin_vheap_size, VSize :: non_neg_integer()}
+      | {max_heap_size, Size :: max_heap_size()}
       | {message_queue_data, MQD :: message_queue_data()}.
 
 -spec spawn_opt(Fun, Options) -> pid() | {pid(), reference()} when

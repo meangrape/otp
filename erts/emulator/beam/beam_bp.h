@@ -80,16 +80,16 @@ typedef struct generic_bp {
 #define ERTS_BP_CALL_TIME_SCHEDULE_EXITING (2)
 
 #ifdef ERTS_SMP
-#define bp_sched2ix_proc(p) ((p)->scheduler_data->no - 1)
+#define bp_sched2ix_proc(p) (erts_proc_sched_data(p)->no - 1)
 #else
 #define bp_sched2ix_proc(p) (0)
 #endif
 
 enum erts_break_op{
-    erts_break_nop   =  0, /* Must be false */
-    erts_break_set   = !0, /* Must be true */
-    erts_break_reset,
-    erts_break_stop
+    ERTS_BREAK_NOP   =  0, /* Must be false */
+    ERTS_BREAK_SET   = !0, /* Must be true */
+    ERTS_BREAK_RESTART,
+    ERTS_BREAK_PAUSE
 };
 
 typedef Uint32 ErtsBpIndex;
@@ -173,19 +173,7 @@ void erts_clear_time_trace_bif(BeamInstr *pc);
 
 BeamInstr *erts_find_local_func(Eterm mfa[3]);
 
-ERTS_GLB_INLINE Uint erts_bp_sched2ix(void);
-
 #if ERTS_GLB_INLINE_INCL_FUNC_DEF
-ERTS_GLB_INLINE Uint erts_bp_sched2ix(void)
-{
-#ifdef ERTS_SMP
-    ErtsSchedulerData *esdp;
-    esdp = erts_get_scheduler_data();
-    return esdp->no - 1;
-#else
-    return 0;
-#endif
-}
 
 extern erts_smp_atomic32_t erts_active_bp_index;
 extern erts_smp_atomic32_t erts_staging_bp_index;

@@ -45,6 +45,7 @@
 #include "erl_async.h"
 #include "erl_thr_progress.h"
 #include "erl_bif_unique.h"
+#include "erl_map.h"
 #define ERTS_PTAB_WANT_DEBUG_FUNCS__
 #include "erl_ptab.h"
 #ifdef HIPE
@@ -594,6 +595,7 @@ static Eterm pi_args[] = {
     am_suspending,
     am_min_heap_size,
     am_min_bin_vheap_size,
+    am_max_heap_size,
     am_current_location,
     am_current_stacktrace,
     am_message_queue_data,
@@ -643,10 +645,11 @@ pi_arg2ix(Eterm arg)
     case am_suspending:				return 26;
     case am_min_heap_size:			return 27;
     case am_min_bin_vheap_size:			return 28;
-    case am_current_location:			return 29;
-    case am_current_stacktrace:			return 30;
-    case am_message_queue_data:			return 31;
-    case am_garbage_collection_info:		return 32;
+    case am_max_heap_size:			return 29;
+    case am_current_location:			return 30;
+    case am_current_stacktrace:			return 31;
+    case am_message_queue_data:			return 32;
+    case am_garbage_collection_info:		return 33;
     default:					return -1;
     }
 }
@@ -1107,7 +1110,7 @@ process_info_aux(Process *BIF_P,
 	break;
 
     case am_status:
-	res = erts_process_status(BIF_P, ERTS_PROC_LOCK_MAIN, rp, rpid);
+	res = erts_process_status(rp, rpid);
 	ASSERT(res != am_undefined);
 	hp = HAlloc(BIF_P, 3);
 	break;
@@ -1348,6 +1351,18 @@ process_info_aux(Process *BIF_P,
 	break;
     }
 
+    case am_max_heap_size: {
+	Uint hsz = 3;
+	(void) erts_max_heap_size_map(MAX_HEAP_SIZE_GET(rp),
+                                      MAX_HEAP_SIZE_FLAGS_GET(rp),
+                                      NULL, &hsz);
+	hp = HAlloc(BIF_P, hsz);
+	res = erts_max_heap_size_map(MAX_HEAP_SIZE_GET(rp),
+                                     MAX_HEAP_SIZE_FLAGS_GET(rp),
+                                     &hp, NULL);
+	break;
+    }
+
     case am_total_heap_size: {
 	ErtsMessage *mp;
 	Uint total_heap_size;
@@ -1359,9 +1374,10 @@ process_info_aux(Process *BIF_P,
 
 	total_heap_size += rp->mbuf_sz;
 
-	for (mp = rp->msg.first; mp; mp = mp->next)
-	    if (mp->data.attached)
-		total_heap_size += erts_msg_attached_data_size(mp);
+        if (rp->flags & F_ON_HEAP_MSGQ)
+            for (mp = rp->msg.first; mp; mp = mp->next)
+                if (mp->data.attached)
+                    total_heap_size += erts_msg_attached_data_size(mp);
 
 	(void) erts_bld_uint(NULL, &hsz, total_heap_size);
 	hp = HAlloc(BIF_P, hsz);
@@ -1390,8 +1406,12 @@ process_info_aux(Process *BIF_P,
     case am_garbage_collection: {
         DECL_AM(minor_gcs);
         Eterm t;
+        Uint map_sz = 0;
 
-	hp = HAlloc(BIF_P, 3+2 + 3+2 + 3+2 + 3+2 + 3); /* last "3" is for outside tuple */
+        erts_max_heap_size_map(MAX_HEAP_SIZE_GET(rp), MAX_HEAP_SIZE_FLAGS_GET(rp), NULL, &map_sz);
+
+	hp = HAlloc(BIF_P, 3+2 + 3+2 + 3+2 + 3+2 + 3+2 + map_sz + 3);
+        /* last "3" is for outside tuple */
 
 	t = TUPLE2(hp, AM_minor_gcs, make_small(GEN_GCS(rp))); hp += 3;
 	res = CONS(hp, t, NIL); hp += 2;
@@ -1402,6 +1422,11 @@ process_info_aux(Process *BIF_P,
 	res = CONS(hp, t, res); hp += 2;
 	t = TUPLE2(hp, am_min_bin_vheap_size, make_small(MIN_VHEAP_SIZE(rp))); hp += 3;
 	res = CONS(hp, t, res); hp += 2;
+
+        t = erts_max_heap_size_map(MAX_HEAP_SIZE_GET(rp), MAX_HEAP_SIZE_FLAGS_GET(rp), &hp, NULL);
+
+	t = TUPLE2(hp, am_max_heap_size, t); hp += 3;
+	res = CONS(hp, t, res); hp += 2;
 	break;
     }
 
@@ -1411,12 +1436,12 @@ process_info_aux(Process *BIF_P,
         if (rp == BIF_P) {
             sz += ERTS_PROCESS_GC_INFO_MAX_SIZE;
         } else {
-            erts_process_gc_info(rp, &sz, NULL);
+            erts_process_gc_info(rp, &sz, NULL, 0, 0);
             sz += 3;
         }
 
         hp = HAlloc(BIF_P, sz);
-        res = erts_process_gc_info(rp, &actual_sz, &hp);
+        res = erts_process_gc_info(rp, &actual_sz, &hp, 0, 0);
 
         /* We may have some extra space, fill with 0 tuples */
         if (actual_sz <= sz - 3) {
@@ -2034,12 +2059,8 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
 	Uint arity = *tp++;
 	return info_1_tuple(BIF_P, tp, arityval(arity));
     } else if (BIF_ARG_1 == am_scheduler_id) {
-#ifdef ERTS_SMP
-	    ASSERT(BIF_P->scheduler_data);
-	    BIF_RET(make_small(BIF_P->scheduler_data->no));
-#else
-	    BIF_RET(make_small(1));
-#endif
+	ErtsSchedulerData *esdp = erts_proc_sched_data(BIF_P);
+	BIF_RET(make_small(esdp->no));
     } else if (BIF_ARG_1 == am_compat_rel) {
 	ASSERT(erts_compat_rel > 0);
 	BIF_RET(make_small(erts_compat_rel));
@@ -2172,7 +2193,7 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
     } else if (BIF_ARG_1 == am_garbage_collection){
 	Uint val = (Uint) erts_smp_atomic32_read_nob(&erts_max_gen_gcs);
 	Eterm tup;
-	hp = HAlloc(BIF_P, 3+2 + 3+2 + 3+2);
+	hp = HAlloc(BIF_P, 3+2 + 3+2 + 3+2 + 3+2);
 
 	tup = TUPLE2(hp, am_fullsweep_after, make_small(val)); hp += 3;
 	res = CONS(hp, tup, NIL); hp += 2;
@@ -2181,6 +2202,9 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
 	res = CONS(hp, tup, res); hp += 2;
 
 	tup = TUPLE2(hp, am_min_bin_vheap_size, make_small(BIN_VH_MIN_SIZE)); hp += 3;
+	res = CONS(hp, tup, res); hp += 2;
+
+	tup = TUPLE2(hp, am_max_heap_size, make_small(H_MAX_SIZE)); hp += 3;
 	res = CONS(hp, tup, res); hp += 2;
 
 	BIF_RET(res);
@@ -2192,6 +2216,12 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
     } else if (BIF_ARG_1 == am_min_heap_size) {
 	hp = HAlloc(BIF_P, 3);
 	res = TUPLE2(hp, am_min_heap_size,make_small(H_MIN_SIZE));
+	BIF_RET(res);
+    } else if (BIF_ARG_1 == am_max_heap_size) {
+        Uint sz = 0;
+        erts_max_heap_size_map(H_MAX_SIZE, H_MAX_FLAGS, NULL, &sz);
+	hp = HAlloc(BIF_P, sz);
+	res = erts_max_heap_size_map(H_MAX_SIZE, H_MAX_FLAGS, &hp, NULL);
 	BIF_RET(res);
     } else if (BIF_ARG_1 == am_min_bin_vheap_size) {
 	hp = HAlloc(BIF_P, 3);
@@ -3554,7 +3584,7 @@ BIF_RETTYPE erts_debug_get_internal_state_1(BIF_ALIST_1)
 	    BIF_RET(res);
 	}
         else if (ERTS_IS_ATOM_STR("mmap", BIF_ARG_1)) {
-            BIF_RET(erts_mmap_debug_info(&erts_dflt_mmapper, BIF_P));
+            BIF_RET(erts_mmap_debug_info(BIF_P));
         }
 	else if (ERTS_IS_ATOM_STR("unique_monotonic_integer_state", BIF_ARG_1)) {
 	    BIF_RET(erts_debug_get_unique_monotonic_integer_state(BIF_P));
@@ -3588,10 +3618,7 @@ BIF_RETTYPE erts_debug_get_internal_state_1(BIF_ALIST_1)
 		/* Used by timer process_SUITE, timer_bif_SUITE, and
 		   node_container_SUITE (emulator) */
 		if (is_internal_pid(tp[2])) {
-		    BIF_RET(erts_process_status(BIF_P,
-						ERTS_PROC_LOCK_MAIN,
-						NULL,
-						tp[2]));
+		    BIF_RET(erts_process_status(NULL, tp[2]));
 		}
 	    }
 	    else if (ERTS_IS_ATOM_STR("link_list", tp[1])) {

@@ -1,16 +1,83 @@
 ##!!! WARNING !!!
 
-***This is an experimental branch of an unreleased OTP version - its use is NOT supported by Basho. You have been warned!***
-
-####Branch Information
-|Status|Base|Branch|Release Tag|Stable B/T|
-|:-----|:---|:-----|:----------|:---------|
-| Run Away!    | OTP-19 | [`basho-otp-19`](http://github.com/basho/otp/tree/basho-otp-19) | _n/a_ | _n/a_ |
+***This is an experimental development branch - its use is NOT supported by Basho. You have been warned!***
 
 ##Basho Erlang/OTP
 
 This is the home of [Basho's][basho] version of [Erlang/OTP][erlang], forked from Ericsson's [repository][otp_repo].
 You can _(and should!)_ read their [README][otp_readme] file for information on the language and applications.
+
+###Contents
+
+* [Branch Information](#branch-information)
+  * [Branch Conventions](#branch-conventions)
+  * [Relevant Branches](#relevant-branches)
+    * [`maint`](#maint)
+    * [`basho-otp-19`](#basho-otp-19)
+    * [`basho-otp-19-develop`](#basho-otp-19-develop)
+    * [`basho-otp-19-any-other-name`](#basho-otp-19-any-other-name)
+  * [Pull Requests](#pull-requests)
+* [What's Here](#whats-here)
+  * [Release Notes](#release-notes)
+  * [Where it Works](#where-it-works)
+    * [Interoperability](#interoperability)
+    * [YMMV](#ymmv)
+* [Building and Installing](#building-and-installing)
+    * [Example Paths](#example-paths)
+  * [Getting the Source](#getting-the-source)
+  * [Environment](#environment)
+  * [Configuring](#configuring)
+    * [Platform](#platform)
+      * [OS X El Capitan Specific](#os-x-el-capitan-specific)
+    * [Standard Options](#standard-options)
+      * [HiPE](#hipe)
+    * [Additional Options](#additional-options)
+  * [Building](#building)
+    * [Build](#build)
+    * [Test](#test)
+    * [Install](#install)
+    * [Documentation](#documentation)
+  * [Versions](#versions)
+* [Contributing to Erlang/OTP](#contributing-to-erlangotp)
+  * [Copyright and License](#copyright-and-license)
+
+
+###Branch Information
+|Status|Base|Branch|Release Tag|Stable B/T|
+|:-----|:---|:-----|:----------|:---------|
+| Experimental | OTP-19 | [`basho-otp-19`](http://github.com/basho/otp/tree/basho-otp-19) | _n/a_ | _n/a_ |
+
+####Branch Conventions
+
+All Basho branches are named with the prefix _basho_ - any other branch name is simply updated periodically, unchanged, from Ericsson's repository.
+
+####Relevant Branches
+
+#####`maint`
+
+Periodically mirrored from the main OTP [repository][otp_repo] unchanged.
+This is the most common source of external updates to the `basho-otp-19` branch.
+
+#####`basho-otp-19`
+
+This branch should always be stable, and may even be production quality.
+All merges into this branch are carefully vetted and heavily tested.
+Release tags, when they appear, fall along this branch.
+
+#####`basho-otp-19-develop`
+
+This is a long-lived branch that's probably stable but not well qualified.
+Commits in this branch are expected to end up in `basho-otp-19`.
+
+#####`basho-otp-19-any-other-name`
+
+Variable quality, risk, and reward.
+These are [normally] short-lived branches that may or may not pan out, though occasionally code we haven't figured out what to do with may get parked in these branches for extended periods.
+
+####Pull Requests
+
+Pull request branches ***MUST*** be based on, and up to date with, the branch you're requesting to merge the PR into.
+In most cases, that will be [basho-otp-19-develop](http://github.com/basho/otp/tree/basho-otp-19-develop).
 
 ###What's Here
 
@@ -20,8 +87,13 @@ Our modifications of the original distribution generally fall into one or more o
   Our users care a lot about performance, and we do what we can to get the best out of our products running on Erlang/OTP.
 * Security<br />
   In general, we tighten up security in our releases where it makes sense for us to do so.
-* Stability & Scalability
+* Stability & Scalability<br />
   Erlang/OTP is pretty stable and scalable, but when we find an area where we can improve it for running our applications, we do.
+
+####Release Notes
+
+Basho's changes are listed in the [Release Notes][rel_notes].
+Full system Release Notes are available by building the [documentation](#documentation).
 
 ####Where it Works
 
@@ -88,6 +160,7 @@ Whether you configure the system using `./otp_build` or `./configure`, the follo
 #####Platform
 
 We only support 64-bit platforms, so use `--enable-m64-build`.
+<br />
 _Note that the separate switch for OS X has been removed._
 
 ######OS X El Capitan Specific
@@ -101,7 +174,8 @@ As of this writing, OTP crypto support can be built with a standard Xcode 7.x in
 --with-ssl=/usr --with-ssl-incl=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-migrator/sdk/MacOSX.sdk/usr
 ```
 
-_**Note:** Apple has deprecated OpenSSL in OS X, so it is unclear whether this is a stable strategy or location. We'll attempt to stay on top of the specifics as they evolve, and future Basho releases may include more transparent support._
+_**Note:** Apple has deprecated OpenSSL in OS X, so it is unclear whether this is a stable strategy or location.
+We'll attempt to stay on top of the specifics as they evolve, and future Basho releases may include more transparent support._
 
 
 #####Standard Options
@@ -110,7 +184,8 @@ Use `--prefix=/your/install/dir` if you're installing anywhere other than the de
 
 We use crypto, so include `--with-ssl` and confirm that "No usable OpenSSL found" does NOT appear in the output of the `configure` stage.
 If it does, refer to [$ERL_TOP/HOWTO/INSTALL.md][install] and/or `./configure --help` to provide an appropriate `--with-ssl/ssl-incl/ssl-rpath=PATH` option.
-_Note the specific instructions relating to OS X 10.11 (El Capitan) above if you are building on that platform._
+<br />
+_Note the specific [instructions relating to OS X El Capitan](#os-x-el-capitan-specific) if you are building on that platform._
 
 Our products use dirty schedulers, so `--enable-dirty-schedulers` is required if you're building this release to run them on.
 
@@ -138,6 +213,8 @@ Refer to the output of `./otp_build --help` or [$ERL_TOP/HOWTO/INSTALL.md][insta
 The following will build, test, and install a Basho production build on the local machine.
 Be sure to start with a clean source tree, such as you'd have from the `clone` example above.
 
+#####Build
+
 ```bash
 $ cd $HOME/basho/otp-19
 $ export ERL_TOP="$(pwd)"
@@ -146,6 +223,8 @@ $ export CXXFLAGS="$CFLAGS"
 $ export LDFLAGS="$CFLAGS"
 $ ./otp_build setup -a --prefix=/opt/basho/otp-19 --enable-m64-build --enable-dirty-schedulers --with-ssl --without-odbc
 ```
+
+#####Test
 
 Assuming success, you should have a runnable system. If you want to test it:
 
@@ -164,11 +243,15 @@ Common failures include:
 * A `CPU` test failure due to a feature being unavailable on your platform.
 * An `Inet` failure if you have a VPN configured.
 
+#####Install
+
 Once you're satisfied with your build, install it ***to the directory specified with --prefix*** with:
 
 ```bash
 $ make install
 ```
+
+#####Documentation
 
 If you want to install the system documentation, do so with:
 
@@ -186,7 +269,7 @@ Our releases are intended to be used as a single cohesive installation, we do _N
 
 Unless you want to suggest a patch to our specific Erlang/OTP changes, if you find something you think needs to be changed you'll want to refer to the Erlang instructions for submitting [bug reports][otp_bugs] or [patches][otp_patching].
 
-If your patch pertains specifically to our version, forking and creating a pull request on GitHub is the best way to get us to consider it.
+If your patch pertains specifically to our version, forking and creating a [pull request](#pull-requests) on GitHub is the best way to get us to consider it.
 Bear in mind, however, that our releases are tailored to our needs, so if it's not directly pertinent to how our users deploy Erlang/OTP, it may not be of interest to us.
 
 ####Copyright and License
@@ -194,12 +277,12 @@ Bear in mind, however, that our releases are tailored to our needs, so if it's n
 Everything in Erlang/OTP, whether part of the original distribution or a contribution of ours, is subject to the terms of the [Apache License, Version 2.0][license].
 
 
-  [basho]: http://www.basho.com
-  [erlang]: http://www.erlang.org
-  [license]: LICENSE.txt
-  [install]: HOWTO/INSTALL.md
-  [otp_repo]: http://github.com/erlang/otp
-  [otp_readme]: http://github.com/erlang/otp/blob/README.md
-  [otp_bugs]: https://github.com/erlang/otp/wiki/Bug-reports
-  [otp_patching]: http://wiki.github.com/erlang/otp/contribution-guidelines
-
+  [basho]:          http://www.basho.com
+  [erlang]:         http://www.erlang.org
+  [install]:        HOWTO/INSTALL.md
+  [license]:        LICENSE.txt
+  [otp_bugs]:       https://github.com/erlang/otp/wiki/Bug-reports
+  [otp_patching]:   http://wiki.github.com/erlang/otp/contribution-guidelines
+  [otp_readme]:     https://github.com/erlang/otp/blob/master/README.md
+  [otp_repo]:       http://github.com/erlang/otp
+  [rel_notes]:      BASHO-RELEASES.md

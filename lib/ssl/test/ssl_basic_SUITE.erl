@@ -88,7 +88,8 @@ basic_tests() ->
      connect_dist,
      clear_pem_cache,
      defaults,
-     fallback
+     fallback,
+     cipher_format
     ].
 
 options_tests() ->
@@ -144,7 +145,8 @@ api_tests() ->
      versions_option,
      server_name_indication_option,
      accept_pool,
-     new_options_in_accept
+     new_options_in_accept,
+     prf
     ].
 
 session_tests() ->
@@ -325,6 +327,31 @@ init_per_testcase(rizzo, Config) ->
     ct:log("TLS/SSL version ~p~n ", [tls_record:supported_protocol_versions()]),
     ct:timetrap({seconds, 40}),
     Config;
+init_per_testcase(prf, Config) ->
+    ct:log("TLS/SSL version ~p~n ", [tls_record:supported_protocol_versions()]),
+    ct:timetrap({seconds, 40}),
+    case ?config(tc_group_path, Config) of
+        [] -> Prop = [];
+        [Prop] -> Prop
+    end,
+    case ?config(name, Prop) of
+        undefined -> TlsVersions = [sslv3, tlsv1, 'tlsv1.1', 'tlsv1.2'];
+        TlsVersion when is_atom(TlsVersion) ->
+            TlsVersions = [TlsVersion]
+    end,
+    PRFS=[md5, sha, sha256, sha384, sha512],
+    %All are the result of running tls_v1:prf(PrfAlgo, <<>>, <<>>, <<>>, 16)
+    %with the specified PRF algorithm
+    ExpectedPrfResults=
+    [{md5, <<96,139,180,171,236,210,13,10,28,32,2,23,88,224,235,199>>},
+     {sha, <<95,3,183,114,33,169,197,187,231,243,19,242,220,228,70,151>>},
+     {sha256, <<166,249,145,171,43,95,158,232,6,60,17,90,183,180,0,155>>},
+     {sha384, <<153,182,217,96,186,130,105,85,65,103,123,247,146,91,47,106>>},
+     {sha512, <<145,8,98,38,243,96,42,94,163,33,53,49,241,4,127,28>>},
+     %TLS 1.0 and 1.1 PRF:
+     {md5sha, <<63,136,3,217,205,123,200,177,251,211,17,229,132,4,173,80>>}],
+    TestPlan = prf_create_plan(TlsVersions, PRFS, ExpectedPrfResults),
+    [{prf_test_plan, TestPlan} | Config];
 
 init_per_testcase(TestCase, Config) when TestCase == ssl_accept_timeout;
 					 TestCase == client_closes_socket;
@@ -429,6 +456,25 @@ new_options_in_accept(Config) when is_list(Config) ->
     
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client).
+%%--------------------------------------------------------------------
+prf() ->
+    [{doc,"Test that ssl:prf/5 uses the negotiated PRF."}].
+prf(Config) when is_list(Config) ->
+    TestPlan = ?config(prf_test_plan, Config),
+    case TestPlan of
+        [] -> ct:fail({error, empty_prf_test_plan});
+        _ -> lists:foreach(fun(Suite) ->
+                                   lists:foreach(
+                                     fun(Test) ->
+                                             V = ?config(tls_ver, Test),
+                                             C = ?config(ciphers, Test),
+                                             E = ?config(expected, Test),
+                                             P = ?config(prf, Test),
+                                             prf_run_test(Config, V, C, E, P)
+                                     end, Suite)
+                           end, TestPlan)
+    end.
+
 %%--------------------------------------------------------------------
 
 connection_info() ->
@@ -719,21 +765,27 @@ clear_pem_cache(Config) when is_list(Config) ->
     State = ssl_test_lib:state(Prop),
     [_,FilRefDb |_] = element(6, State),
     {Server, Client} = basic_verify_test_no_close(Config),
-    2 = ets:info(FilRefDb, size), 
+    CountReferencedFiles = fun({_,-1}, Acc) ->
+				   Acc;
+			      ({_, N}, Acc) ->
+				   N + Acc
+			   end,
+    
+    2 = ets:foldl(CountReferencedFiles, 0, FilRefDb), 
     ssl:clear_pem_cache(),
     _ = sys:get_status(whereis(ssl_manager)),
     {Server1, Client1} = basic_verify_test_no_close(Config),
-    4 = ets:info(FilRefDb, size), 
+    4 =  ets:foldl(CountReferencedFiles, 0, FilRefDb), 
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client),
-    ct:sleep(5000),
+    ct:sleep(2000),
     _ = sys:get_status(whereis(ssl_manager)),
-    2 = ets:info(FilRefDb, size),
+    2 =  ets:foldl(CountReferencedFiles, 0, FilRefDb), 
     ssl_test_lib:close(Server1),
     ssl_test_lib:close(Client1),
-    ct:sleep(5000),
+    ct:sleep(2000),
     _ = sys:get_status(whereis(ssl_manager)),
-    0 = ets:info(FilRefDb, size).
+    0 =  ets:foldl(CountReferencedFiles, 0, FilRefDb).
 
 %%--------------------------------------------------------------------
 
@@ -764,6 +816,14 @@ fallback(Config) when is_list(Config) ->
 			      Client, {error,{tls_alert,"inappropriate fallback"}}).
 
 %%--------------------------------------------------------------------
+cipher_format() ->
+    [{doc, "Test that cipher conversion from tuples to binarys works"}].
+cipher_format(Config) when is_list(Config) ->
+    {ok, Socket} = ssl:listen(0, [{ciphers, ssl:cipher_suites()}]),
+    ssl:close(Socket).
+
+%%--------------------------------------------------------------------
+
 peername() ->
     [{doc,"Test API function peername/1"}].
 
@@ -2556,6 +2616,13 @@ der_input(Config) when is_list(Config) ->
     DataDir = ?config(data_dir, Config),
     DHParamFile = filename:join(DataDir, "dHParam.pem"),
 
+    {status, _, _, StatusInfo} = sys:get_status(whereis(ssl_manager)),
+    [_, _,_, _, Prop] = StatusInfo,
+    State = ssl_test_lib:state(Prop),
+    [CADb | _] = element(6, State),
+
+    Size = ets:info(CADb, size),
+
     SeverVerifyOpts = ?config(server_verification_opts, Config),
     {ServerCert, ServerKey, ServerCaCerts, DHParams} = der_input_opts([{dhfile, DHParamFile} |
 								       SeverVerifyOpts]),
@@ -2583,13 +2650,8 @@ der_input(Config) when is_list(Config) ->
     ssl_test_lib:check_result(Server, ok, Client, ok),
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client),
+    Size = ets:info(CADb, size).
 
-    {status, _, _, StatusInfo} = sys:get_status(whereis(ssl_manager)),
-    [_, _,_, _, Prop] = StatusInfo,
-    State = ssl_test_lib:state(Prop),
-    [CADb | _] = element(6, State),
-    [] = ets:tab2list(CADb).
-    
 %%--------------------------------------------------------------------
 der_input_opts(Opts) ->
     Certfile = proplists:get_value(certfile, Opts),
@@ -3051,6 +3113,7 @@ hibernate(Config) ->
     {current_function, _} =
         process_info(Pid, current_function),
 
+    ssl_test_lib:check_result(Server, ok, Client, ok),
     timer:sleep(1100),
 
     {current_function, {erlang, hibernate, 3}} =
@@ -3084,15 +3147,29 @@ hibernate_right_away(Config) ->
 
     Server1 = ssl_test_lib:start_server(StartServerOpts),
     Port1 = ssl_test_lib:inet_port(Server1),
-    {Client1, #sslsocket{}} = ssl_test_lib:start_client(StartClientOpts ++
+    {Client1, #sslsocket{pid = Pid1}} = ssl_test_lib:start_client(StartClientOpts ++
                     [{port, Port1}, {options, [{hibernate_after, 0}|ClientOpts]}]),
+
+    ssl_test_lib:check_result(Server1, ok, Client1, ok),
+
+    {current_function, {erlang, hibernate, 3}} =
+	process_info(Pid1, current_function),
+
     ssl_test_lib:close(Server1),
     ssl_test_lib:close(Client1),
 
     Server2 = ssl_test_lib:start_server(StartServerOpts),
     Port2 = ssl_test_lib:inet_port(Server2),
-    {Client2, #sslsocket{}} = ssl_test_lib:start_client(StartClientOpts ++
+    {Client2, #sslsocket{pid = Pid2}} = ssl_test_lib:start_client(StartClientOpts ++
                     [{port, Port2}, {options, [{hibernate_after, 1}|ClientOpts]}]),
+
+    ssl_test_lib:check_result(Server2, ok, Client2, ok),
+
+    ct:sleep(100), %% Schedule out
+
+    {current_function, {erlang, hibernate, 3}} =
+	process_info(Pid2, current_function),
+
     ssl_test_lib:close(Server2),
     ssl_test_lib:close(Client2).
 
@@ -3676,6 +3753,81 @@ basic_test(Config) ->
     ssl_test_lib:check_result(Server, ok, Client, ok),
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client).
+
+prf_create_plan(TlsVersions, PRFs, Results) ->
+    lists:foldl(fun(Ver, Acc) ->
+                        A = prf_ciphers_and_expected(Ver, PRFs, Results),
+                        [A|Acc]
+                end, [], TlsVersions).
+prf_ciphers_and_expected(TlsVer, PRFs, Results) ->
+    case TlsVer of
+        TlsVer when TlsVer == sslv3 orelse TlsVer == tlsv1
+                    orelse TlsVer == 'tlsv1.1' ->
+            Ciphers = ssl:cipher_suites(),
+            {_, Expected} = lists:keyfind(md5sha, 1, Results),
+            [[{tls_ver, TlsVer}, {ciphers, Ciphers}, {expected, Expected}, {prf, md5sha}]];
+        'tlsv1.2' ->
+            lists:foldl(
+              fun(PRF, Acc) ->
+                      Ciphers = prf_get_ciphers(TlsVer, PRF),
+                      case Ciphers of
+                          [] ->
+                              ct:log("No ciphers for PRF algorithm ~p. Skipping.", [PRF]),
+                              Acc;
+                          Ciphers ->
+                              {_, Expected} = lists:keyfind(PRF, 1, Results),
+                              [[{tls_ver, TlsVer}, {ciphers, Ciphers}, {expected, Expected},
+                                {prf, PRF}] | Acc]
+                      end
+              end, [], PRFs)
+    end.
+prf_get_ciphers(TlsVer, PRF) ->
+    case TlsVer of
+        'tlsv1.2' ->
+            lists:filter(
+              fun(C) when tuple_size(C) == 4 andalso
+                          element(4, C) == PRF -> 
+			  true;
+                 (_) -> false
+              end, ssl:cipher_suites())
+    end.
+prf_run_test(_, TlsVer, [], _, Prf) ->
+    ct:fail({error, cipher_list_empty, TlsVer, Prf});
+prf_run_test(Config, TlsVer, Ciphers, Expected, Prf) ->
+    {ClientNode, ServerNode, Hostname} = ssl_test_lib:run_where(Config),
+    BaseOpts = [{active, true}, {versions, [TlsVer]}, {ciphers, Ciphers}],
+    ServerOpts = BaseOpts ++ ?config(server_opts, Config),
+    ClientOpts = BaseOpts ++ ?config(client_opts, Config),
+    Server = ssl_test_lib:start_server(
+               [{node, ServerNode}, {port, 0}, {from, self()},
+                {mfa, {?MODULE, prf_verify_value, [TlsVer, Expected, Prf]}},
+                {options, ServerOpts}]),
+    Port = ssl_test_lib:inet_port(Server),
+    Client = ssl_test_lib:start_client(
+               [{node, ClientNode}, {port, Port},
+                {host, Hostname}, {from, self()},
+                {mfa, {?MODULE, prf_verify_value, [TlsVer, Expected, Prf]}},
+                {options, ClientOpts}]),
+    ssl_test_lib:check_result(Server, ok, Client, ok),
+    ssl_test_lib:close(Server),
+    ssl_test_lib:close(Client).
+prf_verify_value(Socket, TlsVer, Expected, Algo) ->
+    Ret = ssl:prf(Socket, <<>>, <<>>, [<<>>], 16),
+    case TlsVer of
+        sslv3 ->
+            case Ret of
+                {error, undefined} -> ok;
+                _ ->
+                    {error, {expected, {error, undefined},
+                             got, Ret, tls_ver, TlsVer, prf_algorithm, Algo}}
+            end;
+        _ ->
+            case Ret of
+                {ok, Expected} -> ok;
+                {ok, Val} -> {error, {expected, Expected, got, Val, tls_ver, TlsVer,
+                                      prf_algorithm, Algo}}
+            end
+    end.
 
 send_recv_result_timeout_client(Socket) ->
     {error, timeout} = ssl:recv(Socket, 11, 500),

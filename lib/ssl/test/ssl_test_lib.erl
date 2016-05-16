@@ -386,11 +386,11 @@ cert_options(Config) ->
     SNIServerBCertFile = filename:join([?config(priv_dir, Config), "b.server", "cert.pem"]),
     SNIServerBKeyFile = filename:join([?config(priv_dir, Config), "b.server", "key.pem"]),
     [{client_opts, []}, 
-     {client_verification_opts, [{cacertfile, ClientCaCertFile}, 
+     {client_verification_opts, [{cacertfile, ServerCaCertFile}, 
 				{certfile, ClientCertFile},  
 				{keyfile, ClientKeyFile},
 				{ssl_imp, new}]}, 
-     {client_verification_opts_digital_signature_only, [{cacertfile, ClientCaCertFile},
+     {client_verification_opts_digital_signature_only, [{cacertfile, ServerCaCertFile},
 				{certfile, ClientCertFileDigitalSignatureOnly},
 				{keyfile, ClientKeyFile},
 				{ssl_imp, new}]},
@@ -426,7 +426,7 @@ cert_options(Config) ->
 			{user_lookup_fun, {fun user_lookup/3, undefined}},
 			{ciphers, srp_anon_suites()}]},
      {server_verification_opts, [{ssl_imp, new},{reuseaddr, true}, 
-		    {cacertfile, ServerCaCertFile},
+		    {cacertfile, ClientCaCertFile},
 		    {certfile, ServerCertFile}, {keyfile, ServerKeyFile}]},
      {client_kc_opts, [{certfile, ClientKeyCertFile},  {ssl_imp, new}]}, 
      {server_kc_opts, [{ssl_imp, new},{reuseaddr, true}, 
@@ -1041,10 +1041,13 @@ receive_rizzo_duong_beast() ->
 	    end
     end.
 
-state([{data,[{"State", State}]} | _]) ->
+
+state([{data,[{"State", {_StateName, StateData}}]} | _]) -> %% gen_statem
+    StateData;
+state([{data,[{"State", State}]} | _]) -> %% gen_server
     State;
-state([{data,[{"StateData", State}]} | _]) ->
-    State;
+state([{data,[{"StateData", State}]} | _]) -> %% gen_fsm
+     State;
 state([_ | Rest]) ->
     state(Rest).
 

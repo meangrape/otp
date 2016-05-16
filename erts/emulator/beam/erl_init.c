@@ -164,6 +164,8 @@ int erts_use_sender_punish;
 Uint display_items;	    	/* no of items to display in traces etc */
 int H_MIN_SIZE;			/* The minimum heap grain */
 int BIN_VH_MIN_SIZE;		/* The minimum binary virtual*/
+int H_MAX_SIZE;			/* The maximum heap size */
+int H_MAX_FLAGS;		/* The maximum heap flags */
 
 Uint32 erts_debug_flags;	/* Debug flags. */
 int erts_backtrace_depth;	/* How many functions to show in a backtrace
@@ -206,15 +208,15 @@ int erts_no_line_info = 0;	/* -L: Don't load line information */
 
 ErtsModifiedTimings erts_modified_timings[] = {
     /* 0 */	{make_small(0), CONTEXT_REDS, INPUT_REDUCTIONS},
-    /* 1 */	{make_small(0), 2*CONTEXT_REDS, 2*INPUT_REDUCTIONS},
+    /* 1 */	{make_small(0), (3*CONTEXT_REDS)/4, 2*INPUT_REDUCTIONS},
     /* 2 */	{make_small(0), CONTEXT_REDS/2, INPUT_REDUCTIONS/2},
-    /* 3 */	{make_small(0), 3*CONTEXT_REDS, 3*INPUT_REDUCTIONS},
+    /* 3 */	{make_small(0), (7*CONTEXT_REDS)/8, 3*INPUT_REDUCTIONS},
     /* 4 */	{make_small(0), CONTEXT_REDS/3, 3*INPUT_REDUCTIONS},
-    /* 5 */	{make_small(0), 4*CONTEXT_REDS, INPUT_REDUCTIONS/2},
+    /* 5 */	{make_small(0), (10*CONTEXT_REDS)/11, INPUT_REDUCTIONS/2},
     /* 6 */	{make_small(1), CONTEXT_REDS/4, 2*INPUT_REDUCTIONS},
-    /* 7 */	{make_small(1), 5*CONTEXT_REDS, INPUT_REDUCTIONS/3},
+    /* 7 */	{make_small(1), (5*CONTEXT_REDS)/7, INPUT_REDUCTIONS/3},
     /* 8 */	{make_small(10), CONTEXT_REDS/5, 3*INPUT_REDUCTIONS},
-    /* 9 */	{make_small(10), 6*CONTEXT_REDS, INPUT_REDUCTIONS/4}
+    /* 9 */	{make_small(10), (6*CONTEXT_REDS)/7, INPUT_REDUCTIONS/4}
 };
 
 #define ERTS_MODIFIED_TIMING_LEVELS \
@@ -576,8 +578,14 @@ void erts_usage(void)
 	       H_DEFAULT_SIZE);
     erts_fprintf(stderr, "-hmbs size     set minimum binary virtual heap size in words (default %d)\n",
 	       VH_DEFAULT_SIZE);
+    erts_fprintf(stderr, "-hmax size     set maximum heap size in words (default %d)\n",
+	       H_DEFAULT_MAX_SIZE);
+    erts_fprintf(stderr, "-hmaxk bool    enable or disable kill at max heap size (default true)\n");
+    erts_fprintf(stderr, "-hmaxel bool   enable or disable error_logger report at max heap size (default true)\n");
     erts_fprintf(stderr, "-hpds size     initial process dictionary size (default %d)\n",
 	       erts_pd_initial_size);
+    erts_fprintf(stderr, "-hmqd  val     set default message queue data flag for processes,\n");
+    erts_fprintf(stderr, "               valid values are: off_heap | on_heap | mixed\n");
 
     /*    erts_fprintf(stderr, "-i module  set the boot module (default init)\n"); */
 
@@ -655,8 +663,6 @@ void erts_usage(void)
 
     erts_fprintf(stderr, "-W<i|w|e>      set error logger warnings mapping,\n");
     erts_fprintf(stderr, "               see error_logger documentation for details\n");
-    erts_fprintf(stderr, "-xmqd  val     set default message queue data flag for processes,\n");
-    erts_fprintf(stderr, "               valid values are: off_heap | on_heap | mixed\n");
     erts_fprintf(stderr, "-zdbbl size    set the distribution buffer busy limit in kilobytes\n");
     erts_fprintf(stderr, "               valid range is [1-%d]\n", INT_MAX/1024);
     erts_fprintf(stderr, "-zdntgc time   set delayed node table gc in seconds\n");
@@ -759,6 +765,8 @@ early_init(int *argc, char **argv) /*
     erts_async_thread_suggested_stack_size = ERTS_ASYNC_THREAD_MIN_STACK_SIZE;
     H_MIN_SIZE = H_DEFAULT_SIZE;
     BIN_VH_MIN_SIZE = VH_DEFAULT_SIZE;
+    H_MAX_SIZE = H_DEFAULT_MAX_SIZE;
+    H_MAX_FLAGS = MAX_HEAP_SIZE_KILL|MAX_HEAP_SIZE_LOG;
 
     erts_initialized = 0;
 
@@ -1484,9 +1492,13 @@ erl_start(int argc, char **argv)
 	    char *sub_param = argv[i]+2;
 	    /* set default heap size
 	     *
-	     * h|ms  - min_heap_size
-	     * h|mbs - min_bin_vheap_size
-	     * h|pds - erts_pd_initial_size
+	     * h|ms    - min_heap_size
+	     * h|mbs   - min_bin_vheap_size
+	     * h|pds   - erts_pd_initial_size
+	     * h|mqd   - message_queue_data
+             * h|max   - max_heap_size
+             * h|maxk  - max_heap_kill
+             * h|maxel - max_heap_error_logger
 	     *
 	     */
 	    if (has_prefix("mbs", sub_param)) {
@@ -1512,6 +1524,58 @@ erl_start(int argc, char **argv)
 		}
 		VERBOSE(DEBUG_SYSTEM, ("using initial process dictionary size %d\n",
 			    erts_pd_initial_size));
+            } else if (has_prefix("mqd", sub_param)) {
+		arg = get_arg(sub_param+3, argv[i+1], &i);
+		if (sys_strcmp(arg, "mixed") == 0)
+		    erts_default_spo_flags &= ~(SPO_ON_HEAP_MSGQ|SPO_OFF_HEAP_MSGQ);
+		else if (sys_strcmp(arg, "on_heap") == 0) {
+		    erts_default_spo_flags &= ~SPO_OFF_HEAP_MSGQ;
+		    erts_default_spo_flags |= SPO_ON_HEAP_MSGQ;
+		}
+		else if (sys_strcmp(arg, "off_heap") == 0) {
+		    erts_default_spo_flags &= ~SPO_ON_HEAP_MSGQ;
+		    erts_default_spo_flags |= SPO_OFF_HEAP_MSGQ;
+		}
+		else {
+		    erts_fprintf(stderr,
+				 "Invalid message_queue_data flag: %s\n", arg);
+		    erts_usage();
+		}
+            } else if (has_prefix("maxk", sub_param)) {
+		arg = get_arg(sub_param+4, argv[i+1], &i);
+		if (strcmp(arg,"true") == 0) {
+                    H_MAX_FLAGS |= MAX_HEAP_SIZE_KILL;
+                } else if (strcmp(arg,"false") == 0) {
+                    H_MAX_FLAGS &= ~MAX_HEAP_SIZE_KILL;
+                } else {
+		    erts_fprintf(stderr, "bad max heap kill %s\n", arg);
+		    erts_usage();
+		}
+		VERBOSE(DEBUG_SYSTEM, ("using max heap kill %d\n", H_MAX_FLAGS));
+            } else if (has_prefix("maxel", sub_param)) {
+		arg = get_arg(sub_param+5, argv[i+1], &i);
+		if (strcmp(arg,"true") == 0) {
+                    H_MAX_FLAGS |= MAX_HEAP_SIZE_LOG;
+                } else if (strcmp(arg,"false") == 0) {
+                    H_MAX_FLAGS &= ~MAX_HEAP_SIZE_LOG;
+                } else {
+		    erts_fprintf(stderr, "bad max heap error logger %s\n", arg);
+		    erts_usage();
+		}
+		VERBOSE(DEBUG_SYSTEM, ("using max heap log %d\n", H_MAX_FLAGS));
+	    } else if (has_prefix("max", sub_param)) {
+		arg = get_arg(sub_param+3, argv[i+1], &i);
+		if ((H_MAX_SIZE = atoi(arg)) < 0) {
+		    erts_fprintf(stderr, "bad max heap size %s\n", arg);
+		    erts_usage();
+		}
+                if (H_MAX_SIZE < H_MIN_SIZE && H_MAX_SIZE) {
+		    erts_fprintf(stderr, "max heap size (%s) is not allowed to be "
+                                 "smaller than min heap size (%d)\n",
+                                 arg, H_MIN_SIZE);
+		    erts_usage();
+		}
+		VERBOSE(DEBUG_SYSTEM, ("using max heap size %d\n", H_MAX_SIZE));
 	    } else {
 	        /* backward compatibility */
 		arg = get_arg(argv[i]+2, argv[i+1], &i);
@@ -2046,32 +2110,6 @@ erl_start(int argc, char **argv)
 		erts_usage();
 	    }
 	    break;
-
-	case 'x': {
-	    char *sub_param = argv[i]+2;
-	    if (has_prefix("mqd", sub_param)) {
-		arg = get_arg(sub_param+3, argv[i+1], &i);
-		if (sys_strcmp(arg, "mixed") == 0)
-		    erts_default_spo_flags &= ~(SPO_ON_HEAP_MSGQ|SPO_OFF_HEAP_MSGQ);
-		else if (sys_strcmp(arg, "on_heap") == 0) {
-		    erts_default_spo_flags &= ~SPO_OFF_HEAP_MSGQ;
-		    erts_default_spo_flags |= SPO_ON_HEAP_MSGQ;
-		}
-		else if (sys_strcmp(arg, "off_heap") == 0) {
-		    erts_default_spo_flags &= ~SPO_ON_HEAP_MSGQ;
-		    erts_default_spo_flags |= SPO_OFF_HEAP_MSGQ;
-		}
-		else {
-		    erts_fprintf(stderr,
-				 "Invalid message_queue_data flag: %s\n", arg);
-		    erts_usage();
-		}
-	    } else {
-		erts_fprintf(stderr, "bad -x option %s\n", argv[i]);
-		erts_usage();
-	    }
-	    break;
-        }
 
 	case 'z': {
 	    char *sub_param = argv[i]+2;

@@ -57,6 +57,7 @@ struct enif_environment_t /* ErlNifEnv */
     struct enif_tmp_obj_t* tmp_obj_list;
     int exception_thrown; /* boolean */
     Process *tracee;
+    int exiting; /* boolean (dirty nifs might return in exiting state) */
 };
 extern void erts_pre_nif(struct enif_environment_t*, Process*,
 			 struct erl_module_nif*, Process* tracee);
@@ -997,7 +998,7 @@ Eterm erl_is_function(Process* p, Eterm arg1, Eterm arg2);
 #define ERTS_CPC_ALLOW_GC      (1 << 0)
 #define ERTS_CPC_COPY_LITERALS (1 << 1)
 #define ERTS_CPC_ALL           (ERTS_CPC_ALLOW_GC | ERTS_CPC_COPY_LITERALS)
-Eterm erts_check_process_code(Process *c_p, Eterm module, Uint flags, int *redsp);
+Eterm erts_check_process_code(Process *c_p, Eterm module, Uint flags, int *redsp, int fcalls);
 
 typedef struct {
     Eterm *ptr;
@@ -1483,9 +1484,19 @@ do {								\
 
 #define MatchSetGetSource(MPSP) erts_match_set_get_source(MPSP)
 
-extern Binary *erts_match_set_compile(Process *p, Eterm matchexpr);
+extern Binary *erts_match_set_compile(Process *p, Eterm matchexpr, Eterm MFA);
 Eterm erts_match_set_lint(Process *p, Eterm matchexpr); 
 extern void erts_match_set_release_result(Process* p);
+ERTS_GLB_INLINE void erts_match_set_release_result_trace(Process* p, Eterm);
+
+#if ERTS_GLB_INLINE_INCL_FUNC_DEF
+ERTS_GLB_INLINE
+void erts_match_set_release_result_trace(Process* p, Eterm pam_result)
+{
+    if (is_not_immed(pam_result))
+        erts_match_set_release_result(p);
+}
+#endif /* ERTS_GLB_INLINE_INCL_FUNC_DEF */
 
 enum erts_pam_run_flags {
     ERTS_PAM_TMP_RESULT=1,
@@ -1493,10 +1504,12 @@ enum erts_pam_run_flags {
     ERTS_PAM_CONTIGUOUS_TUPLE=4,
     ERTS_PAM_IGNORE_TRACE_SILENT=8
 };
-extern Eterm erts_match_set_run(Process *p, Binary *mpsp, 
-				Eterm *args, int num_args,
-				enum erts_pam_run_flags in_flags,
-				Uint32 *return_flags);
+extern Eterm erts_match_set_run_trace(Process *p,
+                                      Process *self,
+                                      Binary *mpsp,
+                                      Eterm *args, int num_args,
+                                      enum erts_pam_run_flags in_flags,
+                                      Uint32 *return_flags);
 extern Eterm erts_match_set_get_source(Binary *mpsp);
 extern void erts_match_prog_foreach_offheap(Binary *b,
 					    void (*)(ErlOffHeap *, void *),

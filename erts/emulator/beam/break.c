@@ -118,7 +118,9 @@ process_killer(void)
 				 | ERTS_PSFLG_ACTIVE_SYS
 				 | ERTS_PSFLG_IN_RUNQ
 				 | ERTS_PSFLG_RUNNING
-				 | ERTS_PSFLG_RUNNING_SYS)) {
+				 | ERTS_PSFLG_RUNNING_SYS
+				 | ERTS_PSFLG_DIRTY_RUNNING
+				 | ERTS_PSFLG_DIRTY_RUNNING_SYS)) {
 			erts_printf("Can only kill WAITING processes this way\n");
 		    }
 		    else {
@@ -214,7 +216,8 @@ print_process_info(int to, void *to_arg, Process *p)
     if (state & ERTS_PSFLG_GC) {
         garbing = 1;
         running = 1;
-    } else if (state & ERTS_PSFLG_RUNNING)
+    } else if (state & (ERTS_PSFLG_RUNNING
+			| ERTS_PSFLG_DIRTY_RUNNING))
         running = 1;
 
     /*
@@ -347,8 +350,11 @@ print_process_info(int to, void *to_arg, Process *p)
 static void
 print_garb_info(int to, void *to_arg, Process* p)
 {
+#ifdef ERTS_SMP
     /* ERTS_SMP: A scheduler is probably concurrently doing gc... */
-#ifndef ERTS_SMP
+    if (!ERTS_IS_CRASH_DUMPING)
+      return;
+#endif
     erts_print(to, to_arg, "New heap start: %bpX\n", p->heap);
     erts_print(to, to_arg, "New heap top: %bpX\n", p->htop);
     erts_print(to, to_arg, "Stack top: %bpX\n", p->stop);
@@ -356,7 +362,6 @@ print_garb_info(int to, void *to_arg, Process* p)
     erts_print(to, to_arg, "Old heap start: %bpX\n", OLD_HEAP(p));
     erts_print(to, to_arg, "Old heap top: %bpX\n", OLD_HTOP(p));
     erts_print(to, to_arg, "Old heap end: %bpX\n", OLD_HEND(p));
-#endif
 }
 
 void

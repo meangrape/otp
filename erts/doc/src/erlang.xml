@@ -4322,6 +4322,7 @@ os_prompt% </pre>
       </desc>
     </func>
 
+    <marker id="process_flag_min_heap_size"/>
     <func>
       <name name="process_flag" arity="2" clause_i="3"/>
       <fsummary>Sets process flag <c>min_heap_size</c> for the calling process.</fsummary>
@@ -4340,9 +4341,95 @@ os_prompt% </pre>
         <p>Returns the old value of the flag.</p>
       </desc>
     </func>
-    <marker id="process_flag_message_queue_data"/>
+    <marker id="process_flag_max_heap_size"/>
     <func>
       <name name="process_flag" arity="2" clause_i="5"/>
+      <type name="max_heap_size"/>
+      <fsummary>Sets process flag <c>max_heap_size</c> for the calling process.</fsummary>
+      <desc>
+        <p>
+          This flag sets the maximum heap size for the calling process.
+          If <c><anno>MaxHeapSize</anno></c> is an integer, the system default
+          values for <c>kill</c> and <c>error_logger</c> are used.
+          <taglist>
+            <tag><c>size</c></tag>
+            <item>
+              <p>
+                The maximum size in words of the process. If set to zero, the
+                heap size limit is disabled. Badarg will be thrown if the value is
+                smaller than
+                <seealso marker="#process_flag_min_heap_size"><c>min_heap_size</c></seealso>.
+                The size check is only done when a garbage collection is triggered.
+              </p>
+              <p>
+                <c>size</c> is the entire heap of the process when garbage collection
+                is triggered, this includes all generational heaps, the process stack, 
+                any <seealso marker="#process_flag_message_queue_data">
+                messages that are considered to be part of the heap</seealso> and any
+                extra memory that the garbage collector needs during collection.
+              </p>
+              <p>
+                <c>size</c> is the same as can be retrieved using
+                <seealso marker="#process_info_total_heap_size">
+                  <c>erlang:process_info(Pid, total_heap_size)</c></seealso>,
+                  or by adding <c>heap_block_size</c>, <c>old_heap_block_size</c>
+                  and <c>mbuf_size</c> from <seealso marker="#process_info_garbage_collection_info">
+                  <c>erlang:process_info(Pid, garbage_collection_info)</c></seealso>.
+              </p>
+            </item>
+            <tag><c>kill</c></tag>
+            <item>
+              <p>
+                When set to <c>true</c> the runtime system will send an
+                untrappable exit signal with reason <c>kill</c> to the process
+                if the maximum heap size is reached. The garbage collection
+                that triggered the <c>kill</c> will not be completed, instead the
+                process will exit as soon as is possible. When set to <c>false</c>
+                no exit signal will be sent to the process, instead it will
+                continue executing.
+              </p>
+              <p>
+                If <c>kill</c> is not defined in the map
+                the system default will be used. The default system default
+                is <c>true</c>. It can be changed by either the erl
+                <seealso marker="erl#+hmaxk">+hmaxk</seealso> option,
+                or <seealso marker="#system_flag_max_heap_size"><c>
+                erlang:system_flag(max_heap_size, MaxHeapSize)</c></seealso>.
+              </p>
+            </item>
+            <tag><c>error_logger</c></tag>
+            <item>
+              <p>
+                When set to <c>true</c> the runtime system will send a
+                message to the current <seealso marker="kernel:error_logger"><c>error_logger</c></seealso>
+                containing details about the process when the maximum
+                heap size is reached. One <c>error_logger</c> report will
+                be sent each time the limit is reached.
+              </p>
+              <p>
+                If <c>error_logger</c> is not defined in the map the system
+                default will be used. The default system default is <c>true</c>.
+                It can be changed by either the erl <seealso marker="erl#+hmaxel">+hmaxel</seealso>
+                option, or <seealso marker="#system_flag_max_heap_size"><c>
+                erlang:system_flag(max_heap_size, MaxHeapSize)</c></seealso>.
+              </p>
+            </item>
+            <p>
+              The heap size of a process is quite hard to predict, especially the
+              amount of memory that is used during the garbage collection. When
+              contemplating using this option, it is recommended to first run
+              it in production with <c>kill</c> set to <c>false</c> and inspect
+              the <c>error_logger</c> reports to see what the normal peak sizes
+              of the processes in the system is and then tune the value
+              accordingly.
+            </p>
+          </taglist>
+        </p>
+      </desc>
+    </func>
+    <marker id="process_flag_message_queue_data"/>
+    <func>
+      <name name="process_flag" arity="2" clause_i="6"/>
       <fsummary>Set process flag <c>message_queue_data</c> for the calling process</fsummary>
       <type name="message_queue_data"/>
       <desc>
@@ -4371,7 +4458,7 @@ os_prompt% </pre>
         </taglist>
 	<p>
 	  The default <c>message_queue_data</c> process flag is determined
-	  by the <seealso marker="erl#+xmqd"><c>+xmqd</c></seealso>
+	  by the <seealso marker="erl#+hmqd"><c>+hmqd</c></seealso>
 	  <c>erl</c> command line argument.
 	</p>
 	<p>
@@ -4392,7 +4479,7 @@ os_prompt% </pre>
       </desc>
     </func>
     <func>
-      <name name="process_flag" arity="2" clause_i="6"/>
+      <name name="process_flag" arity="2" clause_i="7"/>
       <fsummary>Sets process flag <c>priority</c> for the calling process.</fsummary>
       <type name="priority_level"/>
       <desc>
@@ -4466,7 +4553,7 @@ os_prompt% </pre>
     </func>
 
     <func>
-      <name name="process_flag" arity="2" clause_i="7"/>
+      <name name="process_flag" arity="2" clause_i="8"/>
       <fsummary>Sets process flag <c>save_calls</c> for the calling process.</fsummary>
       <desc>
         <p><c><anno>N</anno></c> must be an integer in the interval 0..10000.
@@ -4497,7 +4584,7 @@ os_prompt% </pre>
     </func>
 
     <func>
-      <name name="process_flag" arity="2" clause_i="8"/>
+      <name name="process_flag" arity="2" clause_i="9"/>
       <fsummary>Sets process flag <c>sensitive</c> for the calling process.</fsummary>
       <desc>
         <p>Sets or clears flag <c>sensitive</c> for the current process.
@@ -4551,6 +4638,7 @@ os_prompt% </pre>
       <type name="process_info_result_item"/>
       <type name="priority_level"/>
       <type name="stack_item"/>
+      <type name="max_heap_size" />
       <type name="message_queue_data" />
       <desc>
         <p>Returns a list containing <c><anno>InfoTuple</anno></c>s with
@@ -4604,6 +4692,7 @@ os_prompt% </pre>
       <type name="process_info_result_item"/>
       <type name="stack_item"/>
       <type name="priority_level"/>
+      <type name="max_heap_size" />
       <type name="message_queue_data" />
       <desc>
         <p>Returns information about the process identified by
@@ -4696,13 +4785,14 @@ os_prompt% </pre>
 	       The content of <c><anno>GCInfo</anno></c> can be changed without
 	       prior notice.</p>
           </item>
+          <marker id="process_info_garbage_collection_info"/>
           <tag><c>{garbage_collection_info, <anno>GCInfo</anno>}</c></tag>
           <item>
             <p><c><anno>GCInfo</anno></c> is a list containing miscellaneous
 	       detailed information about garbage collection for this process.
 	       The content of <c><anno>GCInfo</anno></c> can be changed without
 	       prior notice.
-               See <seealso marker="#gc_start">gc_start</seealso> in
+               See <seealso marker="#gc_minor_start">gc_minor_start</seealso> in
                <seealso marker="#trace/3">erlang:trace/3</seealso> for details about
                what each item means.
             </p>
@@ -4875,10 +4965,13 @@ os_prompt% </pre>
             total suspend count on <c><anno>Suspendee</anno></c>,
             only the parts contributed by <c><anno>Pid</anno></c>.</p>
           </item>
+          <marker id="process_info_total_heap_size"/>
           <tag><c>{total_heap_size, <anno>Size</anno>}</c></tag>
           <item>
             <p><c><anno>Size</anno></c> is the total size, in words, of all heap
-	    fragments of the process. This includes the process stack.</p>
+	    fragments of the process. This includes the process stack and
+            any unreceived messages that are considered to be part of the
+            heap. </p>
           </item>
           <tag><c>{trace, <anno>InternalTraceFlags</anno>}</c></tag>
           <item>
@@ -5567,6 +5660,7 @@ true</pre>
       <name name="spawn_opt" arity="2"/>
       <fsummary>Creates a new process with a fun as entry point.</fsummary>
       <type name="priority_level"/>
+      <type name="max_heap_size" />
       <type name="message_queue_data" />
       <type name="spawn_opt_option" />
       <desc>
@@ -5584,6 +5678,7 @@ true</pre>
       <name name="spawn_opt" arity="3"/>
       <fsummary>Creates a new process with a fun as entry point on a given node.</fsummary>
       <type name="priority_level"/>
+      <type name="max_heap_size" />
       <type name="message_queue_data" />
       <type name="spawn_opt_option" />
       <desc>
@@ -5600,6 +5695,7 @@ true</pre>
       <name name="spawn_opt" arity="4"/>
       <fsummary>Creates a new process with a function as entry point.</fsummary>
       <type name="priority_level"/>
+      <type name="max_heap_size" />
       <type name="message_queue_data" />
       <type name="spawn_opt_option" />
       <desc>
@@ -5703,13 +5799,23 @@ true</pre>
               fine-tuning an application and to measure the execution
               time with various <c><anno>VSize</anno></c> values.</p>
           </item>
+          <tag><c>{max_heap_size, <anno>Size</anno>}</c></tag>
+          <item>
+            <p>Sets the <c>max_heap_size</c> process flag. The default
+            <c>max_heap_size</c> is determined by the
+            <seealso marker="erl#+hmax"><c>+hmax</c></seealso> <c>erl</c>
+	    command line argument. For more information, see the
+	    documentation of
+            <seealso marker="#process_flag_max_heap_size"><c>process_flag(max_heap_size,
+	    <anno>Size</anno>)</c></seealso>.</p>
+          </item>
           <tag><c>{message_queue_data, <anno>MQD</anno>}</c></tag>
           <item>
             <p>Sets the state of the <c>message_queue_data</c> process
 	    flag. <c><anno>MQD</anno></c> should be either <c>off_heap</c>,
 	    <c>on_heap</c>, or <c>mixed</c>. The default
 	    <c>message_queue_data</c> process flag is determined by the
-	    <seealso marker="erl#+xmqd"><c>+xmqd</c></seealso> <c>erl</c>
+	    <seealso marker="erl#+hmqd"><c>+hmqd</c></seealso> <c>erl</c>
 	    command line argument. For more information, see the
 	    documentation of
             <seealso marker="#process_flag_message_queue_data"><c>process_flag(message_queue_data,
@@ -5723,6 +5829,7 @@ true</pre>
       <name name="spawn_opt" arity="5"/>
       <fsummary>Creates a new process with a function as entry point on a given node.</fsummary>
       <type name="priority_level"/>
+      <type name="max_heap_size" />
       <type name="message_queue_data" />
       <type name="spawn_opt_option" />
       <desc>
@@ -6504,8 +6611,25 @@ ok
       </desc>
     </func>
 
+    <marker id="system_flag_max_heap_size"></marker>
     <func>
       <name name="system_flag" arity="2" clause_i="8"/>
+      <type name="max_heap_size"/>
+      <fsummary>Sets system flag <c>max_heap_size</c></fsummary>
+      <desc>
+        <p>
+          Sets the default maximum heap size settings for processes.
+          The size is given in words. The new <c>max_heap_size</c>
+          effects only processes spawned efter the change has been made.
+          <c>max_heap_size</c> can be set for individual processes using
+          <seealso marker="#spawn_opt/4">spawn_opt/N</seealso> or
+          <seealso marker="#process_flag_message_queue_data">process_flag/2</seealso>.</p>
+        <p>Returns the old value of the flag.</p>
+      </desc>
+    </func>
+
+    <func>
+      <name name="system_flag" arity="2" clause_i="9"/>
       <fsummary>Sets system flag <c>multi_scheduling</c>.</fsummary>
       <desc>
         <p><marker id="system_flag_multi_scheduling"></marker>
@@ -6555,7 +6679,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="9"/>
+      <name name="system_flag" arity="2" clause_i="10"/>
       <fsummary>Sets system flag <c>scheduler_bind_type</c>.</fsummary>
       <type name="scheduler_bind_type"/>
       <desc>
@@ -6673,7 +6797,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="10"/>
+      <name name="system_flag" arity="2" clause_i="11"/>
       <fsummary>Sets system flag <c>scheduler_wall_time</c>.</fsummary>
       <desc><p><marker id="system_flag_scheduler_wall_time"></marker>
       Turns on or off scheduler wall time measurements.</p>
@@ -6683,7 +6807,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="11"/>
+      <name name="system_flag" arity="2" clause_i="12"/>
       <fsummary>Sets system flag <c>schedulers_online</c>.</fsummary>
       <desc>
         <p><marker id="system_flag_schedulers_online"></marker>
@@ -6708,7 +6832,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="12"/>
+      <name name="system_flag" arity="2" clause_i="13"/>
       <fsummary>Sets system flag <c>trace_control_word</c>.</fsummary>
       <desc>
         <p>Sets the value of the node trace control word to
@@ -6722,7 +6846,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="12"/>
+      <name name="system_flag" arity="2" clause_i="14"/>
       <fsummary>Finalize the Time Offset</fsummary>
       <desc>
         <p><marker id="system_flag_time_offset"></marker>
@@ -6839,11 +6963,7 @@ ok
 	       As from <c>ERTS</c> 5.6.1, the return value is a list
 	       of <c>{instance, InstanceNo, InstanceInfo}</c> tuples,
 	       where <c>InstanceInfo</c> contains information about
-	       a specific instance of the allocator. As from
-               <c>ERTS</c> 5.10.4, the returned list when calling
-	       <c>erlang:system_info({allocator, mseg_alloc})</c> also
-	       includes an <c>{erts_mmap, _}</c> tuple as one element
-	       in the list. If <c><anno>Alloc</anno></c> is not a
+	       a specific instance of the allocator. If <c><anno>Alloc</anno></c> is not a
                recognized allocator, <c>undefined</c> is returned.
                If <c><anno>Alloc</anno></c> is disabled,
               <c>false</c> is returned.</p>
@@ -6855,7 +6975,13 @@ ok
               briefly documented.</p>
             <p>The recognized allocators are listed in
               <seealso marker="erts:erts_alloc">erts_alloc(3)</seealso>.
-              After reading the <c>erts_alloc(3)</c> documentation,
+	      Information about super carriers can be obtained from
+	      <c>ERTS</c> 8.0 with <c>{allocator, erts_mmap}</c> or from
+	      <c>ERTS</c> 5.10.4, the returned list when calling with
+	      <c>{allocator, mseg_alloc}</c> also includes an
+	      <c>{erts_mmap, _}</c> tuple as one element in the list.</p>
+
+            <p>After reading the <c>erts_alloc(3)</c> documentation,
 	      the returned information
               more or less speaks for itself, but it can be worth
               explaining some things. Call counts are presented by two
@@ -6987,6 +7113,81 @@ ok
     </func>
 
     <func>
+      <name name="system_info" arity="1" clause_i="27"/>
+      <name name="system_info" arity="1" clause_i="28"/>
+      <name name="system_info" arity="1" clause_i="36"/>
+      <name name="system_info" arity="1" clause_i="37"/>
+      <name name="system_info" arity="1" clause_i="38"/>
+      <name name="system_info" arity="1" clause_i="39"/>
+      <type name="message_queue_data"/>
+      <type name="max_heap_size"/>
+      <fsummary>Information about the default process heap settings.</fsummary>
+      <desc>
+        <taglist>
+          <tag><c>fullsweep_after</c></tag>
+          <item>
+            <p>Returns <c>{fullsweep_after, integer() >= 0}</c>, which is
+              the <c>fullsweep_after</c> garbage collection setting used
+              by default. For more information, see
+              <c>garbage_collection</c> described in the following.</p>
+          </item>
+          <tag><c>garbage_collection</c></tag>
+          <item>
+            <p>Returns a list describing the default garbage collection
+              settings. A process spawned on the local node by a
+              <c>spawn</c> or <c>spawn_link</c> uses these
+              garbage collection settings. The default settings can be
+              changed by using
+              <seealso marker="#system_flag/2">system_flag/2</seealso>.
+              <seealso marker="#spawn_opt/4">spawn_opt/4</seealso>
+              can spawn a process that does not use the default
+              settings.</p>
+          </item>
+          <tag><c>max_heap_size</c></tag>
+          <item>
+	      <p>Returns <c>{max_heap_size, <anno>MaxHeapSize</anno>}</c>,
+              where <c><anno>MaxHeapSize</anno></c> is the current
+              system-wide max heap size settings for spawned processes.
+              This setting can be set using the <c>erl</c> command line
+              flags <seealso marker="erl#+hmax"><c>+hmax</c></seealso>,
+              <seealso marker="erl#+hmaxk"><c>+hmaxk</c></seealso> and
+              <seealso marker="erl#+hmaxel"><c>+hmaxel</c></seealso>. It can
+              also be changed at run-time using
+              <seealso marker="#system_flag_max_heap_size">
+                <c>erlang:system_flag(max_heap_size, MaxHeapSize)</c></seealso>.
+              For more details about the <c>max_heap_size</c> process flag
+              see <seealso marker="#process_flag_max_heap_size">
+                <c>process_flag(max_heap_size, MaxHeapSize)</c></seealso>.
+              </p>
+          </item>
+	  <tag><c>min_heap_size</c></tag>
+          <item>
+	      <p>Returns <c>{min_heap_size, <anno>MinHeapSize</anno>}</c>,
+              where <c><anno>MinHeapSize</anno></c> is the current
+              system-wide minimum heap size for spawned processes.</p>
+          </item>
+          <tag><marker id="system_info_message_queue_data"><c>message_queue_data</c></marker></tag>
+          <item>
+            <p>Returns the default value of the <c>message_queue_data</c>
+	    process flag which is either <c>off_heap</c>, <c>on_heap</c>, or <c>mixed</c>.
+	    This default is set by the <c>erl</c> command line argument
+	    <seealso marker="erl#+hmqd"><c>+hmqd</c></seealso>. For more information on the
+	    <c>message_queue_data</c> process flag, see documentation of
+            <seealso marker="#process_flag_message_queue_data"><c>process_flag(message_queue_data,
+	    MQD)</c></seealso>.</p>
+          </item>
+	  <tag><c>min_bin_vheap_size</c></tag>
+          <item>
+	      <p>Returns <c>{min_bin_vheap_size,
+              <anno>MinBinVHeapSize</anno>}</c>, where
+              <c><anno>MinBinVHeapSize</anno></c> is the current system-wide
+	      minimum binary virtual heap size for spawned processes.</p>
+          </item>
+        </taglist>
+      </desc>
+    </func>
+
+    <func>
       <name name="system_info" arity="1" clause_i="6"/>
       <name name="system_info" arity="1" clause_i="7"/>
       <name name="system_info" arity="1" clause_i="8"/>
@@ -7006,8 +7207,6 @@ ok
       <name name="system_info" arity="1" clause_i="24"/>
       <name name="system_info" arity="1" clause_i="25"/>
       <name name="system_info" arity="1" clause_i="26"/>
-      <name name="system_info" arity="1" clause_i="27"/>
-      <name name="system_info" arity="1" clause_i="28"/>
       <name name="system_info" arity="1" clause_i="29"/>
       <name name="system_info" arity="1" clause_i="30"/>
       <name name="system_info" arity="1" clause_i="31"/>
@@ -7015,10 +7214,6 @@ ok
       <name name="system_info" arity="1" clause_i="33"/>
       <name name="system_info" arity="1" clause_i="34"/>
       <name name="system_info" arity="1" clause_i="35"/>
-      <name name="system_info" arity="1" clause_i="36"/>
-      <name name="system_info" arity="1" clause_i="37"/>
-      <name name="system_info" arity="1" clause_i="38"/>
-      <name name="system_info" arity="1" clause_i="39"/>
       <name name="system_info" arity="1" clause_i="40"/>
       <name name="system_info" arity="1" clause_i="41"/>
       <name name="system_info" arity="1" clause_i="42"/>
@@ -7048,6 +7243,7 @@ ok
       <name name="system_info" arity="1" clause_i="66"/>
       <name name="system_info" arity="1" clause_i="67"/>
       <name name="system_info" arity="1" clause_i="68"/>
+      <name name="system_info" arity="1" clause_i="69"/>
       <fsummary>Information about the system.</fsummary>
       <desc>
         <p>Returns various information about the current system
@@ -7284,25 +7480,6 @@ ok
               <c>ERL_MAX_ETS_TABLES</c> before starting the Erlang
               runtime system.</p>
           </item>
-          <tag><c>fullsweep_after</c></tag>
-          <item>
-            <p>Returns <c>{fullsweep_after, integer() >= 0}</c>, which is
-              the <c>fullsweep_after</c> garbage collection setting used
-              by default. For more information, see
-              <c>garbage_collection</c> described in the following.</p>
-          </item>
-          <tag><c>garbage_collection</c></tag>
-          <item>
-            <p>Returns a list describing the default garbage collection
-              settings. A process spawned on the local node by a
-              <c>spawn</c> or <c>spawn_link</c> uses these
-              garbage collection settings. The default settings can be
-              changed by using
-              <seealso marker="#system_flag/2">system_flag/2</seealso>.
-              <seealso marker="#spawn_opt/4">spawn_opt/4</seealso>
-              can spawn a process that does not use the default
-              settings.</p>
-          </item>
           <tag><c>heap_sizes</c></tag>
           <item>
             <p>Returns a list of integers representing valid heap sizes 
@@ -7376,29 +7553,6 @@ ok
           <tag><c>machine</c></tag>
           <item>
             <p>Returns a string containing the Erlang machine name.</p>
-          </item>
-	  <tag><c>min_heap_size</c></tag>
-          <item>
-	      <p>Returns <c>{min_heap_size, <anno>MinHeapSize</anno>}</c>,
-              where <c><anno>MinHeapSize</anno></c> is the current
-              system-wide minimum heap size for spawned processes.</p>
-          </item>
-          <tag><marker id="system_info_message_queue_data"><c>message_queue_data</c></marker></tag>
-          <item>
-            <p>Returns the default value of the <c>message_queue_data</c>
-	    process flag which is either <c>off_heap</c>, <c>on_heap</c>, or <c>mixed</c>.
-	    This default is set by the <c>erl</c> command line argument
-	    <seealso marker="erl#+xmqd"><c>+xmqd</c></seealso>. For more information on the
-	    <c>message_queue_data</c> process flag, see documentation of
-            <seealso marker="#process_flag_message_queue_data"><c>process_flag(message_queue_data,
-	    MQD)</c></seealso>.</p>
-          </item>
-	  <tag><c>min_bin_vheap_size</c></tag>
-          <item>
-	      <p>Returns <c>{min_bin_vheap_size,
-              <anno>MinBinVHeapSize</anno>}</c>, where
-              <c><anno>MinBinVHeapSize</anno></c> is the current system-wide
-	      minimum binary virtual heap size for spawned processes.</p>
           </item>
           <tag><c>modified_timing_level</c></tag>
           <item>
@@ -7966,7 +8120,7 @@ ok
               <c>stack_size</c>, <c>mbuf_size</c>, <c>old_heap_size</c>,
               and <c>old_heap_block_size</c>. These tuples are
               explained in the description of trace message
-              <seealso marker="#gc_start">gc_start</seealso> (see
+              <seealso marker="#gc_minor_start">gc_minor_start</seealso> (see
               <seealso marker="#trace/3">erlang:trace/3</seealso>).
               New tuples can be added, and the order of the tuples in
               the <c>Info</c> list can be changed at any time without
@@ -8024,12 +8178,13 @@ ok
               <c>GcPid</c> and <c>Info</c>
               are the same as for <c>long_gc</c> earlier, except that
               the tuple tagged with <c>timeout</c> is not present.</p>
-            <p>As of <c>ERTS</c> 5.6, the monitor message is sent
-              if the sum of the sizes of all memory blocks allocated
-              for all heap generations is equal to or higher than <c>Size</c>.
-              Previously the monitor message was sent if the memory block
-              allocated for the youngest generation was equal to or higher
-              than <c>Size</c>.</p>
+            <p>The monitor message is sent if the sum of the sizes of
+              all memory blocks allocated for all heap generations after
+              a garbage collection is equal to or higher than <c>Size</c>.</p>
+            <p>When a process is killed by <seealso marker="#process_flag_max_heap_size">
+              <c>max_heap_size</c></seealso>, it is killed before the
+              garbage collection is complete and thus no large heap message
+              will be sent.</p>
           </item>
           <tag><c>busy_port</c></tag>
           <item>
@@ -8556,7 +8711,9 @@ timestamp() ->
           <tag><c>garbage_collection</c></tag>
           <item>
             <p>Traces garbage collections of processes.</p>
-            <p>Message tags: <c><seealso marker="#trace_3_trace_messages_gc_start">gc_start</seealso></c> and <c><seealso marker="#trace_3_trace_messages_gc_end">gc_end</seealso></c>.</p>
+            <p>Message tags: <c><seealso marker="#trace_3_trace_messages_gc_minor_start">gc_minor_start</seealso></c>,
+            <c><seealso marker="#trace_3_trace_messages_gc_max_heap_size">gc_max_heap_size</seealso></c> and
+	    <c><seealso marker="#trace_3_trace_messages_gc_minor_end">gc_minor_end</seealso></c>.</p>
           </item>
           <tag><c>timestamp</c></tag>
           <item>
@@ -8637,8 +8794,8 @@ timestamp() ->
             <p>Specifies that a tracer module should be called
             instead of sending a trace message. The tracer module
             can then ignore or change the trace message. For more details
-            on how to write a tracer module see <seealso marker="erl_tracer">
-            erl_tracer</seealso>
+            on how to write a tracer module see
+            <seealso marker="erts:erl_tracer"><c>erl_tracer</c></seealso>
           </p>
           </item>
         </taglist>
@@ -8880,12 +9037,12 @@ timestamp() ->
             </p>
           </item>
           <tag>
-            <marker id="trace_3_trace_messages_gc_start"></marker>
-            <c>{trace, Pid, gc_start, Info}</c>
+            <marker id="trace_3_trace_messages_gc_minor_start"></marker>
+            <c>{trace, Pid, gc_minor_start, Info}</c>
           </tag>
           <item>
-          <marker id="gc_start"></marker>
-            <p>Sent when garbage collection is about to be started.
+          <marker id="gc_minor_start"></marker>
+            <p>Sent when a young garbage collection is about to be started.
               <c>Info</c> is a list of two-element tuples, where
               the first element is a key, and the second is the value.
               Do not depend on any order of the tuples.
@@ -8925,14 +9082,44 @@ timestamp() ->
             <p>All sizes are in words.</p>
           </item>
           <tag>
-            <marker id="trace_3_trace_messages_gc_end"></marker>
-            <c>{trace, Pid, gc_end, Info}</c>
+            <marker id="trace_3_trace_messages_gc_max_heap_size"></marker>
+            <c>{trace, Pid, gc_max_heap_size, Info}</c>
           </tag>
           <item>
-            <p>Sent when garbage collection is finished. <c>Info</c>
-              contains the same kind of list as in message <c>gc_start</c>,
+            <p>
+              Sent when the <seealso marker="#process_flag_max_heap_size"><c>max_heap_size</c></seealso>
+              is reached during garbage collection. <c>Info</c> contains the
+              same kind of list as in message <c>gc_start</c>,
+              but the sizes reflect the sizes that triggered max_heap_size to
+              be reached.
+            </p>
+          </item>
+          <tag>
+            <marker id="trace_3_trace_messages_gc_minor_end"></marker>
+            <c>{trace, Pid, gc_minor_end, Info}</c>
+          </tag>
+          <item>
+            <p>Sent when young garbage collection is finished. <c>Info</c>
+              contains the same kind of list as in message <c>gc_minor_start</c>,
               but the sizes reflect the new sizes after
               garbage collection.</p>
+          </item>
+          <tag>
+            <marker id="trace_3_trace_messages_gc_major_start"></marker>
+            <c>{trace, Pid, gc_major_start, Info}</c>
+          </tag>
+          <item>
+            <p>Sent when fullsweep garbage collection is about to be started. <c>Info</c>
+                contains the same kind of list as in message <c>gc_minor_start</c>.</p>
+          </item>
+          <tag>
+            <marker id="trace_3_trace_messages_gc_major_end"></marker>
+            <c>{trace, Pid, gc_major_end, Info}</c>
+          </tag>
+          <item>
+            <p>Sent when fullsweep garbage collection is finished. <c>Info</c>
+                contains the same kind of list as in message <c>gc_minor_start</c>
+              but the sizes reflect the new sizes after a fullsweep garbage collection.</p>
           </item>
         </taglist>
         <p>If the tracing process/port dies or the tracer module returns
@@ -8989,7 +9176,7 @@ timestamp() ->
           <c>erlang:trace_delivered(<anno>Tracee</anno>)</c> resides on.
           The special <c><anno>Tracee</anno></c> atom <c>all</c>
           denotes all processes that currently are traced in the node.</p>
-        <p>When used together with an <seealso marker="#erl_tracer">
+        <p>When used together with an <seealso marker="erts:erl_tracer">
           Tracer Module</seealso> any message sent in the trace callback
           is guaranteed to have reached it's recipient before the
           <c>trace_delivered</c> message is sent.</p>
@@ -9015,16 +9202,16 @@ timestamp() ->
       <type name="trace_info_flag"/>
       <type name="trace_match_spec"/>
       <desc>
-        <p>Returns trace information about a port, process or function.</p>
-        <p>To get information about a port or process,
-         <c><anno>PidPortOrFunc</anno></c> is to
+        <p>Returns trace information about a port, process, function or event.</p>
+        <p><em>To get information about a port or process</em>,
+         <c><anno>PidPortFuncEvent</anno></c> is to
           be a process identifier (pid), port identifier or one of
           the atoms <c>new</c>, <c>new_processes</c>, <c>new_ports</c>.
           The atom <c>new</c> or <c>new_processes</c> means that the default trace
           state for processes to be created is returned. The atom <c>new_ports</c>
           means that the default trace state for ports to be created is returned.
         </p>
-        <p>The following <c>Item</c>s are valid:</p>
+        <p>The following <c>Item</c>s are valid for ports and processes:</p>
         <taglist>
           <tag><c>flags</c></tag>
           <item>
@@ -9048,12 +9235,15 @@ timestamp() ->
               value is <c>[]</c>.</p>
           </item>
         </taglist>
-        <p>To get information about a function, <c><anno>PidPortOrFunc</anno></c> is to
+        <p><em>To get information about a function</em>, <c><anno>PidPortFuncEvent</anno></c> is to
           be the three-element tuple <c>{Module, Function, Arity}</c> or
           the atom <c>on_load</c>. No wild cards are allowed. Returns
           <c>undefined</c> if the function does not exist, or
-          <c>false</c> if the function is not traced.</p>
-         <p>The following <c>Item</c>s are valid::</p>
+          <c>false</c> if the function is not traced. If <c><anno>PidPortFuncEvent</anno></c>
+	  is <c>on_load</c>, the information returned refers to
+	  the default value for code that will be loaded.</p>
+
+         <p>The following <c>Item</c>s are valid for functions:</p>
         <taglist>
           <tag><c>traced</c></tag>
           <item>
@@ -9112,39 +9302,177 @@ timestamp() ->
               is active for this function.</p>
           </item>
         </taglist>
+        <p><em>To get information about an event</em>, <c><anno>PidPortFuncEvent</anno></c> is to
+          be one of the atoms <c>send</c> or <c>'receive'</c>.</p>
+         <p>The only valid <c>Item</c> for events is:</p>
+        <taglist>
+          <tag><c>match_spec</c></tag>
+          <item>
+            <p>Returns the match specification for this event, if it
+              has one, or <c>true</c> if no match specification has been
+	      set.</p>
+          </item>
+        </taglist>
         <p>The return value is <c>{<anno>Item</anno>, Value}</c>, where
           <c>Value</c> is the requested information as described earlier.
           If a pid for a dead process was given, or the name of a
           non-existing function, <c>Value</c> is <c>undefined</c>.</p>
-        <p>If <c><anno>PidPortOrFunc</anno></c> is <c>on_load</c>, the information
-          returned refers to the default value for code that will be
-          loaded.</p>
       </desc>
     </func>
 
     <func>
       <name name="trace_pattern" arity="2" clause_i="1"/>
-      <fsummary>Sets trace patterns for global call tracing.</fsummary>
+      <fsummary>Sets trace patterns for call, send or 'receive' tracing.</fsummary>
       <type name="trace_pattern_mfa"/>
       <type name="trace_match_spec"/>
       <desc>
         <p>The same as
-          <seealso marker="#trace_pattern/3">erlang:trace_pattern(MFA, MatchSpec, [])</seealso>,
+          <seealso marker="#trace_pattern/3">erlang:trace_pattern(Event, MatchSpec, [])</seealso>,
           retained for backward compatibility.</p>
       </desc>
     </func>
 
     <func>
-      <name name="trace_pattern" arity="3"/>
+      <name name="trace_pattern" arity="3" clause_i="1"/>
+      <fsummary>Sets trace pattern for message sending.</fsummary>
+      <type name="trace_match_spec"/>
+      <desc>
+        <p>Sets trace pattern for <em>message sending</em>.
+	  Must be combined with
+          <seealso marker="#trace/3">erlang:trace/3</seealso>
+          to set the <c>send</c> trace flag for one or more processes.
+	  By default all messages, sent from <c>send</c> traced processes,
+	  are traced. Use <c>erlang:trace_pattern/3</c> to limit
+	  traced send events based on the message content, the sender
+	  and/or the receiver.</p>
+        <p>Argument <c><anno>MatchSpec</anno></c> can take the
+          following forms:</p>
+        <taglist>
+          <tag><c><anno>MatchSpecList</anno></c></tag>
+          <item>
+            <p>A list of match specifications. The matching is done
+	      on the list <c>[Receiver, Msg]</c>. <c>Receiver</c>
+	      is the process or port identity of the receiver and
+	      <c>Msg</c> is the message term. The pid of the sending
+	      process can be accessed with the guard function
+	      <c>self/0</c>. An empty list is the same as <c>true</c>.
+	      See the users guide section
+	      <seealso marker="erts:match_spec">Match Specifications in Erlang</seealso>
+	      for more information.</p>
+          </item>
+          <tag><c>true</c></tag>
+          <item>
+            <p>Enables tracing for all sent messages (from <c>send</c>
+	    traced processes). Any match specification is
+	    removed. <em>This is the default</em>.</p>
+          </item>
+          <tag><c>false</c></tag>
+          <item>
+            <p>Disables tracing for all sent messages.
+	       Any match specification is removed.</p>
+          </item>
+        </taglist>
+	<p>Argument <c><anno>FlagList</anno></c> must be <c>[]</c>
+	for send tracing.</p>
+	<p>The return value is always <c>1</c>.</p>
+        <p>Example; only trace messages to a specific process <c>Pid</c>:</p>
+        <pre>
+> <input>erlang:trace_pattern(send, [{[Pid, '_'],[],[]}], []).</input>
+1</pre>
+        <p>Only trace messages matching <c>{reply, _}</c>:</p>
+        <pre>
+> <input>erlang:trace_pattern(send, [{['_', {reply,'_'}],[],[]}], []).</input>
+1</pre>
+        <p>Only trace messages sent to the sender itself:</p>
+        <pre>
+> <input>erlang:trace_pattern(send, [{['$1', '_'],[{'=:=','$1',{self}}],[]}], []).</input>
+1</pre>
+        <p>Only trace messages sent to other nodes:</p>
+        <pre>
+> <input>erlang:trace_pattern(send, [{['$1', '_'],[{'=/=',{node,'$1'},{node}}],[]}], []).</input>
+1</pre>
+        <note><p>A match specification for <c>send</c> trace can use
+	all guard and body functions except <c>caller</c>.</p></note>
+      </desc>
+    </func>
+
+    <func>
+      <name name="trace_pattern" arity="3" clause_i="2"/>
+      <fsummary>Sets trace pattern for tracing of message receiving.</fsummary>
+      <type name="trace_match_spec"/>
+      <desc>
+        <p></p>
+        <p>Sets trace pattern for <em>message receiving</em>.
+	  Must be combined with
+          <seealso marker="#trace/3">erlang:trace/3</seealso>
+          to set the <c>'receive'</c> trace flag for one or more processes.
+	  By default all messages, received by <c>'receive'</c> traced processes,
+	  are traced. Use <c>erlang:trace_pattern/3</c> to limit
+	  traced receive events based on the message content, the sender
+	  and/or the receiver.</p>
+        <p>Argument <c><anno>MatchSpec</anno></c> can take the
+          following forms:</p>
+        <taglist>
+          <tag><c><anno>MatchSpecList</anno></c></tag>
+          <item>
+            <p>A list of match specifications. The matching is done
+	      on the list <c>[Node, Sender, Msg]</c>. <c>Node</c>
+	      is the node name of the sender. <c>Sender</c> is the
+	      process or port identity of the sender, or the atom
+	      <c>undefined</c> if the sender is not known (which may
+	      be the case for remote senders). <c>Msg</c> is the
+	      message term. The pid of the receiving process can be
+	      accessed with the guard function <c>self/0</c>. An empty
+	      list is the same as <c>true</c>. See the users guide section
+	      <seealso marker="erts:match_spec">Match Specifications in Erlang</seealso>
+	      for more information.</p>
+          </item>
+          <tag><c>true</c></tag>
+          <item>
+            <p>Enables tracing for all received messages (to <c>'receive'</c>
+	    traced processes). Any match specification is
+	    removed. <em>This is the default</em>.</p>
+          </item>
+          <tag><c>false</c></tag>
+          <item>
+            <p>Disables tracing for all received messages.
+	       Any match specification is removed.</p>
+          </item>
+        </taglist>
+	<p>Argument <c><anno>FlagList</anno></c> must be <c>[]</c>
+	for receive tracing.</p>
+	<p>The return value is always <c>1</c>.</p>
+        <p>Example; only trace messages from a specific process <c>Pid</c>:</p>
+        <pre>
+> <input>erlang:trace_pattern('receive', [{['_',Pid, '_'],[],[]}], []).</input>
+1</pre>
+        <p>Only trace messages matching <c>{reply, _}</c>:</p>
+        <pre>
+> <input>erlang:trace_pattern('receive', [{['_','_', {reply,'_'}],[],[]}], []).</input>
+1</pre>
+        <p>Only trace messages from other nodes:</p>
+        <pre>
+> <input>erlang:trace_pattern('receive', [{['$1', '_', '_'],[{'=/=','$1',{node}}],[]}], []).</input>
+1</pre>
+        <note><p>A match specification for <c>'receive'</c> trace can
+	use all guard and body functions except <c>caller,
+	is_seq_trace, get_seq_token, set_seq_token, enable_trace,
+	disable_trace, trace, silent</c> and <c>process_dump</c>.</p></note>
+      </desc>
+    </func>
+
+    <func>
+      <name name="trace_pattern" arity="3" clause_i="3"/>
       <fsummary>Sets trace patterns for tracing of function calls.</fsummary>
       <type name="trace_pattern_mfa"/>
       <type name="trace_match_spec"/>
       <type name="trace_pattern_flag"/>
       <desc>
-        <p>Enables or disables call tracing for
-          one or more functions. Must be combined with
+        <p>Enables or disables <em>call tracing</em> for one or more functions.
+	  Must be combined with
           <seealso marker="#trace/3">erlang:trace/3</seealso>
-          to set the <c>call</c> trace flag for one or more processes.</p>
+          to set the <c>call</c> trace flag
+	  for one or more processes.</p>
         <p>Conceptually, call tracing works as follows. Inside
           the Erlang Virtual Machine, a set of processes and
           a set of functions are to be traced. If a traced process
@@ -9199,7 +9527,8 @@ timestamp() ->
           </item>
           <tag><c>true</c></tag>
           <item>
-            <p>Enables tracing for the matching functions.</p>
+            <p>Enables tracing for the matching functions.
+	       Any match specification is removed.</p>
           </item>
           <tag><c><anno>MatchSpecList</anno></c></tag>
           <item>

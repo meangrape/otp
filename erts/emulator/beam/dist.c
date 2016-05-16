@@ -397,7 +397,7 @@ static void doit_node_link_net_exits(ErtsLink *lnk, void *vnecp)
 	    msgp = erts_alloc_message_heap(rp, &rp_locks,
 					   3, &hp, &ohp);
 	    tup = TUPLE2(hp, am_nodedown, name);
-	    erts_queue_message(rp, &rp_locks, msgp, tup);
+	    erts_queue_message(rp, rp_locks, msgp, tup, am_system);
 	}
 	erts_smp_proc_unlock(rp, rp_locks);
     }
@@ -1456,7 +1456,7 @@ int erts_net_message(Port *prt,
 		token = copy_struct(token, token_size, &hp, ohp);
 	    }
 
-	    erts_queue_dist_message(rp, &locks, ede_copy, token);
+	    erts_queue_dist_message(rp, locks, ede_copy, token, from);
 	    if (locks)
 		erts_smp_proc_unlock(rp, locks);
 	}
@@ -1505,7 +1505,7 @@ int erts_net_message(Port *prt,
 		token = copy_struct(token, token_size, &hp, ohp);
 	    }
 
-	    erts_queue_dist_message(rp, &locks, ede_copy, token);
+	    erts_queue_dist_message(rp, locks, ede_copy, token, tuple[2]);
 	    if (locks)
 		erts_smp_proc_unlock(rp, locks);
 	}
@@ -1967,7 +1967,7 @@ dist_port_command(Port *prt, ErtsDistOutputBuf *obuf)
     ERTS_SMP_LC_ASSERT(erts_lc_is_port_locked(prt));
 
     if (size > (Uint) INT_MAX)
-	erts_exit(ERTS_ABORT_EXIT,
+	erts_exit(ERTS_DUMP_EXIT,
 		 "Absurdly large distribution output data buffer "
 		 "(%beu bytes) passed.\n",
 		 size);
@@ -2007,7 +2007,7 @@ dist_port_commandv(Port *prt, ErtsDistOutputBuf *obuf)
     ERTS_SMP_LC_ASSERT(erts_lc_is_port_locked(prt));
 
     if (size > (Uint) INT_MAX)
-	erts_exit(ERTS_ABORT_EXIT,
+	erts_exit(ERTS_DUMP_EXIT,
 		 "Absurdly large distribution output data buffer "
 		 "(%beu bytes) passed.\n",
 		 size);
@@ -3317,7 +3317,7 @@ send_nodes_mon_msg(Process *rp,
     }
 
     ASSERT(hend == hp);
-    erts_queue_message(rp, rp_locksp, mp, msg);
+    erts_queue_message(rp, *rp_locksp, mp, msg, am_system);
 }
 
 static void

@@ -32,15 +32,8 @@
 
 -define(TIMEOUT, 50000).
 
-connect(Options) ->
-    connect(hostname(), inet_port(), Options).
-
 connect(Port, Options) when is_integer(Port) ->
-    connect(hostname(), Port, Options);
-connect(any, Options) ->
-    connect(hostname(), inet_port(), Options);
-connect(Host, Options) ->
-    connect(Host, inet_port(), Options).
+    connect(hostname(), Port, Options).
 
 connect(any, Port, Options) ->
     connect(hostname(), Port, Options);
@@ -49,22 +42,32 @@ connect(Host, Port, Options) ->
     ConnectionRef.
 
 daemon(Options) ->
-    daemon(any, inet_port(), Options).
+    daemon(any, 0, Options).
 
 daemon(Port, Options) when is_integer(Port) ->
     daemon(any, Port, Options);
 daemon(Host, Options) ->
-    daemon(Host, inet_port(), Options).
+    daemon(Host, 0, Options).
+
 
 daemon(Host, Port, Options) ->
+    ct:log("~p:~p Calling ssh:daemon(~p, ~p, ~p)",[?MODULE,?LINE,Host,Port,Options]),
     case ssh:daemon(Host, Port, Options) of
 	{ok, Pid} when Host == any ->
-	    {Pid, hostname(), Port};
+	    ct:log("ssh:daemon ok (1)",[]),
+	    {Pid, hostname(), daemon_port(Port,Pid)};
 	{ok, Pid} ->
-	    {Pid, Host, Port};
+	    ct:log("ssh:daemon ok (2)",[]),
+	    {Pid, Host, daemon_port(Port,Pid)};
 	Error ->
+	    ct:log("ssh:daemon error ~p",[Error]),
 	    Error
     end.
+
+daemon_port(0, Pid) -> {ok,Dinf} = ssh:daemon_info(Pid),
+		       proplists:get_value(port, Dinf);
+daemon_port(Port, _) -> Port.
+    
 
 
 std_daemon(Config, ExtraOpts) ->
@@ -200,6 +203,35 @@ reply(_, []) ->
 reply(TestCase, Result) ->
 %%ct:log("reply ~p sending ~p ! ~p",[self(), TestCase, Result]),
     TestCase ! Result.
+
+
+
+rcv_expected(Expect, SshPort, Timeout) ->
+    receive
+	{SshPort, Expect} ->
+	    ct:log("Got expected ~p from ~p",[Expect,SshPort]),
+	    catch port_close(SshPort),
+	    rcv_lingering(50);
+	Other ->
+	    ct:log("Got UNEXPECTED ~p~nExpect ~p",[Other, {SshPort,Expect}]),
+	    rcv_expected(Expect, SshPort, Timeout)
+
+    after Timeout ->
+	    catch port_close(SshPort),
+	    ct:fail("Did not receive answer")
+    end.
+
+rcv_lingering(Timeout) ->
+    receive
+	Msg ->
+	    ct:log("Got LINGERING ~p",[Msg]),
+	    rcv_lingering(Timeout)
+
+    after Timeout ->
+	    ct:log("No more lingering messages",[]),
+	    ok
+    end.
+
 
 receive_exec_result(Msg) ->
     ct:log("Expect data! ~p", [Msg]),
@@ -470,8 +502,9 @@ openssh_supports(ClientOrServer, Tag, Alg) when ClientOrServer == sshc ;
 %% Check if we have a "newer" ssh client that supports these test cases
 
 ssh_client_supports_Q() ->
-    ErlPort = open_port({spawn, "ssh -Q cipher"}, [exit_status, stderr_to_stdout]),
-    0 == check_ssh_client_support2(ErlPort).
+    0 == check_ssh_client_support2(
+	   ?MODULE:open_port({spawn, "ssh -Q cipher"})
+	  ).
 
 check_ssh_client_support2(P) ->
     receive
@@ -690,3 +723,16 @@ has_inet6_address() ->
     catch
 	throw:6 -> true
     end.
+
+%%%----------------------------------------------------------------
+open_port(Arg1) ->
+    ?MODULE:open_port(Arg1, []).
+
+open_port(Arg1, ExtraOpts) ->
+    erlang:open_port(Arg1,
+		     [binary,
+		      stderr_to_stdout,
+		      exit_status,
+		      use_stdio,
+		      overlapped_io, hide %only affects windows
+		      | ExtraOpts]).
