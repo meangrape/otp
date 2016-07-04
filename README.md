@@ -44,7 +44,7 @@ You can _(and should!)_ read their [README][otp_readme] file for information on 
 ###Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Active       | OTP-18 | [`basho-otp-18`](http://github.com/basho/otp/tree/basho-otp-18) | _n/a_ | [`OTP-18.3.3`](http://github.com/basho/otp/tree/OTP-18.3.3) |
+| Active       | OTP-18 | [`basho-otp-18`][basho_branch] | [`OTP-18.3.4.1`][erlang_rel] | [`basho-otp-18`][basho_branch] |
 
 ####Branch Conventions
 
@@ -280,3 +280,5 @@ Everything in Erlang/OTP, whether part of the original distribution or a contrib
   [otp_readme]:     https://github.com/erlang/otp/blob/maint-18/README.md
   [otp_repo]:       http://github.com/erlang/otp
   [rel_notes]:      BASHO-RELEASES.md
+  [erlang_rel]:     http://github.com/basho/otp/tree/OTP-18.3.4.1
+  [basho_branch]:   http://github.com/basho/otp/tree/basho-otp-18
