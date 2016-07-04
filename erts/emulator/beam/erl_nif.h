@@ -49,9 +49,10 @@
 ** 2.8: 18.0 add enif_has_pending_exception
 ** 2.9: 18.2 enif_getenv
 ** 2.10: Time API
+** 2.11: 19.0 enif_snprintf
 */
 #define ERL_NIF_MAJOR_VERSION 2
-#define ERL_NIF_MINOR_VERSION 10
+#define ERL_NIF_MINOR_VERSION 11
 
 /*
  * The emulator will refuse to load a nif-lib with a major version
@@ -207,6 +208,17 @@ typedef enum {
 typedef enum {
     ERL_NIF_BIN2TERM_SAFE = 0x20000000
 } ErlNifBinaryToTerm;
+
+/*
+ * Return values from enif_thread_type(). Negative values
+ * reserved for specific types of non-scheduler threads.
+ * Positive values reserved for scheduler thread types.
+ */
+
+#define ERL_NIF_THR_UNDEFINED 0
+#define ERL_NIF_THR_NORMAL_SCHEDULER 1
+#define ERL_NIF_THR_DIRTY_CPU_SCHEDULER 2
+#define ERL_NIF_THR_DIRTY_IO_SCHEDULER 3
 
 #if (defined(__WIN32__) || defined(_WIN32) || defined(_WIN32_))
 #  define ERL_NIF_API_FUNC_DECL(RET_TYPE, NAME, ARGS) RET_TYPE (*NAME) ARGS

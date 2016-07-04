@@ -33,15 +33,15 @@
   </header>
   <p>This document describes the changes made to the EUnit application.</p>
 
-<section><title>Eunit 2.2.14</title>
+<section><title>Eunit 2.3</title>
 
-    <section><title>Fixed Bugs and Malfunctions</title>
+    <section><title>Improvements and New Features</title>
       <list>
         <item>
+	    <p>There is a new <c>debugVal/2</c> that gives control
+	    over the truncation depth.</p>
           <p>
-	    Small documentation fixes</p>
-          <p>
-	    Own Id: OTP-13017</p>
+	    Own Id: OTP-13612</p>
         </item>
       </list>
     </section>

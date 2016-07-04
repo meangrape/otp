@@ -46,6 +46,13 @@
           <p>
 	    Own Id: OTP-13475</p>
         </item>
+        <item>
+          <p>
+	    Common Test printed incorrect timestamps for received
+	    error reports.</p>
+          <p>
+	    Own Id: OTP-13615 Aux Id: seq13124 </p>
+        </item>
       </list>
     </section>
 

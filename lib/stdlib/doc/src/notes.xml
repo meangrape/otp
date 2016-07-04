@@ -53,7 +53,7 @@
         <item>
           <p>
 	    Avoid stray corner-case math errors on Solaris, e.g. an
-	    error is thrown on undeflows in exp() and pow() when it
+	    error is thrown on underflows in exp() and pow() when it
 	    shouldn't be.</p>
           <p>
 	    Own Id: OTP-13531</p>
@@ -66,6 +66,28 @@
 	    is illegal if <c>'K'</c> is not bound.</p>
           <p>
 	    Own Id: OTP-13534 Aux Id: ERL-135 </p>
+        </item>
+        <item>
+          <p>
+	    Fixed a bug in re on openbsd where sometimes re:run would
+	    return an incorrect result.</p>
+          <p>
+	    Own Id: OTP-13602</p>
+        </item>
+        <item>
+          <p>
+	    To avoid potential timer bottleneck on supervisor
+	    restart, timer server is no longer used when the
+	    supervisor is unable to restart a child.</p>
+          <p>
+	    Own Id: OTP-13618 Aux Id: PR-1001 </p>
+        </item>
+        <item>
+	    <p> The Erlang code preprocessor (<c>epp</c>) can handle
+	    file names spanning over many tokens. Example:
+	    <c>-include("a" "file" "name").</c>. </p>
+          <p>
+	    Own Id: OTP-13662 Aux Id: seq13136 </p>
         </item>
       </list>
     </section>
@@ -286,6 +308,37 @@
 	    <p>Obfuscate asserts to make Dialyzer shut up.</p>
           <p>
 	    Own Id: OTP-13524 Aux Id: PR-1002 </p>
+        </item>
+        <item>
+          <p>
+	    Supervisors now explicitly add their callback module in
+	    the return from sys:get_status/1,2. This is to simplify
+	    custom supervisor implementations. The Misc part of the
+	    return value from sys:get_status/1,2 for a supervisor is
+	    now:</p>
+          <p>
+	    [{data, [{"State",
+	    State}]},{supervisor,[{"Callback",Module}]}]</p>
+          <p>
+	    *** POTENTIAL INCOMPATIBILITY ***</p>
+          <p>
+	    Own Id: OTP-13619 Aux Id: PR-1000 </p>
+        </item>
+        <item>
+          <p>
+	    Relax translation of initial calls in <c>proc_lib</c>,
+	    i.e. remove the restriction to only do the translation
+	    for <c>gen_server</c> and <c>gen_fsm</c>. This enables
+	    user defined <c>gen</c> based generic callback modules to
+	    be displayed nicely in <c>c:i()</c> and observer.</p>
+          <p>
+	    Own Id: OTP-13623</p>
+        </item>
+        <item>
+	    <p>The function <c>queue:lait/1</c> (misspelling of
+	    <c>liat/1</c>) is now deprecated.</p>
+          <p>
+	    Own Id: OTP-13658</p>
         </item>
       </list>
     </section>

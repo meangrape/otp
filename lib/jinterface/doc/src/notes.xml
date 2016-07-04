@@ -33,6 +33,18 @@
 
 <section><title>Jinterface 1.7</title>
 
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    Fix Jinterface build on Maven</p>
+          <p>
+	    Own Id: OTP-13482</p>
+        </item>
+      </list>
+    </section>
+
+
     <section><title>Improvements and New Features</title>
       <list>
         <item>

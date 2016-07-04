@@ -33,7 +33,7 @@
   </header>
   <p>This document describes the changes made to the Percept application.</p>
 
-<section><title>Percept 0.8.12</title>
+<section><title>Percept 0.9</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
       <list>
@@ -42,6 +42,20 @@
 	    Remove deprecated <c>erlang:now/0</c> calls</p>
           <p>
 	    Own Id: OTP-13422</p>
+        </item>
+      </list>
+    </section>
+
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+	    Improve line implementation</p>
+          <p>
+	    Add capabilities for line thickness and anti-aliasing.</p>
+          <p>
+	    Own Id: OTP-13598</p>
         </item>
       </list>
     </section>

@@ -32,6 +32,24 @@
   <p>This document describes the changes made to the ERTS application.</p>
 
 
+<section><title>Erts 8.0.1</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    A memory allocation bug in <c>group_leader/2</c> could
+	    cause an emulator crash when garbage collecting a process
+	    that had been assigned a remote group leader. This bug
+	    was introduced in ERTS version 8.0.</p>
+          <p>
+	    Own Id: OTP-13716</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
 <section><title>Erts 8.0</title>
 
     <section><title>Fixed Bugs and Malfunctions</title>
@@ -67,7 +85,8 @@
         </item>
         <item>
           <p>
-	    Use fsync instead of fdatasync on Mac OSX.</p>
+	    Make file:datasync use fsync instead of fdatasync on Mac
+	    OSX.</p>
           <p>
 	    Own Id: OTP-13411</p>
         </item>
@@ -111,7 +130,7 @@
         </item>
         <item>
           <p>
-	    When a abnormally large distribution message is about to
+	    When an abnormally large distribution message is about to
 	    be sent, the VM has been changed to create a crash dump
 	    instead of a core dump.</p>
           <p>
@@ -133,8 +152,9 @@
         </item>
         <item>
           <p>
-	    Don't crash on terminating processes with
-	    <c>erlang:system_profile/1,2</c></p>
+	    Fixed a race-condition bug where the emulator could crash
+	    when <c>erlang:system_profile/1,2</c> was enabled and a
+	    process had to be re-scheduled during termination.</p>
           <p>
 	    Own Id: OTP-13494 Aux Id: ERL-126 </p>
         </item>
@@ -161,10 +181,33 @@
         </item>
         <item>
           <p>
-	    Update configure scripts to not use hardcoded path for
+	    Update configure scripts to not use hard-coded path for
 	    /bin/pwd and /bin/rm.</p>
           <p>
 	    Own Id: OTP-13562</p>
+        </item>
+        <item>
+          <p>
+	    When passing a larger binary than the outputv callback of
+	    a linked-in driver can handle in one io vector slot, the
+	    binary is now split into multiple slots in the io vector.
+	    This change only effects system where the max size of an
+	    io vector slot is smaller then the word size of the
+	    system (e.g. Windows).</p>
+          <p>
+	    This change means that it is now possible on Windows to
+	    send binaries that are larger than 4GB to port_command,
+	    which is what is used for file:write, gen_tcp:send etc.</p>
+          <p>
+	    Own Id: OTP-13628</p>
+        </item>
+        <item>
+          <p>
+	    Workaround of Maps output in crashdumps. Currently the
+	    atom 'undefined' is generated instead of Map data if a
+	    Map type is encountered during crash.</p>
+          <p>
+	    Own Id: OTP-13657</p>
         </item>
       </list>
     </section>
@@ -179,7 +222,7 @@
 	    trace event handler instead of a process or port. The
 	    <seealso marker="erl_tracer">tracer module</seealso>
 	    makes it possible for trace tools to filter or manipulate
-	    trace event data without the trace event first haing to
+	    trace event data without the trace event first having to
 	    be copied from the traced process or port.</p>
           <p>
 	    With the introduction of this feature,
@@ -205,7 +248,18 @@
 	    marker="runtime_tools:LTTng">Runtime Tools User's
 	    Guide</seealso> .</p>
           <p>
-	    Own Id: OTP-10282 Aux Id: kunagi-14 [14] </p>
+	    Own Id: OTP-10282</p>
+        </item>
+        <item>
+          <p>
+	    Make it possible to monitor/demonitor ports using the
+	    <seealso
+	    marker="erlang#monitor/2">erlang:monitor/2</seealso> API.
+	    The process and port information functions have also been
+	    updated to include information about monitors from
+	    processes to ports.</p>
+          <p>
+	    Own Id: OTP-11384</p>
         </item>
         <item>
           <p>
@@ -222,7 +276,7 @@
 	    enabled by default and more states can be enabled through
 	    configure.</p>
           <p>
-	    There is a convinence module called msacc that has been
+	    There is a convenience module called msacc that has been
 	    added to runtime_tools that can assist in gathering and
 	    interpreting the data from Microstate accounting.</p>
           <p>
@@ -236,7 +290,7 @@
         </item>
         <item>
           <p>
-	    The port of Erlang/OTP to the realtime operating system
+	    The port of Erlang/OTP to the real-time operating system
 	    OSE has been removed.</p>
           <p>
 	    Own Id: OTP-12573</p>
@@ -250,10 +304,10 @@
 	    sharing, within the process, when communication with
 	    other processes in the Erlang node. There is a trade-off,
 	    the copy is more costly but this cost can be reclaimed if
-	    there is a lot of sharing in the message. With this
-	    feature enabled literals will not be copied in a send
-	    except during a purge phase of the module where the
-	    literals are located.</p>
+	    there is a lot of sharing in the message. In addition
+	    literals will not be copied in a send except during a
+	    purge phase of the module where the literals are located.
+	    This feature is considered experimental in 19.0.</p>
           <p>
 	    Own Id: OTP-12590 Aux Id: OTP-10251 </p>
         </item>
@@ -300,7 +354,7 @@
         </item>
         <item>
           <p>
-	    Erlang linked-in drivers can now set their own pid's as
+	    Erlang linked-in drivers can now set their own pids as
 	    seen in <c>erlang:port_info/1</c> by using the
 	    <c>erl_drv_set_pid</c> function. For more details see the
 	    erl_driver documentation.</p>
@@ -351,7 +405,7 @@
 	    Own Id: OTP-13097</p>
         </item>
         <item>
-	    <p>New functions that can load multiple functions at once
+	    <p>New functions that can load multiple modules at once
 	    have been added to the '<c>code</c>' module. The
 	    functions are <c>code:atomic_load/1</c>,
 	    <c>code:prepare_loading/1</c>,
@@ -361,6 +415,10 @@
 	    Own Id: OTP-13111</p>
         </item>
         <item>
+	    <p>The <c>-boot_var</c> option for <c>erl</c> now only
+	    supports a single key and single value (as documented).
+	    The option used to allow multiple key/value pairs, but
+	    that behavior was undocumented.</p>
 	    <p>The function <c>erl_prim_loader:start/3</c> has been
 	    removed. Its documentation has also been removed.</p>
 	    <p>The undocumented and unsupported function
@@ -378,15 +436,20 @@
 	    Own Id: OTP-13122</p>
         </item>
         <item>
-          <p>
-	    Improved dirty scheduler implementation. For more
+	    <p>Improved dirty scheduler implementation. For more
 	    information see the <seealso
-	    marker="erl_nif#dirty_nifs">NIF documentation</seealso>.</p>
-          <p>
-	    Note that support for determining whether dirty NIF
-	    support exist or not at compile time using the C
-	    preprocessor macro <c>ERL_NIF_DIRTY_SCHEDULER_SUPPORT</c>
-	    has been removed.</p>
+	    marker="erl_nif#dirty_nifs">NIF
+	    documentation</seealso>.</p> <note><list> <item><p>The
+	    dirty scheduler support is still
+	    <em>experimental</em>.</p></item> <item><p>The support
+	    for determining whether dirty NIF support exist or not at
+	    compile time using the C preprocessor macro
+	    <c>ERL_NIF_DIRTY_SCHEDULER_SUPPORT</c> has been
+	    removed.</p></item> <item><p>The
+	    <c>enif_is_on_dirty_scheduler()</c> function has been
+	    removed. Use <seealso
+	    marker="erl_nif#enif_thread_type"><c>enif_thread_type()</c></seealso>
+	    instead.</p></item> </list></note>
           <p>
 	    Own Id: OTP-13123</p>
         </item>
@@ -398,7 +461,10 @@
         </item>
         <item>
           <p>
-	    Added max_heap_size process flag. See erlang:process_flag
+	    Added max_heap_size process flag. max_heap_size allows
+	    the user to limit the maximum heap used by a process. See
+	    <seealso
+	    marker="erlang#process_flag/2">erlang:process_flag</seealso>
 	    for more details.</p>
           <p>
 	    Own Id: OTP-13174</p>
@@ -427,6 +493,17 @@
 	    inputs.</p>
           <p>
 	    Own Id: OTP-13293</p>
+        </item>
+        <item>
+          <p>
+	    Improved memory allocation strategy for hipe native code
+	    on x86_64 (amd64) architectures by reserving enough low
+	    virtual address space needed for the HiPE/AMD64 small
+	    code model. The default virtual address area for hipe
+	    code is set to 512Mb, but can be changed with emulator
+	    flag <c>+MXscs</c>.</p>
+          <p>
+	    Own Id: OTP-13359</p>
         </item>
         <item>
           <p>
@@ -519,7 +596,7 @@
           <p>
 	    The enif_send API has been extended to allow NULL to be
 	    used as the message environment. When used this way, a
-	    message environent is implicitly created and the given
+	    message environment is implicitly created and the given
 	    term is copied into that environment before sending. This
 	    can be an optimization if many small messages are being
 	    sent by the nif.</p>
@@ -555,7 +632,7 @@
 	    when tracking the lifetime of a process this new event
 	    should be used as the creation event.</p>
           <p>
-	    This new trace event is marked as an incompatabiliy
+	    This new trace event is marked as an incompatibility
 	    because tools that expect certain trace events when
 	    enabling 'procs' will have to updated.</p>
           <p>
@@ -582,7 +659,7 @@
 	    have much less overhead and be more scalable.</p>
           <p>
 	    This rewrite does not break any backwards
-	    incompatabilities, but it does change the ordering of
+	    incompatibilities, but it does change the ordering of
 	    some trace messages when compared to previous releases.
 	    It should be noted that this only applies to trace
 	    messages sent to processes or ports, it does not apply to
@@ -651,6 +728,58 @@
 	    erts_mmap}</c>.</p>
           <p>
 	    Own Id: OTP-13560</p>
+        </item>
+        <item>
+          <p>
+	    Add enif_snprintf to the NIF API</p>
+          <p>
+	    The function <c>enif_snprintf</c> is similar to
+	    <c>snprintf</c> call but can handle formatting of Erlang
+	    terms via <c>%T</c> format specifier.</p>
+          <p>
+	    Own Id: OTP-13580</p>
+        </item>
+        <item>
+	    <p>The warning in the documentation for
+	    <c>erlang:raise/3</c> has been removed. It is now
+	    officially perfectly fine to use raise/3 in production
+	    code.</p>
+          <p>
+	    Own Id: OTP-13599</p>
+        </item>
+        <item>
+          <p>
+	    Fix bugs caused by the VM sometimes truncating object
+	    sizes or offsets to 32 bits on 64-bit hosts. These bugs
+	    were mainly found when working with large unicode strings
+	    and nifs environments.</p>
+          <p>
+	    Own Id: OTP-13606</p>
+        </item>
+        <item>
+          <p>
+	    Add <c>-start_epmd</c> command line option, this lets you
+	    disable automatic starting of epmd when starting a
+	    distributed node.</p>
+          <p>
+	    Add <c>-epmd_module</c> command line option, this lets
+	    you specify a module to register and look-up node names
+	    in. The default module is <c>erl_epmd</c>.</p>
+          <p>
+	    Own Id: OTP-13627</p>
+        </item>
+        <item>
+          <p>
+	    <c>erlang:halt</c> now truncates strings longer than 200
+	    characters instead of failing with <c>badarg</c>.</p>
+          <p>
+	    Own Id: OTP-13630</p>
+        </item>
+        <item>
+          <p>
+	    Fix possible race in poller wake up on windows</p>
+          <p>
+	    Own Id: OTP-13634</p>
         </item>
       </list>
     </section>

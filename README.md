@@ -12,7 +12,7 @@ You can _(and should!)_ read their [README][otp_readme] file for information on 
 * [Branch Information](#branch-information)
   * [Branch Conventions](#branch-conventions)
   * [Relevant Branches](#relevant-branches)
-    * [`maint`](#maint)
+    * [`maint-19`](#maint-19)
     * [`basho-otp-19`](#basho-otp-19)
     * [`basho-otp-19-develop`](#basho-otp-19-develop)
     * [`basho-otp-19-any-other-name`](#basho-otp-19-any-other-name)
@@ -45,7 +45,7 @@ You can _(and should!)_ read their [README][otp_readme] file for information on 
 ###Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Experimental | OTP-19 | [`basho-otp-19`](http://github.com/basho/otp/tree/basho-otp-19) | _n/a_ | _n/a_ |
+| Experimental | OTP-19 | [`basho-otp-19`][basho_branch] | [`OTP-19.0.1`][erlang_rel] | [`basho-otp-19`][basho_branch] |
 
 ####Branch Conventions
 
@@ -53,7 +53,7 @@ All Basho branches are named with the prefix _basho_ - any other branch name is 
 
 ####Relevant Branches
 
-#####`maint`
+#####`maint-19`
 
 Periodically mirrored from the main OTP [repository][otp_repo] unchanged.
 This is the most common source of external updates to the `basho-otp-19` branch.
@@ -283,6 +283,8 @@ Everything in Erlang/OTP, whether part of the original distribution or a contrib
   [license]:        LICENSE.txt
   [otp_bugs]:       https://github.com/erlang/otp/wiki/Bug-reports
   [otp_patching]:   http://wiki.github.com/erlang/otp/contribution-guidelines
-  [otp_readme]:     https://github.com/erlang/otp/blob/master/README.md
+  [otp_readme]:     https://github.com/erlang/otp/blob/maint-19/README.md
   [otp_repo]:       http://github.com/erlang/otp
   [rel_notes]:      BASHO-RELEASES.md
+  [erlang_rel]:     http://github.com/basho/otp/tree/OTP-19.0.1
+  [basho_branch]:   http://github.com/basho/otp/tree/basho-otp-19

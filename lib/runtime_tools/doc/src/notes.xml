@@ -34,6 +34,20 @@
 
 <section><title>Runtime_Tools 1.10</title>
 
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    Fix bug in dbg:trace_port/2 that could cause the trace ip
+	    driver to produce faulty error reports "...(re)selected
+	    before stop_select was called for driver trace_ip_drv".</p>
+          <p>
+	    Own Id: OTP-13576 Aux Id: ERL-119 </p>
+        </item>
+      </list>
+    </section>
+
+
     <section><title>Improvements and New Features</title>
       <list>
         <item>
@@ -51,7 +65,7 @@
 	    enabled by default and more states can be enabled through
 	    configure.</p>
           <p>
-	    There is a convinence module called msacc that has been
+	    There is a convenience module called msacc that has been
 	    added to runtime_tools that can assist in gathering and
 	    interpreting the data from Microstate accounting.</p>
           <p>
@@ -62,6 +76,14 @@
 	    runtime_tools.</p>
           <p>
 	    Own Id: OTP-12345</p>
+        </item>
+        <item>
+          <p>
+	    Update observer GUI to support tracing on ports, and to
+	    set matchspecs for send/receive. This required some minor
+	    bugfixes in runtime_tools/dbg.</p>
+          <p>
+	    Own Id: OTP-13481</p>
         </item>
         <item>
           <p>

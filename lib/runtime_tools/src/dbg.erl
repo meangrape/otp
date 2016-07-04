@@ -217,7 +217,7 @@ ctpg({_Module, _Function, _Arity} = X) ->
     do_ctp(X,[global]).
 
 do_ctp({Module, Function, Arity},[]) ->
-    do_ctp({Module, Function, Arity},[global]),
+    {ok,_} = do_ctp({Module, Function, Arity},[global]),
     do_ctp({Module, Function, Arity},[local]);
 do_ctp({_Module, _Function, _Arity}=MFA,Flags) ->
     Nodes = req(get_nodes),
@@ -271,8 +271,7 @@ wtp(FileName) ->
 				ok
 			end,
 			[]),
-	    file:close(File),
-	    ok
+	    ok = file:close(File)
     end.
 
 %%
@@ -600,7 +599,7 @@ stop() ->
     end.
 
 stop_clear() ->
-    ctp(),
+    {ok, _} = ctp(),
     stop().
 
 %%% Calling the server.
@@ -791,7 +790,8 @@ loop({C,T}=SurviveLinks, Table) ->
     end.
 
 reply(Pid, Reply) ->
-    Pid ! {dbg,Reply}.
+    Pid ! {dbg,Reply},
+    ok.
 
 
 %%% A process-based tracer.
@@ -944,9 +944,11 @@ do_relay(Parent,RelP) ->
     case RelP of
 	{Type,Data} -> 
 	    {ok,Tracer} = remote_tracer(Type,Data),
-	    Parent ! {started,Tracer};
+	    Parent ! {started,Tracer},
+            ok;
 	Pid when is_pid(Pid) ->
-	    Parent ! {started,self()}
+	    Parent ! {started,self()},
+            ok
     end,
     do_relay_1(RelP).
 
@@ -1153,7 +1155,7 @@ all() ->
     [send,'receive',call,procs,ports,garbage_collection,running,
      set_on_spawn,set_on_first_spawn,set_on_link,set_on_first_link,
      timestamp,monotonic_timestamp,strict_monotonic_timestamp,
-     arity,return_to,silent,running_procs,running_ports].
+     arity,return_to,silent,running_procs,running_ports,exiting].
 
 display_info([Node|Nodes]) ->
     io:format("~nNode ~w:~n",[Node]),
@@ -1311,6 +1313,9 @@ tc_loop(Other, _Handler, _HData) ->
 gen_reader(ip, {Host, Portno}) ->
     case gen_tcp:connect(Host, Portno, [{active, false}, binary]) of
         {ok, Sock} ->    
+	    %% Just in case this is on the traced node,
+	    %% make sure the port is not traced.
+	    p(Sock,clear),
 	    mk_reader(fun ip_read/2, Sock);
 	Error ->
 	    exit(Error)
@@ -1366,7 +1371,7 @@ mk_reader_wrap([_Hd | Tail] = WrapFiles, File) ->
 		{ok, Term} ->
 		    [Term | mk_reader_wrap(WrapFiles, File)];
 		eof ->
-		    file:close(File),
+		    ok = file:close(File),
 		    case Tail of
 			[_|_] ->
 			    mk_reader_wrap(Tail);

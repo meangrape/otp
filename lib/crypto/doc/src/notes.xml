@@ -59,9 +59,9 @@
         </item>
         <item>
           <p>
-	    Deprecate the function crypto:rand_bytes and make sure
-	    that crypto:strong_rand_bytes is used in all places that
-	    are cryptographically significant.</p>
+	    Deprecate the function <c>crypto:rand_bytes</c> and make
+	    sure that <c>crypto:strong_rand_bytes</c> is used in all
+	    places that are cryptographically significant.</p>
           <p>
 	    Own Id: OTP-13214</p>
         </item>

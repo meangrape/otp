@@ -63,7 +63,8 @@
         </item>
         <item>
           <p>
-	    Use fsync instead of fdatasync on Mac OSX.</p>
+	    Make file:datasync use fsync instead of fdatasync on Mac
+	    OSX.</p>
           <p>
 	    Own Id: OTP-13411</p>
         </item>
@@ -78,7 +79,7 @@
         </item>
         <item>
           <p>
-	    Huges writes (2Gb or more) could fail on some Unix
+	    Large file writes (2Gb or more) could fail on some Unix
 	    platforms (for example, OS X and FreeBSD).</p>
           <p>
 	    Own Id: OTP-13461</p>
@@ -95,10 +96,27 @@
         </item>
         <item>
           <p>
-	    Fix process leak from global_group. Thanks to Xuming who
-	    reported and fixed this!</p>
+	    Fix process leak from global_group.</p>
           <p>
 	    Own Id: OTP-13516 Aux Id: PR-1008 </p>
+        </item>
+        <item>
+          <p>
+	    The function <c>inet:gethostbyname/1</c> now honors the
+	    resolver option <c>inet6</c> instead of always looking up
+	    IPv4 addresses.</p>
+          <p>
+	    *** POTENTIAL INCOMPATIBILITY ***</p>
+          <p>
+	    Own Id: OTP-13622 Aux Id: PR-1065 </p>
+        </item>
+        <item>
+          <p>
+	    The <c>Status</c> argument to <c>init:stop/1</c> is now
+	    sanity checked to make sure <c>erlang:halt</c> does not
+	    fail.</p>
+          <p>
+	    Own Id: OTP-13631 Aux Id: PR-911 </p>
         </item>
       </list>
     </section>
@@ -106,6 +124,13 @@
 
     <section><title>Improvements and New Features</title>
       <list>
+        <item>
+          <p>
+	    Add {line_delim, byte()} option to inet:setopts/2 and
+	    decode_packet/3</p>
+          <p>
+	    Own Id: OTP-12837</p>
+        </item>
         <item>
           <p>
 	    Added <seealso
@@ -121,12 +146,12 @@
         <item>
           <p>
 	    The os:cmd call has been optimized on unix platforms to
-	    be more performant as the number of schedulers increase.</p>
+	    be scale better with the number of schedulers.</p>
           <p>
 	    Own Id: OTP-13089</p>
         </item>
         <item>
-	    <p>New functions that can load multiple functions at once
+	    <p>New functions that can load multiple modules at once
 	    have been added to the '<c>code</c>' module. The
 	    functions are <c>code:atomic_load/1</c>,
 	    <c>code:prepare_loading/1</c>,
@@ -159,7 +184,7 @@
           <p>
 	    The output of the default error logger is somewhat
 	    prettier and easier to read. The default error logger is
-	    used during startup of the OTP system. If the start-up
+	    used during start-up of the OTP system. If the start-up
 	    fails, the output will be easier to read.</p>
           <p>
 	    Own Id: OTP-13325</p>
@@ -178,6 +203,25 @@
 	    the logs if net_kernel:verbose(1) has been called.</p>
           <p>
 	    Own Id: OTP-13458</p>
+        </item>
+        <item>
+          <p>
+	    Experimental support for Unix Domain Sockets has been
+	    implemented. Read the sources if you want to try it out.
+	    Example: <c>gen_udp:open(0,
+	    [{ifaddr,{local,"/tmp/socket"}}])</c>. Documentation will
+	    be written after user feedback on the experimental API.</p>
+          <p>
+	    Own Id: OTP-13572 Aux Id: PR-612 </p>
+        </item>
+        <item>
+          <p>
+	    Allow heart to be configured to not kill the previous
+	    emulator before calling the HEART_COMMAND. This is done
+	    by setting the environment variable HEART_NO_KILL to
+	    TRUE.</p>
+          <p>
+	    Own Id: OTP-13650</p>
         </item>
       </list>
     </section>

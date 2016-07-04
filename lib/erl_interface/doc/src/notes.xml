@@ -33,6 +33,28 @@
 
 <section><title>Erl_Interface 3.9</title>
 
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+          <p>
+	    Fix decoding of LLONG_MIN in erl_decode</p>
+          <p>
+	    Own Id: OTP-13666 Aux Id: ERL-158 </p>
+        </item>
+        <item>
+          <p>
+	    On windows <c>ei_decode_ulong</c> and
+	    <c>ei_decode_long</c> now correctly returns an error when
+	    trying to decode a number that does not fit in a long.
+	    Fixed a bug on windows where enabling ei tracing would
+	    cause a segmentation fault.</p>
+          <p>
+	    Own Id: OTP-13673</p>
+        </item>
+      </list>
+    </section>
+
+
     <section><title>Improvements and New Features</title>
       <list>
         <item>
