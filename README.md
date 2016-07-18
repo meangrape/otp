@@ -1,6 +1,6 @@
 ##!!! WARNING !!!
 
-***This is an experimental development branch - its use is NOT supported by Basho. You have been warned!***
+***This is an active development branch - its use is NOT supported by Basho. You have been warned!***
 
 ##Basho Erlang/OTP
 
@@ -45,7 +45,7 @@ You can _(and should!)_ read their [README][otp_readme] file for information on 
 ###Branch Information
 |Status|Base|Branch|Release Tag|Stable B/T|
 |:-----|:---|:-----|:----------|:---------|
-| Experimental | OTP-19 | [`basho-otp-19`][basho_branch] | [`OTP-19.0.1`][erlang_rel] | [`basho-otp-19`][basho_branch] |
+| Active | OTP-19 | [`basho-otp-19`][basho_branch] | [`OTP-19.0.2`][erlang_rel] | [`basho-otp-19`][basho_branch] |
 
 ####Branch Conventions
 
@@ -286,5 +286,5 @@ Everything in Erlang/OTP, whether part of the original distribution or a contrib
   [otp_readme]:     https://github.com/erlang/otp/blob/maint-19/README.md
   [otp_repo]:       http://github.com/erlang/otp
   [rel_notes]:      BASHO-RELEASES.md
-  [erlang_rel]:     http://github.com/basho/otp/tree/OTP-19.0.1
+  [erlang_rel]:     http://github.com/basho/otp/tree/OTP-19.0.2
   [basho_branch]:   http://github.com/basho/otp/tree/basho-otp-19
