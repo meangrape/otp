@@ -306,7 +306,13 @@ is_started(ENode) ->
 
 % make a Erlang node name from name and hostname
 enodename(Host, Node) ->
-    list_to_atom(atom_to_list(Node)++"@"++atom_to_list(Host)).
+    Node_s = atom_to_list(Node),
+    case string:chr(Node_s, $@) of
+        0 ->
+            list_to_atom(Node_s++"@"++atom_to_list(Host));
+        _ ->
+            Node
+    end.
 
 % performs actual start of the "slave" node
 do_start(Host, Node, Options) ->
