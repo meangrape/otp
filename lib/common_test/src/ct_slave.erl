@@ -292,16 +292,16 @@ is_connected(ENode) ->
 % check if node is alive (ping and disconnect if pingable)
 is_started(ENode) ->
     case is_connected(ENode) of
-	true->
-	    {true, connected};
-	false->
-	    case net_adm:ping(ENode) of
-		pang->
-		    false;
-		pong->
-		    erlang:disconnect_node(ENode),
-		    {true, not_connected}
-	    end
+        true->
+            {true, connected};
+        false->
+            case net_adm:ping(ENode) of
+                pang->
+                    false;
+                pong->
+                    erlang:disconnect_node(ENode),
+                    {true, not_connected}
+            end
     end.
 
 % make a Erlang node name from name and hostname
@@ -338,38 +338,39 @@ do_start(Host, Node, Options) ->
     BootTimeout = Options#options.boot_timeout,
     InitTimeout = Options#options.init_timeout,
     StartupTimeout = Options#options.startup_timeout,
-    Result = case wait_for_node_alive(ENode, BootTimeout) of
-	pong->
-	    case test_server:is_cover() of
-		true ->
-		    MainCoverNode = cover:get_main_node(),
-		    rpc:call(MainCoverNode,cover,start,[ENode]);
-		false ->
-		    ok
-	    end,
-            call_functions(ENode, Functions2),
-	    receive
-		{node_started, ENode}->
-		    receive
-			{node_ready, ENode}->
-			    {ok, ENode}
-		    after StartupTimeout*1000->
-			{error, startup_timeout, ENode}
-		    end
-	    after InitTimeout*1000 ->
-		{error, init_timeout, ENode}
-	    end;
-        pang->
-	    {error, boot_timeout, ENode}
-    end,
+    Result =
+        case wait_for_node_alive(ENode, BootTimeout) of
+            pong ->
+                case test_server:is_cover() of
+                    true ->
+                        MainCoverNode = cover:get_main_node(),
+                        rpc:call(MainCoverNode, cover, start, [ENode]);
+                    false ->
+                        ok
+                end,
+                call_functions(ENode, Functions2),
+                receive
+                    {node_started, ENode} ->
+                        receive
+                            {node_ready, ENode}->
+                                {ok, ENode}
+                        after StartupTimeout*1000->
+                                {error, startup_timeout, ENode}
+                        end
+                after InitTimeout*1000 ->
+                        {error, init_timeout, ENode}
+                end;
+            pang->
+                {error, boot_timeout, ENode}
+        end,
     case Result of
-	{ok, ENode}->
-	     ok;
-	{error, Timeout, ENode}
-	     when ((Timeout==init_timeout) or (Timeout==startup_timeout)) and
-		  Options#options.kill_if_fail->
-	     do_stop(ENode);
-	_-> ok
+        {ok, ENode}->
+             ok;
+        {error, Timeout, ENode}
+             when ((Timeout==init_timeout) or (Timeout==startup_timeout)) and
+                  Options#options.kill_if_fail->
+             do_stop(ENode);
+        _-> ok
     end,
     Result.
 
@@ -385,20 +386,20 @@ hostname_to_list(H) ->
 % are we using fully qualified hostnames
 long_or_short() ->
     case net_kernel:longnames() of
-	true->
-	    " -name ";
-	false->
-	    " -sname "
+        true->
+            " -name ";
+        false->
+            " -sname "
     end.
 
 % get the localhost's name, depending on the using name policy
 gethostname() ->
     Hostname = case net_kernel:longnames() of
-	true->
-	    net_adm:localhost();
-	_->
-	    {ok, Name}=inet:gethostname(),
-	    Name
+        true->
+            net_adm:localhost();
+        _->
+            {ok, Name}=inet:gethostname(),
+            Name
     end,
     list_to_atom(Hostname).
 
@@ -417,31 +418,31 @@ spawn_local_node(Node, Options) ->
 % start crypto and ssh if not yet started
 check_for_ssh_running() ->
     case application:get_application(crypto) of
-	undefined->
-	    application:start(crypto),
-	    case application:get_application(ssh) of
-		undefined->
-		    application:start(ssh);
-		{ok, ssh}->
-		    ok
-	    end;
-	{ok, crypto}->
-	    ok
+        undefined->
+            application:start(crypto),
+            case application:get_application(ssh) of
+                undefined->
+                    application:start(ssh);
+                {ok, ssh}->
+                    ok
+            end;
+        {ok, crypto}->
+            ok
     end.
 
 % spawn node remotely
 spawn_remote_node(Host, Node, Options) ->
     #options{username=Username,
-	     password=Password,
-	     erl_flags=ErlFlags,
-	     env=Env} = Options,
+             password=Password,
+             erl_flags=ErlFlags,
+             env=Env} = Options,
     SSHOptions = case {Username, Password} of
-	{[], []}->
-	    [];
-	{_, []}->
-	    [{user, Username}];
-	{_, _}->
-	    [{user, Username}, {password, Password}]
+        {[], []}->
+            [];
+        {_, []}->
+            [{user, Username}];
+        {_, _}->
+            [{user, Username}, {password, Password}]
     end ++ [{silently_accept_hosts, true}],
     check_for_ssh_running(),
     {ok, SSHConnRef} = ssh:connect(atom_to_list(Host), 22, SSHOptions),
@@ -470,36 +471,36 @@ wait_for_node_alive(_Node, 0) ->
 wait_for_node_alive(Node, N) ->
     timer:sleep(1000),
     case net_adm:ping(Node) of
-	pong->
-	    pong;
-	pang->
-	    wait_for_node_alive(Node, N-1)
+        pong ->
+            pong;
+        pang ->
+            wait_for_node_alive(Node, N-1)
     end.
 
 % call init:stop on a remote node
 do_stop(ENode) ->
     {Cover,MainCoverNode} =
-	case test_server:is_cover() of
-	    true ->
-		Main = cover:get_main_node(),
-		rpc:call(Main,cover,flush,[ENode]),
-		{true,Main};
-	    false ->
-		{false,undefined}
-    end,
+        case test_server:is_cover() of
+            true ->
+                Main = cover:get_main_node(),
+                rpc:call(Main,cover,flush,[ENode]),
+                {true,Main};
+            false ->
+                {false,undefined}
+        end,
     spawn(ENode, init, stop, []),
     case wait_for_node_dead(ENode, 5) of
-	{ok,ENode} ->
-	    if Cover ->
-		    %% To avoid that cover is started again if a node
-		    %% with the same name is started later.
-		    rpc:call(MainCoverNode,cover,stop,[ENode]);
-	       true ->
-		    ok
-	    end,
-	    {ok,ENode};
-	Error ->
-	    Error
+        {ok,ENode} ->
+            if Cover ->
+                    %% To avoid that cover is started again if a node
+                    %% with the same name is started later.
+                    rpc:call(MainCoverNode,cover,stop,[ENode]);
+               true ->
+                    ok
+            end,
+            {ok,ENode};
+        Error ->
+            Error
     end.
 
 % wait N seconds until node is disconnected
@@ -508,8 +509,8 @@ wait_for_node_dead(Node, 0) ->
 wait_for_node_dead(Node, N) ->
     timer:sleep(1000),
     case lists:member(Node, nodes()) of
-	true->
-	    wait_for_node_dead(Node, N-1);
-	false->
-	    {ok, Node}
+        true->
+            wait_for_node_dead(Node, N-1);
+        false->
+            {ok, Node}
     end.
