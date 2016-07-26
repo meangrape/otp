@@ -328,11 +328,11 @@ do_start(Host, Node, Options) ->
 	    Functions
     end,
     MasterHost = gethostname(),
-    if
-	MasterHost == Host ->
-	    spawn_local_node(Node, Options);
-	true->
-	    spawn_remote_node(Host, Node, Options)
+    case hosts_resolve_to_same_addr(MasterHost, Host) of
+        true ->
+            link(spawn_local_node(Node, Options));
+        false ->
+            spawn_remote_node(Host, Node, Options)
     end,
 
     BootTimeout = Options#options.boot_timeout,
@@ -372,6 +372,15 @@ do_start(Host, Node, Options) ->
 	_-> ok
     end,
     Result.
+
+hosts_resolve_to_same_addr(Host1, Host2) ->
+    inet:getaddr(hostname_to_list(Host1), inet)
+        == inet:getaddr(hostname_to_list(Host2), inet).
+
+hostname_to_list(H) when is_atom(H) ->
+    atom_to_list(H);
+hostname_to_list(H) ->
+    H.
 
 % are we using fully qualified hostnames
 long_or_short() ->
